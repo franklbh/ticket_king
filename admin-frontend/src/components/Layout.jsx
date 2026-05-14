@@ -1,9 +1,9 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect } from 'react' // useRef/useEffect still used by UserMenu
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth, useLang } from '../context/AuthContext'
 import { useT } from '../i18n/translations'
 
-const SIDEBAR_BG = '#7b2020'
+const SIDEBAR_BG = '#312e81'
 
 const navItems = [
   { path: '/dashboard', icon: 'fa-chart-line', key: 'dashboard' },
@@ -18,47 +18,22 @@ const navItems = [
   { path: '/logs', icon: 'fa-history', key: 'logs' },
 ]
 
-const LANG_OPTIONS = [
-  { code: 'en', label: 'English' },
-  { code: 'zh-Hans', label: '简体中文' },
-  { code: 'zh-Hant', label: '繁體中文' },
-]
 
-function LangDropdown({ lang, changeLang, t }) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef()
-
-  useEffect(() => {
-    function handle(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
-    document.addEventListener('mousedown', handle)
-    return () => document.removeEventListener('mousedown', handle)
-  }, [])
-
-  const current = LANG_OPTIONS.find(l => l.code === lang)
+function LangDropdown({ lang, changeLang }) {
   return (
-    <div ref={ref} style={{ position: 'relative' }}>
-      <button
-        onClick={() => setOpen(o => !o)}
-        style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', border: '1px solid #e5e7eb', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 14 }}
-      >
-        <i className="fa fa-globe" style={{ color: '#555' }} />
-        {current?.label}
-        <i className="fa fa-chevron-down" style={{ fontSize: 11, color: '#888' }} />
-      </button>
-      {open && (
-        <div style={{ position: 'absolute', top: '110%', right: 0, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 6, boxShadow: '0 4px 12px rgba(0,0,0,0.12)', zIndex: 999, minWidth: 140 }}>
-          {LANG_OPTIONS.map(l => (
-            <button
-              key={l.code}
-              onClick={() => { changeLang(l.code); setOpen(false) }}
-              style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 14px', background: l.code === lang ? '#fef2f2' : 'transparent', color: l.code === lang ? '#7b2020' : '#374151', border: 'none', cursor: 'pointer', fontSize: 14 }}
-            >
-              {l.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
+    <select
+      value={lang}
+      onChange={e => changeLang(e.target.value)}
+      style={{
+        padding: '6px 10px', border: '1px solid #e5e7eb',
+        borderRadius: 6, background: '#fff',
+        fontSize: 13, color: '#374151', cursor: 'pointer', outline: 'none',
+      }}
+    >
+      <option value="en">English</option>
+      <option value="zh-Hans">简体中文</option>
+      <option value="zh-Hant">繁體中文</option>
+    </select>
   )
 }
 
@@ -82,7 +57,7 @@ function UserMenu({ admin, logout, t }) {
         onClick={() => setOpen(o => !o)}
         style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 8px', border: 'none', background: 'transparent', cursor: 'pointer' }}
       >
-        <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#7b2020', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 16 }}>
+        <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#312e81', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 16 }}>
           {initial}
         </div>
         <div style={{ textAlign: 'left', lineHeight: 1.3 }}>
@@ -177,7 +152,7 @@ export default function Layout() {
         <header style={{ background: '#fff', borderBottom: '1px solid #e5e7eb', padding: '0 24px', height: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
           <div style={{ fontWeight: 600, fontSize: 16, color: '#111827' }}>{getPageTitle()}</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            <LangDropdown lang={lang} changeLang={changeLang} t={t} />
+            <LangDropdown lang={lang} changeLang={changeLang} />
             <UserMenu admin={admin} logout={logout} t={t} />
           </div>
         </header>

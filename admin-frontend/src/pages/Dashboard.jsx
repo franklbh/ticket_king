@@ -2,14 +2,58 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  BarChart, Bar, Cell, PieChart, Pie,
+  Cell, PieChart, Pie,
 } from 'recharts'
 import { useLang } from '../context/AuthContext'
 import { useT } from '../i18n/translations'
 import { useAuth } from '../context/AuthContext'
-import { DASHBOARD_STATS, SALES_TREND, POPULAR_SLOTS, TICKET_DISTRIBUTION } from '../data/mockData'
+import { DASHBOARD_STATS, SALES_TREND_90, SLOTS_DATA, TICKET_DISTRIBUTION } from '../data/mockData'
+
+const RANGE_DAYS = { last7Days: 7, last14Days: 14, last30Days: 30, last90Days: 90 }
 
 const RANGE_OPTIONS = ['last7Days', 'last14Days', 'last30Days', 'last90Days', 'allTime']
+
+function buildDistribution(totalTickets) {
+  const baseTotal = TICKET_DISTRIBUTION.reduce((sum, item) => sum + item.value, 0)
+  if (!totalTickets || !baseTotal) {
+    return TICKET_DISTRIBUTION.map(item => ({ ...item, value: 0, percent: 0 }))
+  }
+
+  const exact = TICKET_DISTRIBUTION.map(item => ({
+    ...item,
+    exactValue: (item.value / baseTotal) * totalTickets,
+  }))
+  let allocated = 0
+  const rows = exact.map(item => {
+    const value = Math.floor(item.exactValue)
+    allocated += value
+    return { ...item, value }
+  })
+  ;[...rows]
+    .sort((a, b) => (b.exactValue - b.value) - (a.exactValue - a.value))
+    .slice(0, totalTickets - allocated)
+    .forEach(item => {
+      const row = rows.find(r => r.name === item.name)
+      if (row) row.value += 1
+    })
+
+  return rows.map(({ exactValue, ...item }) => ({
+    ...item,
+    percent: totalTickets ? Math.round((item.value / totalTickets) * 100) : 0,
+  }))
+}
+
+function buildPopularSlots() {
+  return SLOTS_DATA
+    .map(slot => ({
+      slot: `${slot.date} ${slot.startTime}:00`,
+      sold: slot.websiteSeats + slot.inStoreSeats,
+      total: slot.totalSeats,
+    }))
+    .filter(slot => slot.sold > 0)
+    .sort((a, b) => b.sold - a.sold)
+    .slice(0, 10)
+}
 
 function StatCard({ icon, iconBg, title, value, sub }) {
   return (
@@ -44,10 +88,10 @@ function QuickActionCard({ icon, label, onClick }) {
         display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, cursor: 'pointer',
         transition: 'box-shadow 0.15s, border-color 0.15s', minWidth: 140,
       }}
-      onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)'; e.currentTarget.style.borderColor = '#7b2020' }}
+      onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)'; e.currentTarget.style.borderColor = '#6366f1' }}
       onMouseLeave={e => { e.currentTarget.style.boxShadow = ''; e.currentTarget.style.borderColor = '#e5e7eb' }}
     >
-      <i className={`fa ${icon}`} style={{ fontSize: 28, color: '#7b2020' }} />
+      <i className={`fa ${icon}`} style={{ fontSize: 28, color: '#6366f1' }} />
       <span style={{ fontSize: 14, fontWeight: 500, color: '#374151' }}>{label}</span>
     </button>
   )
@@ -67,6 +111,71 @@ const CustomTooltip = ({ active, payload, label }) => {
   )
 }
 
+function formatSlot(slot) {
+  const [date, time] = slot.split(' ')
+  return { date, time: time.slice(0, 5) }
+}
+
+function PopularSlotsChart({ data }) {
+  const rows = [...data].filter(s => s.sold > 0).sort((a, b) => b.sold - a.sold)
+  if (!rows.length) return <div style={{ color: '#9ca3af', textAlign: 'center', padding: 24 }}>No data</div>
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {rows.map((s, i) => {
+        const pct = Math.round((s.sold / s.total) * 100)
+        const barPct = (s.sold / s.total) * 100
+        const { date, time } = formatSlot(s.slot)
+        const isHigh = barPct >= 70
+        return (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            {/* Label */}
+            <div style={{ width: 96, flexShrink: 0, textAlign: 'right', lineHeight: 1.25 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>{date}</div>
+              <div style={{ fontSize: 11, color: '#9ca3af' }}>{time}</div>
+            </div>
+
+            {/* Progress bar track */}
+            <div style={{ flex: 1, height: 28, background: '#f3f4f6', borderRadius: 6, overflow: 'hidden', position: 'relative' }}>
+              <div style={{
+                height: '100%',
+                width: `${barPct}%`,
+                background: isHigh
+                  ? 'linear-gradient(90deg, #6366f1, #4f46e5)'
+                  : 'linear-gradient(90deg, #818cf8, #a5b4fc)',
+                borderRadius: 6,
+                display: 'flex', alignItems: 'center',
+                transition: 'width 0.5s ease',
+                minWidth: barPct > 0 ? 2 : 0,
+              }}>
+                {barPct > 25 && (
+                  <span style={{ color: '#fff', fontSize: 11, fontWeight: 700, paddingLeft: 10, whiteSpace: 'nowrap' }}>
+                    {s.sold} / {s.total}
+                  </span>
+                )}
+              </div>
+              {barPct <= 25 && (
+                <span style={{ position: 'absolute', left: `${barPct}%`, top: '50%', transform: 'translateY(-50%)', paddingLeft: 8, fontSize: 11, color: '#374151', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                  {s.sold} / {s.total}
+                </span>
+              )}
+            </div>
+
+            {/* Percentage badge */}
+            <div style={{
+              width: 96, flexShrink: 0, textAlign: 'right',
+              fontSize: 12, fontWeight: 700,
+              color: isHigh ? '#6366f1' : '#6b7280',
+            }}>
+              Occupancy {pct}%
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 export default function Dashboard() {
   const { lang } = useLang()
   const { admin } = useAuth()
@@ -75,20 +184,23 @@ export default function Dashboard() {
   const [range, setRange] = useState('last7Days')
 
   const stats = DASHBOARD_STATS
-  const trend = SALES_TREND
-  const popularSlots = POPULAR_SLOTS
-  const distribution = TICKET_DISTRIBUTION
+  const popularSlots = buildPopularSlots()
 
-  const totalRevenue = trend.reduce((s, d) => s + d.revenue, 0).toFixed(2)
-  const totalOrders = 15
-  const totalTickets = 56
+  const trend = RANGE_DAYS[range]
+    ? SALES_TREND_90.slice(-RANGE_DAYS[range])
+    : SALES_TREND_90
+
+  const totalRevenue = trend.reduce((s, d) => s + d.revenue, 0)
+  const totalOrders  = trend.reduce((s, d) => s + (d.orders || 0), 0)
+  const totalTickets = trend.reduce((s, d) => s + d.tickets, 0)
+  const distribution = buildDistribution(totalTickets)
 
   return (
     <div>
       {/* Page header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: '#111827', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <i className="fa fa-chart-line" style={{ color: '#7b2020' }} />
+          <i className="fa fa-chart-line" style={{ color: '#6366f1' }} />
           {t.dashboard}
         </h1>
         <div style={{ fontSize: 14, color: '#6b7280' }}>{t.welcomeBack}, {admin?.username}!</div>
@@ -130,7 +242,7 @@ export default function Dashboard() {
       <div className="stat-card" style={{ marginBottom: 24 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
           <h2 style={{ fontSize: 16, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, color: '#111827' }}>
-            <i className="fa fa-chart-bar" style={{ color: '#7b2020' }} />
+            <i className="fa fa-chart-bar" style={{ color: '#6366f1' }} />
             {t.statisticsAnalysis}
           </h2>
           <div style={{ display: 'flex', gap: 6 }}>
@@ -140,7 +252,7 @@ export default function Dashboard() {
                 onClick={() => setRange(r)}
                 style={{
                   padding: '5px 12px', borderRadius: 6, border: '1px solid #e5e7eb', cursor: 'pointer',
-                  background: range === r ? '#7b2020' : '#fff',
+                  background: range === r ? '#6366f1' : '#fff',
                   color: range === r ? '#fff' : '#374151',
                   fontSize: 13, fontWeight: range === r ? 600 : 400,
                 }}
@@ -153,7 +265,7 @@ export default function Dashboard() {
 
         {/* Summary row */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 24 }}>
-          <SummaryCard label={t.totalRevenue} value={`$${Number(totalRevenue).toLocaleString('en-CA', { minimumFractionDigits: 2 })}`} color="#7b2020" />
+          <SummaryCard label={t.totalRevenue} value={`$${totalRevenue.toLocaleString('en-CA', { minimumFractionDigits: 2 })}`} color="#6366f1" />
           <SummaryCard label={t.totalOrders} value={totalOrders} color="#10b981" />
           <SummaryCard label={t.totalTickets} value={totalTickets} color="#6366f1" />
         </div>
@@ -171,7 +283,7 @@ export default function Dashboard() {
                 <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} />
                 <Tooltip content={<CustomTooltip />} />
                 <Legend />
-                <Line yAxisId="left" type="monotone" dataKey="revenue" name="Revenue (CAD)" stroke="#7b2020" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                <Line yAxisId="left" type="monotone" dataKey="revenue" name="Revenue (CAD)" stroke="#6366f1" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
                 <Line yAxisId="right" type="monotone" dataKey="tickets" name="Ticket Count" stroke="#10b981" strokeWidth={2} dot={{ r: 3 }} fill="#d1fae5" />
               </LineChart>
             </ResponsiveContainer>
@@ -190,10 +302,12 @@ export default function Dashboard() {
                   outerRadius={85}
                   paddingAngle={2}
                   dataKey="value"
+                  label={({ payload }) => payload.value > 0 ? `${payload.percent}%` : ''}
+                  labelLine={false}
                 >
                   {distribution.map((entry, i) => <Cell key={i} fill={entry.color} />)}
                 </Pie>
-                <Tooltip formatter={(value, name) => [value, name]} />
+                <Tooltip formatter={(value, name, props) => [`${value} tickets (${props.payload.percent}%)`, name]} />
               </PieChart>
             </ResponsiveContainer>
             <div style={{ marginTop: 8 }}>
@@ -202,6 +316,7 @@ export default function Dashboard() {
                   <div style={{ width: 10, height: 10, borderRadius: 2, background: d.color, flexShrink: 0 }} />
                   <span style={{ color: '#6b7280' }}>{d.name}</span>
                   <span style={{ marginLeft: 'auto', fontWeight: 600 }}>{d.value}</span>
+                  <span style={{ width: 42, textAlign: 'right', color: '#6b7280', fontWeight: 600 }}>{d.percent}%</span>
                 </div>
               ))}
             </div>
@@ -211,35 +326,26 @@ export default function Dashboard() {
 
       {/* Popular Slots */}
       <div className="stat-card" style={{ marginBottom: 24 }}>
-        <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 16 }}>{t.popularSlots}</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 16, marginBottom: 8 }}>
-          <div />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+          <div style={{ fontWeight: 700, fontSize: 15 }}>{t.popularSlots}</div>
           <div style={{ display: 'flex', gap: 16, fontSize: 12, color: '#6b7280' }}>
-            <span><span style={{ display: 'inline-block', width: 12, height: 10, background: '#7b2020', borderRadius: 2, marginRight: 4 }} />Seats Sold</span>
-            <span><span style={{ display: 'inline-block', width: 12, height: 10, background: '#e5e7eb', borderRadius: 2, marginRight: 4 }} />Total Seats</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <span style={{ display: 'inline-block', width: 12, height: 10, background: '#6366f1', borderRadius: 2 }} />
+              {t.seatsSold}
+            </span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <span style={{ display: 'inline-block', width: 12, height: 10, background: '#e5e7eb', borderRadius: 2 }} />
+              {t.seats}
+            </span>
           </div>
         </div>
-        <ResponsiveContainer width="100%" height={280}>
-          <BarChart
-            data={popularSlots}
-            layout="vertical"
-            margin={{ top: 0, right: 40, left: 140, bottom: 0 }}
-            barSize={14}
-          >
-            <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-            <XAxis type="number" tick={{ fontSize: 11 }} label={{ value: 'Seat Count', position: 'insideBottom', offset: -2, fontSize: 11 }} />
-            <YAxis type="category" dataKey="slot" tick={{ fontSize: 11 }} width={140} />
-            <Tooltip formatter={(v, name) => [v, name === 'sold' ? 'Seats Sold' : 'Total']} />
-            <Bar dataKey="total" fill="#e5e7eb" radius={[0, 3, 3, 0]} />
-            <Bar dataKey="sold" fill="#7b2020" radius={[0, 3, 3, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
+        <PopularSlotsChart data={popularSlots} />
       </div>
 
       {/* Quick Actions */}
       <div className="stat-card">
         <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 6 }}>
-          <i className="fa fa-bolt" style={{ color: '#7b2020' }} />
+          <i className="fa fa-bolt" style={{ color: '#6366f1' }} />
           {t.quickActions}
         </div>
         <div style={{ display: 'flex', gap: 16 }}>

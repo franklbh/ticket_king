@@ -68,7 +68,7 @@ function TypeModal({ type, onClose, onSave }) {
                   onClick={() => toggleDay(d)}
                   style={{
                     padding: '5px 10px', borderRadius: 4, border: '1px solid #e5e7eb', cursor: 'pointer', fontSize: 12,
-                    background: form.weekdays.includes(d) ? '#7b2020' : '#fff',
+                    background: form.weekdays.includes(d) ? '#6366f1' : '#fff',
                     color: form.weekdays.includes(d) ? '#fff' : '#374151',
                   }}
                 >{d}</button>
@@ -158,7 +158,7 @@ export default function TicketTypes() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, color: '#111827', marginBottom: 4 }}>
-            <i className="fa fa-tags" style={{ color: '#7b2020' }} />
+            <i className="fa fa-tags" style={{ color: '#6366f1' }} />
             {t.ticketTypesManagement}
           </h1>
           <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>Manage all ticket types</p>
@@ -255,13 +255,14 @@ export default function TicketTypes() {
                   <td style={{ fontSize: 12, color: '#6b7280' }}>{tp.addOn || '-'}</td>
                   <td style={{ fontSize: 12, color: '#6b7280' }}>{tp.remarks || '-'}</td>
                   <td>
-                    <span className={`badge ${tp.status === 'enabled' ? 'badge-green' : 'badge-gray'}`}>
+                    <span className={`badge ${tp.status === 'enabled' ? 'badge-green' : 'badge-disabled'}`} style={{ gap: 5, whiteSpace: 'nowrap' }}>
+                      {tp.status !== 'enabled' && <i className="fa fa-ban" style={{ fontSize: 10 }} />}
                       {tp.status === 'enabled' ? t.enabled : t.disabled}
                     </span>
                   </td>
                   <td>
-                    <div style={{ display: 'flex', gap: 6, flexDirection: 'column' }}>
-                      <button className="btn-primary btn-sm" onClick={() => setModal(tp)}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'nowrap', whiteSpace: 'nowrap' }}>
+                      <button className="btn-primary btn-sm" onClick={() => setModal(tp)} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}>
                         <i className="fa fa-edit" /> {t.edit}
                       </button>
                       <button
@@ -270,7 +271,7 @@ export default function TicketTypes() {
                         style={{
                           background: tp.status === 'enabled' ? '#f59e0b' : '#10b981',
                           color: '#fff', border: 'none', borderRadius: 4, padding: '5px 10px', cursor: 'pointer',
-                          display: 'inline-flex', alignItems: 'center', gap: 4
+                          display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 600, whiteSpace: 'nowrap',
                         }}
                       >
                         <i className={`fa fa-${tp.status === 'enabled' ? 'ban' : 'check'}`} />

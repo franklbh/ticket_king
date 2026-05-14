@@ -101,7 +101,7 @@ export default function Logs() {
 
       <div style={{ marginBottom: 20 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, color: '#111827', marginBottom: 4 }}>
-          <i className="fa fa-history" style={{ color: '#7b2020' }} />
+          <i className="fa fa-history" style={{ color: '#6366f1' }} />
           {t.activityLogs}
         </h1>
         <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>View all administrator operation records</p>
@@ -181,7 +181,7 @@ export default function Logs() {
                 <tr><td colSpan={8} style={{ textAlign: 'center', color: '#9ca3af', padding: 32 }}>No logs found</td></tr>
               ) : paged.map(log => (
                 <tr key={log.id}>
-                  <td style={{ fontWeight: 600, color: '#7b2020', fontFamily: 'monospace', fontSize: 13 }}>#{log.id}</td>
+                  <td style={{ fontWeight: 600, color: '#6366f1', fontFamily: 'monospace', fontSize: 13 }}>#{log.id}</td>
                   <td style={{ fontWeight: 500, fontSize: 14 }}>{log.admin}</td>
                   <td>
                     <span className={`badge ${ACTION_COLORS[log.actionType] || 'badge-gray'}`}>{log.actionType}</span>

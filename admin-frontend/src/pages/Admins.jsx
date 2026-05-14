@@ -6,7 +6,7 @@ import { ADMINS_DATA } from '../data/mockData'
 const ROLES = ['SuperAdmin', 'SDirector', 'Director', 'Operator', 'Front']
 const ROLE_COLORS = { SuperAdmin: 'badge-red', SDirector: 'badge-purple', Director: 'badge-blue', Operator: 'badge-teal', Front: 'badge-orange' }
 
-function AdminModal({ admin, onClose, onSave }) {
+function AdminModal({ admin, onClose, onSave, t }) {
   const [form, setForm] = useState(admin || {
     username: '', email: '', role: 'Front', department: '', position: '', status: 'active'
   })
@@ -14,59 +14,59 @@ function AdminModal({ admin, onClose, onSave }) {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-box" onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <h3 style={{ margin: 0, fontWeight: 700 }}>{admin ? 'Edit Admin' : 'Create Admin'}</h3>
+          <h3 style={{ margin: 0, fontWeight: 700 }}>{admin ? `${t.edit} Admin` : t.createAdmin}</h3>
           <button onClick={onClose} style={{ border: 'none', background: 'transparent', fontSize: 20, cursor: 'pointer', color: '#6b7280' }}>×</button>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div>
-              <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Username</label>
-              <input className="form-input" value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} placeholder="Username" />
+              <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>{t.username}</label>
+              <input className="form-input" value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} placeholder={t.username} />
             </div>
             <div>
-              <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Email</label>
+              <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>{t.email}</label>
               <input className="form-input" type="email" value={form.email || ''} onChange={e => setForm(f => ({ ...f, email: e.target.value || null }))} placeholder="Optional" />
             </div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div>
-              <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Role</label>
+              <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>{t.role}</label>
               <select className="form-select" value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))} style={{ width: '100%' }}>
                 {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
               </select>
             </div>
             <div>
-              <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Department</label>
+              <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>{t.department}</label>
               <input className="form-input" value={form.department || ''} onChange={e => setForm(f => ({ ...f, department: e.target.value || null }))} placeholder="Optional" />
             </div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div>
-              <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Position</label>
+              <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>{t.position}</label>
               <input className="form-input" value={form.position || ''} onChange={e => setForm(f => ({ ...f, position: e.target.value || null }))} placeholder="Optional" />
             </div>
             <div>
-              <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Password</label>
-              <input className="form-input" type="password" placeholder={admin ? 'Leave blank to keep unchanged' : 'Set password'} />
+              <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>{t.password}</label>
+              <input className="form-input" type="password" placeholder={admin ? t.leaveBlankPassword : t.setPassword} />
             </div>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20 }}>
-          <button className="btn-secondary" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" onClick={() => onSave(form)}>Save</button>
+          <button className="btn-secondary" onClick={onClose}>{t.cancel}</button>
+          <button className="btn-primary" onClick={() => onSave(form)}>{t.save}</button>
         </div>
       </div>
     </div>
   )
 }
 
-function IPModal({ ip, onClose }) {
+function IPModal({ ip, onClose, t }) {
   const info = { location: 'Surrey, British Columbia, Canada', isp: 'TELUS Communications', ua: 'macOS · Chrome 147' }
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-box" style={{ maxWidth: 360 }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <h3 style={{ margin: 0, fontWeight: 700 }}>IP Location Lookup</h3>
+          <h3 style={{ margin: 0, fontWeight: 700 }}>{t.ipLocationLookup}</h3>
           <button onClick={onClose} style={{ border: 'none', background: 'transparent', fontSize: 20, cursor: 'pointer', color: '#6b7280' }}>×</button>
         </div>
         <div style={{ fontSize: 13, lineHeight: 1.8 }}>
@@ -114,16 +114,16 @@ export default function Admins() {
 
   return (
     <div>
-      {modal && <AdminModal admin={modal === 'create' ? null : modal} onClose={() => setModal(null)} onSave={handleSave} />}
-      {ipModal && <IPModal ip={ipModal} onClose={() => setIpModal(null)} />}
+      {modal && <AdminModal admin={modal === 'create' ? null : modal} onClose={() => setModal(null)} onSave={handleSave} t={t} />}
+      {ipModal && <IPModal ip={ipModal} onClose={() => setIpModal(null)} t={t} />}
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, color: '#111827', marginBottom: 4 }}>
-            <i className="fa fa-users" style={{ color: '#7b2020' }} />
+            <i className="fa fa-users" style={{ color: '#6366f1' }} />
             {t.administratorsManagement}
           </h1>
-          <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>Manage all system administrator accounts</p>
+          <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>{t.manageAdmins}</p>
         </div>
         <button className="btn-primary" onClick={() => setModal('create')}>{t.createAdmin}</button>
       </div>
@@ -159,19 +159,19 @@ export default function Admins() {
             <thead>
               <tr>
                 <th>ID</th>
-                <th>Username</th>
-                <th>Email</th>
-                <th>Role</th>
-                <th>Department</th>
-                <th>Position</th>
-                <th>Last Login</th>
-                <th>Status</th>
-                <th>Actions</th>
+                <th>{t.username}</th>
+                <th>{t.email}</th>
+                <th>{t.role}</th>
+                <th>{t.department}</th>
+                <th>{t.position}</th>
+                <th>{t.lastLogin}</th>
+                <th>{t.status}</th>
+                <th>{t.actions}</th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan={9} style={{ textAlign: 'center', color: '#9ca3af', padding: 32 }}>No admins found</td></tr>
+                <tr><td colSpan={9} style={{ textAlign: 'center', color: '#9ca3af', padding: 32 }}>{t.noAdminsFound}</td></tr>
               ) : filtered.map(a => (
                 <tr key={a.id}>
                   <td style={{ fontWeight: 600, color: '#6b7280' }}>{a.id}</td>
@@ -183,21 +183,24 @@ export default function Admins() {
                   <td style={{ fontSize: 13, color: '#6b7280' }}>{a.department || '-'}</td>
                   <td style={{ fontSize: 13, color: '#6b7280' }}>{a.position || '-'}</td>
                   <td>
-                    <div style={{ fontSize: 13 }}>{a.lastLoginRelative}</div>
-                    {a.ip && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
-                        <span style={{ fontSize: 11, color: '#9ca3af', fontFamily: 'monospace', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.ip}</span>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}>
+                      <div>
+                        <div style={{ fontSize: 13 }}>{a.lastLoginRelative}</div>
+                        {a.ip && <div style={{ fontSize: 11, color: '#9ca3af', fontFamily: 'monospace' }}>{a.ip}</div>}
+                      </div>
+                      {a.ip && (
                         <button
                           onClick={() => setIpModal(a.ip)}
-                          style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 3, padding: '1px 5px', fontSize: 11, cursor: 'pointer', flexShrink: 0 }}
+                          style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 3, padding: '2px 6px', fontSize: 11, cursor: 'pointer' }}
                         >
                           <i className="fa fa-search" />
                         </button>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </td>
                   <td>
-                    <span className={`badge ${a.status === 'active' ? 'badge-green' : 'badge-gray'}`}>
+                    <span className={`badge ${a.status === 'active' ? 'badge-green' : 'badge-disabled'}`} style={{ gap: 5, whiteSpace: 'nowrap' }}>
+                      {a.status !== 'active' && <i className="fa fa-ban" style={{ fontSize: 10 }} />}
                       {a.status === 'active' ? t.active : t.inactive}
                     </span>
                   </td>
@@ -211,11 +214,12 @@ export default function Admins() {
                           onClick={() => toggleAdminStatus(a.id)}
                           className="btn-sm"
                           style={{
-                            background: a.status === 'active' ? '#ef4444' : '#10b981',
+                            background: a.status === 'active' ? '#f59e0b' : '#10b981',
                             color: '#fff', border: 'none', borderRadius: 4, padding: '5px 10px', cursor: 'pointer',
-                            display: 'inline-flex', alignItems: 'center', gap: 4
+                            display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 600, whiteSpace: 'nowrap',
                           }}
                         >
+                          <i className={`fa fa-${a.status === 'active' ? 'ban' : 'check'}`} />
                           {a.status === 'active' ? t.disable : t.enable}
                         </button>
                       )}

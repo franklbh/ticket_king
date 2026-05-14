@@ -3,11 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth, useLang } from '../context/AuthContext'
 import { useT } from '../i18n/translations'
 
-const LANG_OPTIONS = [
-  { code: 'en', label: 'English' },
-  { code: 'zh-Hans', label: '简体中文' },
-  { code: 'zh-Hant', label: '繁體中文' },
-]
 
 export default function Login() {
   const { login } = useAuth()
@@ -37,7 +32,7 @@ export default function Login() {
   return (
     <div style={{
       minHeight: '100vh',
-      background: 'linear-gradient(135deg, #9b2c2c 0%, #7b1c1c 45%, #4a0f0f 100%)',
+      background: 'linear-gradient(135deg, #eef2ff 0%, #c7d2fe 100%)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -49,26 +44,21 @@ export default function Login() {
         width: 380,
         boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
       }}>
-        {/* Language toggle */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 4, marginBottom: 24 }}>
-          {LANG_OPTIONS.map(l => (
-            <button
-              key={l.code}
-              onClick={() => changeLang(l.code)}
-              style={{
-                padding: '5px 12px',
-                borderRadius: 6,
-                border: '1px solid #e5e7eb',
-                background: l.code === lang ? '#7b2020' : 'transparent',
-                color: l.code === lang ? '#fff' : '#374151',
-                cursor: 'pointer',
-                fontSize: 13,
-                fontWeight: l.code === lang ? 600 : 400,
-              }}
-            >
-              {l.label}
-            </button>
-          ))}
+        {/* Language select */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 24 }}>
+          <select
+            value={lang}
+            onChange={e => changeLang(e.target.value)}
+            style={{
+              padding: '6px 10px', border: '1px solid #e5e7eb',
+              borderRadius: 6, background: '#fff',
+              fontSize: 13, color: '#374151', cursor: 'pointer', outline: 'none',
+            }}
+          >
+            <option value="en">English</option>
+            <option value="zh-Hans">简体中文</option>
+            <option value="zh-Hant">繁體中文</option>
+          </select>
         </div>
 
         <h1 style={{ textAlign: 'center', fontSize: 22, fontWeight: 700, marginBottom: 28, color: '#111827' }}>
@@ -126,7 +116,7 @@ export default function Login() {
             style={{
               width: '100%',
               padding: '12px',
-              background: loading ? '#9b3030' : '#7b2020',
+              background: loading ? '#818cf8' : '#6366f1',
               color: '#fff',
               border: 'none',
               borderRadius: 6,
@@ -135,8 +125,8 @@ export default function Login() {
               cursor: loading ? 'not-allowed' : 'pointer',
               transition: 'background 0.15s',
             }}
-            onMouseEnter={e => { if (!loading) e.currentTarget.style.background = '#5a1414' }}
-            onMouseLeave={e => { if (!loading) e.currentTarget.style.background = '#7b2020' }}
+            onMouseEnter={e => { if (!loading) e.currentTarget.style.background = '#4f46e5' }}
+            onMouseLeave={e => { if (!loading) e.currentTarget.style.background = '#6366f1' }}
           >
             {loading ? '...' : t.login}
           </button>

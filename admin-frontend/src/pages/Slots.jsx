@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useLang } from '../context/AuthContext'
 import { useT } from '../i18n/translations'
 import { SLOTS_DATA, EVENTS } from '../data/mockData'
@@ -108,10 +109,14 @@ function formatDateWithDay(dateStr) {
 export default function Slots() {
   const { lang } = useLang()
   const t = useT(lang)
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const linkedDate = searchParams.get('date')
+  const linkedStart = searchParams.get('start')
   const [slots, setSlots] = useState(SLOTS_DATA)
   const [filters, setFilters] = useState({
     event: 'all',
-    dateFrom: '2026-05-13', dateTo: '2026-11-13',
+    dateFrom: linkedDate || '2026-05-13', dateTo: linkedDate || '2026-11-13',
     status: 'all', todayOnly: false, hideUnsold: false
   })
   const [page, setPage] = useState(1)
@@ -122,12 +127,13 @@ export default function Slots() {
       if (filters.event !== 'all' && s.event !== Number(filters.event)) return false
       if (filters.dateFrom && s.date < filters.dateFrom) return false
       if (filters.dateTo && s.date > filters.dateTo) return false
+      if (linkedStart && s.startTime !== linkedStart) return false
       if (filters.status !== 'all' && s.status !== filters.status) return false
       if (filters.todayOnly && s.date !== '2026-05-13') return false
       if (filters.hideUnsold && s.websiteSeats === 0 && s.inStoreSeats === 0) return false
       return true
     })
-  }, [slots, filters])
+  }, [slots, filters, linkedStart])
 
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
@@ -151,7 +157,7 @@ export default function Slots() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, color: '#111827', marginBottom: 4 }}>
-            <i className="fa fa-calendar" style={{ color: '#7b2020' }} />
+            <i className="fa fa-calendar" style={{ color: '#6366f1' }} />
             {t.timeSlotsManagement}
           </h1>
           <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>Manage all event slots</p>
@@ -233,7 +239,7 @@ export default function Slots() {
                 const sold = s.websiteSeats + s.inStoreSeats
                 return (
                   <tr key={s.id}>
-                    <td style={{ fontWeight: 600, color: '#7b2020', fontFamily: 'monospace', fontSize: 13 }}>#{s.id}</td>
+                    <td style={{ fontWeight: 600, color: '#6366f1', fontFamily: 'monospace', fontSize: 13 }}>#{s.id}</td>
                     <td style={{ fontSize: 13, maxWidth: 250 }}>
                       {EVENTS.find(e => e.id === s.event)?.name}
                     </td>
@@ -247,15 +253,32 @@ export default function Slots() {
                     </td>
                     <td style={{ minWidth: 180 }}>
                       <SeatBar website={s.websiteSeats} inStore={s.inStoreSeats} total={s.totalSeats} />
-                      <div style={{ fontSize: 12, color: '#374151', marginTop: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <div style={{ fontSize: 12, color: '#374151', marginTop: 4, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                         <span>{sold}/{s.totalSeats}</span>
-                        <button style={{ background: '#f3f4f6', border: '1px solid #e5e7eb', borderRadius: 4, padding: '1px 6px', fontSize: 11, cursor: 'pointer' }}>
+                        <button
+                          onClick={() => navigate(`/orders?slotDate=${encodeURIComponent(s.date)}&slotStart=${encodeURIComponent(s.startTime)}`)}
+                          style={{
+                            background: '#eef2ff',
+                            border: '1px solid #c7d2fe',
+                            color: '#4f46e5',
+                            borderRadius: 4,
+                            padding: '1px 6px',
+                            fontSize: 11,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 3,
+                            fontWeight: 600,
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
                           <i className="fa fa-eye" /> View
                         </button>
                       </div>
                     </td>
                     <td>
-                      <span className={`badge ${s.status === 'active' ? 'badge-green' : 'badge-gray'}`}>
+                      <span className={`badge ${s.status === 'active' ? 'badge-green' : 'badge-disabled'}`} style={{ gap: 5, whiteSpace: 'nowrap' }}>
+                        {s.status !== 'active' && <i className="fa fa-ban" style={{ fontSize: 10 }} />}
                         {s.status === 'active' ? t.active : t.disabled}
                       </span>
                     </td>
@@ -267,8 +290,21 @@ export default function Slots() {
                         <button
                           onClick={() => toggleSlotStatus(s.id)}
                           className="btn-sm"
-                          style={{ background: s.status === 'active' ? '#f59e0b' : '#10b981', color: '#fff', border: 'none', borderRadius: 4, padding: '5px 10px', cursor: 'pointer' }}
+                          style={{
+                            background: s.status === 'active' ? '#f59e0b' : '#10b981',
+                            color: '#fff',
+                            border: 'none',
+                            borderRadius: 4,
+                            padding: '5px 10px',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            fontWeight: 600,
+                            whiteSpace: 'nowrap',
+                          }}
                         >
+                          <i className={`fa fa-${s.status === 'active' ? 'ban' : 'check'}`} />
                           {s.status === 'active' ? t.disable : t.enable}
                         </button>
                       </div>

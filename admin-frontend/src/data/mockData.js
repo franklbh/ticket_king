@@ -189,15 +189,20 @@ export const MARKETING_SETTINGS = {
   referralReward: 5,
 }
 
-export const MARKETING_RECORDS = Array.from({ length: 30 }, (_, i) => ({
-  id: i + 1,
-  recipient: `user${i + 1}@example.com`,
-  couponCode: `MKT${String(i + 1).padStart(4, '0')}`,
-  status: i < 2 ? 'failed' : i < 4 ? 'cancelled' : 'sent',
-  sentAt: `2026-05-${String(Math.max(1, 13 - Math.floor(i / 5))).padStart(2,'0')} ${String(10 + (i % 12)).padStart(2,'0')}:${String((i * 7) % 60).padStart(2,'0')}:00`,
-  couponUsed: i === 5,
-  triggeredBy: `Order #${202605130000 + i * 10}`,
-}))
+export const MARKETING_RECORDS = Array.from({ length: 30 }, (_, i) => {
+  const order = ORDERS_DATA[i % ORDERS_DATA.length]
+  const coupon = COUPONS_DATA[i % COUPONS_DATA.length]
+  return {
+    id: i + 1,
+    recipientName: order.user.name,
+    recipientEmail: order.user.email || `guest${i + 1}@example.com`,
+    couponCode: coupon.code,
+    orderId: order.id,
+    status: i < 2 ? 'failed' : i < 4 ? 'cancelled' : 'sent',
+    sentAt: `2026-05-${String(Math.max(1, 13 - Math.floor(i / 5))).padStart(2,'0')} ${String(10 + (i % 12)).padStart(2,'0')}:${String((i * 7) % 60).padStart(2,'0')}:00`,
+    couponUsed: i === 5,
+  }
+})
 
 export const DASHBOARD_STATS = {
   todayRevenue: 786.32,
@@ -207,15 +212,38 @@ export const DASHBOARD_STATS = {
   activeSlots: 3508,
 }
 
-export const SALES_TREND = [
-  { date: '2026-05-07', revenue: 0, tickets: 0 },
-  { date: '2026-05-08', revenue: 220, tickets: 7 },
-  { date: '2026-05-09', revenue: 380, tickets: 11 },
-  { date: '2026-05-10', revenue: 420, tickets: 12 },
-  { date: '2026-05-11', revenue: 100, tickets: 3 },
-  { date: '2026-05-12', revenue: 50, tickets: 2 },
-  { date: '2026-05-13', revenue: 786, tickets: 25 },
-]
+// Generate 91 days of deterministic sales data (2026-02-12 → 2026-05-13)
+function _genTrend() {
+  const fixed = {
+    '2026-05-07': [0,   0,  0],
+    '2026-05-08': [220, 7,  2],
+    '2026-05-09': [380, 11, 4],
+    '2026-05-10': [420, 12, 5],
+    '2026-05-11': [100, 3,  1],
+    '2026-05-12': [50,  2,  1],
+    '2026-05-13': [786, 25, 8],
+  }
+  const result = []
+  const origin = new Date('2026-02-12')
+  for (let i = 0; i < 91; i++) {
+    const d = new Date(origin); d.setDate(origin.getDate() + i)
+    const date = d.toISOString().slice(0, 10)
+    if (fixed[date]) {
+      result.push({ date, revenue: fixed[date][0], tickets: fixed[date][1], orders: fixed[date][2] })
+    } else {
+      const weekend = d.getDay() === 0 || d.getDay() === 6
+      const s = (i * 137 + 53) % 100
+      const active = s > 22
+      const revenue = active ? Math.round((weekend ? 260 : 130) + (s % 260)) : 0
+      const tickets = Math.round(revenue / 28)
+      const orders = Math.max(0, Math.round(tickets / 3.2))
+      result.push({ date, revenue, tickets, orders })
+    }
+  }
+  return result
+}
+export const SALES_TREND_90 = _genTrend()
+export const SALES_TREND = SALES_TREND_90.slice(-7)
 
 export const POPULAR_SLOTS = [
   { slot: '2026-05-13 18:30:00', sold: 12, total: 20 },
@@ -231,9 +259,9 @@ export const POPULAR_SLOTS = [
 ]
 
 export const TICKET_DISTRIBUTION = [
-  { name: 'Regular', value: 28, color: '#7b2020' },
-  { name: 'Group Ticket', value: 20, color: '#a83030' },
-  { name: 'Child (7-15)', value: 4, color: '#c94040' },
-  { name: 'Senior (65+)', value: 3, color: '#f47979' },
-  { name: 'VIP', value: 1, color: '#fbd5d5' },
+  { name: 'Regular',          value: 28, color: '#1e40af' },
+  { name: 'Group Ticket',     value: 20, color: '#3b82f6' },
+  { name: 'Child (7-15)',     value: 4,  color: '#93c5fd' },
+  { name: 'Senior (65+)',     value: 3,  color: '#f59e0b' },
+  { name: 'VIP',              value: 1,  color: '#fcd34d' },
 ]
