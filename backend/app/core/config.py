@@ -2,7 +2,7 @@ import json
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import AliasChoices, Field, field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -21,11 +21,11 @@ class Settings(BaseSettings):
         ],
     )
     database_url: str | None = None
-    db_user: str | None = Field(default=None, validation_alias=AliasChoices("DB_USER", "user"))
-    db_password: str | None = Field(default=None, validation_alias=AliasChoices("DB_PASSWORD", "password"))
-    db_host: str | None = Field(default=None, validation_alias=AliasChoices("DB_HOST", "host"))
-    db_port: int = Field(default=5432, validation_alias=AliasChoices("DB_PORT", "port"))
-    db_name: str | None = Field(default=None, validation_alias=AliasChoices("DB_NAME", "dbname"))
+    db_user: str | None = Field(default=None, validation_alias="DB_USER")
+    db_password: str | None = Field(default=None, validation_alias="DB_PASSWORD")
+    db_host: str | None = Field(default=None, validation_alias="DB_HOST")
+    db_port: int = Field(default=5432, validation_alias="DB_PORT")
+    db_name: str | None = Field(default=None, validation_alias="DB_NAME")
     supabase_url: str | None = None
     supabase_service_role_key: str | None = None
 
