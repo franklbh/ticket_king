@@ -10,5 +10,8 @@ requires-python = ">=3.10"
 dependencies = [
   "fastapi",
   "pydantic-settings",
+  "python-dotenv",
+  "sqlalchemy",
+  "psycopg2-binary",
   "uvicorn[standard]",
 ]

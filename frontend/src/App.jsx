@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
+import { loginUser, signupUser } from './api/auth'
 
 const USERS_KEY = 'ticket_king_local_users'
 const SESSION_KEY = 'ticket_king_local_session'
@@ -156,14 +157,6 @@ const isStrictEmail = (email) => {
   return domain.split('.').every((part) => part && !part.startsWith('-') && !part.endsWith('-'))
 }
 
-const hashPassword = async (password) => {
-  const data = new TextEncoder().encode(password)
-  const digest = await crypto.subtle.digest('SHA-256', data)
-  return Array.from(new Uint8Array(digest))
-    .map((byte) => byte.toString(16).padStart(2, '0'))
-    .join('')
-}
-
 const badge = (type) => {
   if (type === 'peak') return 'peak'
   if (type === 'normal') return 'normal'
@@ -212,6 +205,7 @@ function App() {
 
   const currentUser = useMemo(() => {
     if (!session) return null
+    if (session.user) return session.user
     return users.find((user) => user.id === session.userId) || null
   }, [session, users])
 
@@ -261,6 +255,7 @@ function App() {
     const nextSession = {
       userId: user.id,
       username: user.username,
+      user,
       createdAt: new Date().toISOString(),
     }
     localStorage.setItem(SESSION_KEY, JSON.stringify(nextSession))
@@ -295,46 +290,34 @@ function App() {
       return
     }
 
-    if (users.some((user) => user.username === username)) {
-      setAuthMessage('That username is already taken.')
-      return
+    try {
+      const data = await signupUser({ name, username, email, password })
+      const user = data.user
+      const nextUsers = [...users.filter((existing) => existing.id !== user.id), user]
+      saveUsers(nextUsers)
+      setUsers(nextUsers)
+      createSession(user)
+    } catch (error) {
+      setAuthMessage(error.message || 'Unable to sign up. Please try again.')
     }
-
-    if (users.some((user) => user.email === email)) {
-      setAuthMessage('That email is already registered.')
-      return
-    }
-
-    const user = {
-      id: crypto.randomUUID(),
-      name,
-      username,
-      email,
-      passwordHash: await hashPassword(password),
-      emailVerified: false,
-      role: 'Operator',
-      createdAt: new Date().toISOString(),
-    }
-    const nextUsers = [...users, user]
-    saveUsers(nextUsers)
-    setUsers(nextUsers)
-    createSession(user)
   }
 
   const handleLogin = async (event) => {
     event.preventDefault()
     const usernameOrEmail = normalize(authForm.username)
-    const passwordHash = await hashPassword(authForm.password)
-    const user = users.find(
-      (candidate) => candidate.username === usernameOrEmail || candidate.email === usernameOrEmail,
-    )
-
-    if (!user || user.passwordHash !== passwordHash) {
-      setAuthMessage('Username or password is incorrect.')
-      return
+    try {
+      const data = await loginUser({
+        username_or_email: usernameOrEmail,
+        password: authForm.password,
+      })
+      const user = data.user
+      const nextUsers = [...users.filter((existing) => existing.id !== user.id), user]
+      saveUsers(nextUsers)
+      setUsers(nextUsers)
+      createSession(user)
+    } catch (error) {
+      setAuthMessage(error.message || 'Username or password is incorrect.')
     }
-
-    createSession(user)
   }
 
   const logout = () => {
