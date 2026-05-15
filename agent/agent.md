@@ -33,6 +33,7 @@ The system must support both customer booking and internal venue operations.
 The current chosen stack is:
 
 - Frontend: `Next.js`
+- Frontend styling: `Tailwind CSS`
 - Backend: `FastAPI`
 - Database: `Supabase Postgres`
 

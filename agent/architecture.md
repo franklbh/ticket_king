@@ -14,6 +14,7 @@ for frontend, backend, database, environments, and system boundaries.
 The current selected stack is:
 
 - Frontend: `Next.js`
+- Frontend styling: `Tailwind CSS`
 - Backend: `FastAPI`
 - Database: `Supabase Postgres`
 
@@ -56,6 +57,10 @@ The `Next.js` frontend should handle:
 - authentication UI flows
 - scanner UI if web-based
 - data presentation for reporting and operations
+
+Tailwind CSS is the default styling approach for frontend implementation.
+Material UI is not part of the baseline stack and should be added only if the
+admin panel later needs a heavier component system.
 
 The frontend should not own critical business rules that must be trusted by the
 system.
