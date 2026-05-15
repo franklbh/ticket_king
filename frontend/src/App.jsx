@@ -5,6 +5,17 @@ import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import './App.css'
+import {
+  getAuthSession,
+  getDisplayName,
+  sendPasswordReset,
+  signInWithEmail,
+  signOut,
+  signUpWithEmail,
+  updatePassword,
+} from './api/auth'
+import { syncCurrentUser } from './api/backend'
+import { isSupabaseConfigured, missingSupabaseEnvVars, supabase } from './api/supabase'
 
 import heroImg from './user_media/cover.jpg'
 import galleryImg1 from './user_media/gallery1.png'
@@ -34,8 +45,6 @@ const VENUE_COORDS = [49.1754267, -123.1324168]
 const GOOGLE_MAPS_URL =
   'https://www.google.com/maps/place/Terracotta+Warriors+VR--We+Are+VR/@49.1754267,-123.1349917,1220m/data=!3m2!1e3!4b1!4m6!3m5!1s0x5486751de09f7601:0x2cc78f091846bb35!8m2!3d49.1754267!4d-123.1324168!16s%2Fg%2F11y0s7b4zn?entry=ttu&g_ep=EgoyMDI2MDUxMS4wIKXMDSoASAFQAw%3D%3D'
 
-const USERS_KEY = 'ticket_king_local_users'
-const SESSION_KEY = 'ticket_king_local_session'
 const emailPattern = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/
 
 const languages = [
@@ -85,13 +94,14 @@ const translations = {
     reachLocation: 'Reach Our Location', viewMap: 'View On Map', detailedLocation: 'Click here for detailed location instruction',
     openingHours: 'Opening Hours', contactUs: 'Contact Us', sundayThursday: 'Sunday to Thursday', fridaySaturday: 'Friday and Saturday',
     nearNorth: 'Near North entrance (Alderbridge Way)', venueLine: 'We Are VR in Lansdowne Centre',
-    authEyebrow: 'Ticket King Account', authTitle: 'Sign in to manage your bookings.', authCopy: 'Accounts are stored locally for the frontend preview. Email verification can be enabled later.',
+    authEyebrow: 'Ticket King Account', authTitle: 'Sign in to manage your bookings.', authCopy: 'Accounts are managed by Supabase Auth with email verification and password reset support.',
     welcomeBack: 'Welcome back', createAccount: 'Create account', fullName: 'Full name', emailAddress: 'Email address',
-    username: 'Username', usernameEmail: 'Username or email', password: 'Password', passwordPlaceholder: 'Enter your password',
-    usernameHelper: '3–24 lowercase letters, numbers, or underscores.', usernameEmailHelper: 'You can use your username or email.', passwordHelper: 'At least 8 characters.',
-    fullNameRequired: 'Please enter your full name.', usernameRules: 'Username: 3–24 lowercase letters, numbers, or underscores.',
-    passwordMin: 'Password must be at least 8 characters.', usernameTaken: 'That username is already taken.',
-    emailTaken: 'That email is already registered.', loginIncorrect: 'Username or password is incorrect.',
+    password: 'Password', passwordPlaceholder: 'Enter your password',
+    passwordHelper: 'At least 8 characters.',
+    fullNameRequired: 'Please enter your full name.',
+    passwordMin: 'Password must be at least 8 characters.', loginIncorrect: 'Email or password is incorrect.',
+    resetPassword: 'Reset password', setNewPassword: 'Set new password', sendResetEmail: 'Send reset email',
+    forgotPassword: 'Forgot your password?', backToLogin: 'Back to login', newPassword: 'New password',
     couponFirst: 'Enter a coupon code first.', couponUnavailable: 'Code "{code}" is not available for this preview checkout.',
     hi: 'Hi,', unavailable: 'unavailable', dateTbd: 'Date TBD',
     ticketTypeRegular: 'Adult', ticketTypeChild: 'Child (7–15)', ticketTypeSenior: 'Senior (65+)',
@@ -155,13 +165,14 @@ const translations = {
     reachLocation: '到达位置', viewMap: '查看地图', detailedLocation: '点击查看详细位置指引',
     openingHours: '营业时间', contactUs: '联系我们', sundayThursday: '周日至周四', fridaySaturday: '周五和周六',
     nearNorth: '靠近 Alderbridge Way 北入口', venueLine: 'Lansdowne Centre 内 WE ARE VR',
-    authEyebrow: 'Ticket King 账户', authTitle: '登录以管理您的预订。', authCopy: '当前为前端预览，账户会保存在本地；邮箱验证可后续启用。',
+    authEyebrow: 'Ticket King 账户', authTitle: '登录以管理您的预订。', authCopy: '账户由 Supabase Auth 管理，支持邮箱验证和密码重置。',
     welcomeBack: '欢迎回来', createAccount: '创建账户', fullName: '姓名', emailAddress: '邮箱地址',
-    username: '用户名', usernameEmail: '用户名或邮箱', password: '密码', passwordPlaceholder: '请输入密码',
-    usernameHelper: '3–24 位小写字母、数字或下划线。', usernameEmailHelper: '可使用用户名或邮箱登录。', passwordHelper: '至少 8 个字符。',
-    fullNameRequired: '请输入您的姓名。', usernameRules: '用户名需为 3–24 位小写字母、数字或下划线。',
-    passwordMin: '密码至少需要 8 个字符。', usernameTaken: '该用户名已被使用。',
-    emailTaken: '该邮箱已注册。', loginIncorrect: '用户名或密码不正确。',
+    password: '密码', passwordPlaceholder: '请输入密码',
+    passwordHelper: '至少 8 个字符。',
+    fullNameRequired: '请输入您的姓名。',
+    passwordMin: '密码至少需要 8 个字符。', loginIncorrect: '邮箱或密码不正确。',
+    resetPassword: '重置密码', setNewPassword: '设置新密码', sendResetEmail: '发送重置邮件',
+    forgotPassword: '忘记密码？', backToLogin: '返回登录', newPassword: '新密码',
     couponFirst: '请先输入优惠码。', couponUnavailable: '优惠码“{code}”不适用于当前预览结账。',
     hi: '你好，', unavailable: '不可用', dateTbd: '日期待定',
     ticketTypeRegular: '成人票', ticketTypeChild: '儿童票（7–15 岁）', ticketTypeSenior: '长者票（65+）',
@@ -225,13 +236,14 @@ const translations = {
     reachLocation: '到達位置', viewMap: '查看地圖', detailedLocation: '點擊查看詳細位置指引',
     openingHours: '營業時間', contactUs: '聯絡我們', sundayThursday: '週日至週四', fridaySaturday: '週五和週六',
     nearNorth: '靠近 Alderbridge Way 北入口', venueLine: 'Lansdowne Centre 內 WE ARE VR',
-    authEyebrow: 'Ticket King 帳戶', authTitle: '登入以管理您的預訂。', authCopy: '目前為前端預覽，帳戶會保存在本地；電郵驗證可後續啟用。',
+    authEyebrow: 'Ticket King 帳戶', authTitle: '登入以管理您的預訂。', authCopy: '帳戶由 Supabase Auth 管理，支援電郵驗證和密碼重設。',
     welcomeBack: '歡迎回來', createAccount: '建立帳戶', fullName: '姓名', emailAddress: '電郵地址',
-    username: '使用者名稱', usernameEmail: '使用者名稱或電郵', password: '密碼', passwordPlaceholder: '請輸入密碼',
-    usernameHelper: '3–24 位小寫字母、數字或底線。', usernameEmailHelper: '可使用使用者名稱或電郵登入。', passwordHelper: '至少 8 個字元。',
-    fullNameRequired: '請輸入您的姓名。', usernameRules: '使用者名稱需為 3–24 位小寫字母、數字或底線。',
-    passwordMin: '密碼至少需要 8 個字元。', usernameTaken: '該使用者名稱已被使用。',
-    emailTaken: '該電郵已註冊。', loginIncorrect: '使用者名稱或密碼不正確。',
+    password: '密碼', passwordPlaceholder: '請輸入密碼',
+    passwordHelper: '至少 8 個字元。',
+    fullNameRequired: '請輸入您的姓名。',
+    passwordMin: '密碼至少需要 8 個字元。', loginIncorrect: '電郵或密碼不正確。',
+    resetPassword: '重設密碼', setNewPassword: '設定新密碼', sendResetEmail: '發送重設電郵',
+    forgotPassword: '忘記密碼？', backToLogin: '返回登入', newPassword: '新密碼',
     couponFirst: '請先輸入優惠碼。', couponUnavailable: '優惠碼「{code}」不適用於目前預覽結帳。',
     hi: '你好，', unavailable: '不可用', dateTbd: '日期待定',
     ticketTypeRegular: '成人票', ticketTypeChild: '兒童票（7–15 歲）', ticketTypeSenior: '長者票（65+）',
@@ -340,9 +352,6 @@ const newsItems = [
 
 const qrPlaceholder = 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="320" height="320"><rect width="320" height="320" fill="#fff"/><rect x="16" y="16" width="80" height="80" fill="#0b0b0b"/><rect x="224" y="16" width="80" height="80" fill="#0b0b0b"/><rect x="16" y="224" width="80" height="80" fill="#0b0b0b"/><rect x="96" y="96" width="128" height="128" fill="#0b0b0b"/><rect x="128" y="128" width="64" height="64" fill="#fff"/></svg>`)
 
-const loadUsers = () => { try { return JSON.parse(localStorage.getItem(USERS_KEY)) || [] } catch { return [] } }
-const saveUsers = (users) => { localStorage.setItem(USERS_KEY, JSON.stringify(users)) }
-const readSession = () => { try { return JSON.parse(localStorage.getItem(SESSION_KEY)) } catch { return null } }
 const normalize = (value) => value.trim().toLowerCase()
 const monthLabel = (date) => date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
 const fullDateLabel = (date) => date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
@@ -365,12 +374,6 @@ const isStrictEmail = (email) => {
   if (!local || !domain) return false
   if (local.startsWith('.') || local.endsWith('.') || local.includes('..')) return false
   return domain.split('.').every((part) => part && !part.startsWith('-') && !part.endsWith('-'))
-}
-
-const hashPassword = async (password) => {
-  const data = new TextEncoder().encode(password)
-  const digest = await crypto.subtle.digest('SHA-256', data)
-  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('')
 }
 
 const badge = (type) => (type === 'peak' ? 'peak' : type === 'normal' ? 'normal' : 'muted')
@@ -478,10 +481,10 @@ function App() {
   const [langOpen, setLangOpen] = useState(false)
   const [view, setView] = useState('main')
   const [authMode, setAuthMode] = useState('login')
-  const [users, setUsers] = useState(() => loadUsers())
-  const [session, setSession] = useState(() => readSession())
+  const [session, setSession] = useState(null)
+  const [authReady, setAuthReady] = useState(!isSupabaseConfigured)
   const [authMessage, setAuthMessage] = useState('')
-  const [authForm, setAuthForm] = useState({ name: '', email: '', username: '', password: '' })
+  const [authForm, setAuthForm] = useState({ name: '', email: '', password: '', newPassword: '' })
   const [showBooking, setShowBooking] = useState(false)
   const [step, setStep] = useState('date')
   const [calendarMonth, setCalendarMonth] = useState(() => new Date(2025, 11, 1))
@@ -545,10 +548,7 @@ function App() {
       ? ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
       : ['週日', '週一', '週二', '週三', '週四', '週五', '週六']
 
-  const currentUser = useMemo(() => {
-    if (!session) return null
-    return users.find((u) => u.id === session.userId) || null
-  }, [session, users])
+  const currentUser = session?.user || null
 
   const isPeak = useMemo(() => {
     if (!selectedDate || !selectedTime) return false
@@ -615,6 +615,73 @@ function App() {
     ]
   }, [calendarMonth])
 
+  const syncUser = async () => {
+    try {
+      await syncCurrentUser()
+    } catch (error) {
+      console.error('Unable to sync authenticated user', error)
+    }
+  }
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase) {
+      setAuthReady(true)
+      return undefined
+    }
+
+    let mounted = true
+
+    getAuthSession()
+      .then((activeSession) => {
+        if (!mounted) return
+        setSession(activeSession)
+        if (activeSession) syncUser()
+
+        if (window.location.pathname === '/auth/callback') {
+          setView('auth')
+          setAuthMode('login')
+          setAuthMessage(activeSession ? 'Email verified. You are now signed in.' : 'Email verified. Please log in.')
+          window.history.replaceState({}, document.title, '/')
+        }
+
+        if (window.location.pathname === '/reset-password') {
+          setView('auth')
+          setAuthMode('reset')
+          setAuthMessage('Enter a new password for your account.')
+        }
+      })
+      .catch((error) => {
+        console.error('Unable to load Supabase session', error)
+        setAuthMessage(error.message || 'Unable to load your session.')
+      })
+      .finally(() => {
+        if (mounted) setAuthReady(true)
+      })
+
+    const { data } = supabase.auth.onAuthStateChange((event, activeSession) => {
+      setSession(activeSession)
+      if (activeSession) syncUser()
+
+      if (event === 'PASSWORD_RECOVERY') {
+        setView('auth')
+        setAuthMode('reset')
+        setAuthMessage('Enter a new password for your account.')
+      }
+
+      if (event === 'SIGNED_IN' && window.location.pathname === '/auth/callback') {
+        setView('auth')
+        setAuthMode('login')
+        setAuthMessage('Email verified. You are now signed in.')
+        window.history.replaceState({}, document.title, '/')
+      }
+    })
+
+    return () => {
+      mounted = false
+      data.subscription.unsubscribe()
+    }
+  }, [])
+
   useEffect(() => {
     if (step !== 'payment') return undefined
     setTimeLeft(300)
@@ -674,42 +741,98 @@ function App() {
     return () => observer.disconnect()
   }, [view, showBooking])
 
-  const resetAuthForm = () => { setAuthForm({ name: '', email: '', username: '', password: '' }); setAuthMessage('') }
+  const resetAuthForm = () => { setAuthForm({ name: '', email: '', password: '', newPassword: '' }); setAuthMessage('') }
 
   const openAuth = (mode) => {
     setAuthMode(mode); resetAuthForm(); setShowBooking(false); setView('auth')
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  const createSession = (user) => {
-    const s = { userId: user.id, username: user.username, createdAt: new Date().toISOString() }
-    localStorage.setItem(SESSION_KEY, JSON.stringify(s))
-    setSession(s); setView('main')
-  }
-
   const handleSignup = async (e) => {
     e.preventDefault()
-    const name = authForm.name.trim(), username = normalize(authForm.username)
-    const email = normalize(authForm.email), password = authForm.password
+    const name = authForm.name.trim()
+    const email = normalize(authForm.email)
+    const password = authForm.password
     if (name.length < 2) { setAuthMessage(t('fullNameRequired')); return }
-    if (!/^[a-z0-9_]{3,24}$/.test(username)) { setAuthMessage(t('usernameRules')); return }
     if (!isStrictEmail(email)) { setAuthMessage(t('emailError')); return }
     if (password.length < 8) { setAuthMessage(t('passwordMin')); return }
-    if (users.some((u) => u.username === username)) { setAuthMessage(t('usernameTaken')); return }
-    if (users.some((u) => u.email === email)) { setAuthMessage(t('emailTaken')); return }
-    const user = { id: crypto.randomUUID(), name, username, email, passwordHash: await hashPassword(password), emailVerified: false, role: 'Operator', createdAt: new Date().toISOString() }
-    const next = [...users, user]; saveUsers(next); setUsers(next); createSession(user)
+
+    try {
+      const data = await signUpWithEmail({ email, name, password })
+      if (data.session) {
+        setSession(data.session)
+        await syncUser()
+        resetAuthForm()
+        setView('main')
+        return
+      }
+
+      setAuthMessage('Check your email to verify your account before logging in.')
+      setAuthMode('login')
+      setAuthForm({ name: '', email, password: '', newPassword: '' })
+    } catch (error) {
+      setAuthMessage(error.message || 'Unable to sign up. Please try again.')
+    }
   }
 
   const handleLogin = async (e) => {
     e.preventDefault()
-    const ue = normalize(authForm.username), ph = await hashPassword(authForm.password)
-    const user = users.find((u) => u.username === ue || u.email === ue)
-    if (!user || user.passwordHash !== ph) { setAuthMessage(t('loginIncorrect')); return }
-    createSession(user)
+    const email = normalize(authForm.email)
+    const password = authForm.password
+    if (!isStrictEmail(email)) { setAuthMessage(t('emailError')); return }
+    if (!password) { setAuthMessage(t('passwordPlaceholder')); return }
+
+    try {
+      const data = await signInWithEmail({ email, password })
+      setSession(data.session)
+      await syncUser()
+      resetAuthForm()
+      setView('main')
+    } catch (error) {
+      setAuthMessage(error.message || t('loginIncorrect'))
+    }
   }
 
-  const logout = () => { localStorage.removeItem(SESSION_KEY); setSession(null); setView('main') }
+  const handlePasswordResetRequest = async (e) => {
+    e.preventDefault()
+    const email = normalize(authForm.email)
+    if (!isStrictEmail(email)) { setAuthMessage(t('emailError')); return }
+
+    try {
+      await sendPasswordReset(email)
+      setAuthMessage('Password reset email sent. Check your inbox.')
+    } catch (error) {
+      setAuthMessage(error.message || 'Unable to send password reset email.')
+    }
+  }
+
+  const handlePasswordUpdate = async (e) => {
+    e.preventDefault()
+    const nextPassword = authForm.newPassword || authForm.password
+    if (nextPassword.length < 8) { setAuthMessage(t('passwordMin')); return }
+
+    try {
+      await updatePassword(nextPassword)
+      setAuthMessage('Password updated.')
+      setAuthMode('login')
+      setAuthForm({ name: '', email: '', password: '', newPassword: '' })
+      window.history.replaceState({}, document.title, '/')
+      setView('main')
+    } catch (error) {
+      setAuthMessage(error.message || 'Unable to update password.')
+    }
+  }
+
+  const logout = async () => {
+    try {
+      await signOut()
+      setSession(null)
+      setView('main')
+    } catch (error) {
+      setAuthMessage(error.message || 'Unable to log out. Please try again.')
+      setView('auth')
+    }
+  }
 
   const revealBooking = () => {
     setView('main'); setShowBooking(true); setStep('date')
@@ -1160,8 +1283,10 @@ function App() {
             <span>{t('mainPage')}</span>
           </button>
           <div className="top-actions">
-            {currentUser ? (
-              <><span className="auth-welcome">{t('hi')} {currentUser.name}</span><button className="ghost-btn" onClick={logout} type="button">{t('logout')}</button></>
+            {!authReady ? (
+              <span className="auth-welcome">Checking session...</span>
+            ) : currentUser ? (
+              <><span className="auth-welcome">{t('hi')} {getDisplayName(currentUser)}</span><button className="ghost-btn" onClick={logout} type="button">{t('logout')}</button></>
             ) : (
               <button className="ghost-btn" onClick={() => openAuth('login')} type="button">{t('loginSignup')}</button>
             )}
@@ -1190,22 +1315,49 @@ function App() {
               <p>{t('authCopy')}</p>
             </section>
             <section className="auth-card">
-              <div className="auth-tabs">
-                <button className={`auth-tab ${authMode === 'login' ? 'active' : ''}`} onClick={() => { setAuthMode('login'); resetAuthForm() }} type="button">{t('login')}</button>
-                <button className={`auth-tab ${authMode === 'signup' ? 'active' : ''}`} onClick={() => { setAuthMode('signup'); resetAuthForm() }} type="button">{t('signup')}</button>
-              </div>
-              <h3>{authMode === 'login' ? t('welcomeBack') : t('createAccount')}</h3>
-              <form className="auth-form" onSubmit={authMode === 'login' ? handleLogin : handleSignup}>
-                {authMode === 'signup' && (
-                  <>
-                    <AuthField label={t('fullName')} value={authForm.name} onChange={(v) => setAuthForm({ ...authForm, name: v })} placeholder="Jane Smith" autoComplete="name" />
-                    <AuthField label={t('emailAddress')} value={authForm.email} onChange={(v) => setAuthForm({ ...authForm, email: v })} placeholder="name@example.com" type="email" autoComplete="email" />
-                  </>
+              {authMode !== 'reset' && (
+                <div className="auth-tabs">
+                  <button className={`auth-tab ${authMode !== 'signup' ? 'active' : ''}`} onClick={() => { setAuthMode('login'); resetAuthForm() }} type="button">{t('login')}</button>
+                  <button className={`auth-tab ${authMode === 'signup' ? 'active' : ''}`} onClick={() => { setAuthMode('signup'); resetAuthForm() }} type="button">{t('signup')}</button>
+                </div>
+              )}
+              <h3>{authMode === 'signup' ? t('createAccount') : authMode === 'forgot' ? t('resetPassword') : authMode === 'reset' ? t('setNewPassword') : t('welcomeBack')}</h3>
+              <form
+                className="auth-form"
+                onSubmit={authMode === 'signup' ? handleSignup : authMode === 'forgot' ? handlePasswordResetRequest : authMode === 'reset' ? handlePasswordUpdate : handleLogin}
+              >
+                {!isSupabaseConfigured && (
+                  <div className="auth-error">
+                    Supabase is not configured. Add {missingSupabaseEnvVars.join(' and ')} to frontend/.env.
+                  </div>
                 )}
-                <AuthField label={authMode === 'login' ? t('usernameEmail') : t('username')} value={authForm.username} onChange={(v) => setAuthForm({ ...authForm, username: v })} placeholder={authMode === 'login' ? 'username or email' : 'jane_smith'} autoComplete="username" helper={authMode === 'signup' ? t('usernameHelper') : t('usernameEmailHelper')} />
-                <AuthField label={t('password')} value={authForm.password} onChange={(v) => setAuthForm({ ...authForm, password: v })} placeholder={t('passwordPlaceholder')} type="password" autoComplete={authMode === 'login' ? 'current-password' : 'new-password'} helper={authMode === 'signup' ? t('passwordHelper') : undefined} />
+                {authMode === 'signup' && (
+                  <AuthField label={t('fullName')} value={authForm.name} onChange={(v) => setAuthForm({ ...authForm, name: v })} placeholder="Jane Smith" autoComplete="name" />
+                )}
+                {authMode !== 'reset' && (
+                  <AuthField label={t('emailAddress')} value={authForm.email} onChange={(v) => setAuthForm({ ...authForm, email: v })} placeholder="name@example.com" type="email" autoComplete="email" />
+                )}
+                {authMode !== 'forgot' && (
+                  <AuthField
+                    label={authMode === 'reset' ? t('newPassword') : t('password')}
+                    value={authMode === 'reset' ? authForm.newPassword : authForm.password}
+                    onChange={(v) => setAuthForm(authMode === 'reset' ? { ...authForm, newPassword: v } : { ...authForm, password: v })}
+                    placeholder={t('passwordPlaceholder')}
+                    type="password"
+                    autoComplete={authMode === 'login' ? 'current-password' : 'new-password'}
+                    helper={authMode === 'signup' || authMode === 'reset' ? t('passwordHelper') : undefined}
+                  />
+                )}
                 {authMessage && <div className="auth-error">{authMessage}</div>}
-                <button className="auth-submit" type="submit">{authMode === 'login' ? t('login') : t('signup')}</button>
+                <button className="auth-submit" type="submit" disabled={!isSupabaseConfigured}>
+                  {authMode === 'signup' ? t('signup') : authMode === 'forgot' ? t('sendResetEmail') : authMode === 'reset' ? t('setNewPassword') : t('login')}
+                </button>
+                {authMode === 'login' && (
+                  <button className="auth-link-btn" onClick={() => { setAuthMode('forgot'); setAuthMessage('') }} type="button">{t('forgotPassword')}</button>
+                )}
+                {(authMode === 'forgot' || authMode === 'reset') && (
+                  <button className="auth-link-btn" onClick={() => { setAuthMode('login'); resetAuthForm() }} type="button">{t('backToLogin')}</button>
+                )}
               </form>
             </section>
           </div>
@@ -1226,8 +1378,10 @@ function App() {
                     <BrandLogo height={68} />
                   </button>
                   <div className="top-actions">
-                    {currentUser ? (
-                      <><span className="auth-welcome">{t('hi')} {currentUser.name}</span><button className="ghost-btn" onClick={logout} type="button">{t('logout')}</button></>
+                    {!authReady ? (
+                      <span className="auth-welcome">Checking session...</span>
+                    ) : currentUser ? (
+                      <><span className="auth-welcome">{t('hi')} {getDisplayName(currentUser)}</span><button className="ghost-btn" onClick={logout} type="button">{t('logout')}</button></>
                     ) : (
                       <button className="ghost-btn" onClick={() => openAuth('login')} type="button">{t('loginSignup')}</button>
                     )}

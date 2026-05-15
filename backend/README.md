@@ -12,3 +12,18 @@ uvicorn app.main:app --reload
 ```
 
 Open `http://localhost:8000/docs` for the API docs.
+
+## Supabase Auth
+
+Protected API routes should use `Depends(get_current_user)` from `app.core.supabase_auth`.
+Clients must send the Supabase session access token:
+
+```http
+Authorization: Bearer <supabase_access_token>
+```
+
+Required backend env:
+
+```sh
+SUPABASE_URL=https://your-project-ref.supabase.co
+```

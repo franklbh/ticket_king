@@ -1,12 +1,15 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import alphapay, health, shows, stripe_pay
+from app.api.routes import alphapay, auth, health, shows, stripe_pay, test_db
 from app.core.config import settings
+
+API_V1_PREFIX = "/api/v1"
+APP_NAME = "Ticket King API"
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title=settings.app_name)
+    app = FastAPI(title=APP_NAME)
 
     app.add_middleware(
         CORSMiddleware,
@@ -16,10 +19,12 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    app.include_router(health.router, prefix=settings.api_v1_prefix)
-    app.include_router(alphapay.router, prefix=settings.api_v1_prefix)
-    app.include_router(stripe_pay.router, prefix=settings.api_v1_prefix)
-    app.include_router(shows.router, prefix=settings.api_v1_prefix)
+    app.include_router(health.router, prefix=API_V1_PREFIX)
+    app.include_router(alphapay.router, prefix=API_V1_PREFIX)
+    app.include_router(stripe_pay.router, prefix=API_V1_PREFIX)
+    app.include_router(shows.router, prefix=API_V1_PREFIX)
+    app.include_router(test_db.router)
+    app.include_router(auth.router)
 
     return app
 
