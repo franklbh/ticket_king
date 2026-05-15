@@ -15,6 +15,7 @@ from pydantic import BaseModel
 
 from app.core.config import settings
 
+# test
 router = APIRouter(prefix="/alphapay", tags=["alphapay"])
 
 ALPHAPAY_BASE_URL = "https://openapi.alphapay.ca"
