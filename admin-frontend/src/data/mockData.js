@@ -3,17 +3,41 @@ export const EVENTS = [
 ]
 
 export const TICKET_TYPES_DATA = [
-  { id: 1, name: 'Early Bird', event: 1, discount: null, priceType: 'fixed', price: 24.95, weekdays: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'], validFrom: '2025-11-17', validTo: '2025-12-19', timeStart: null, timeEnd: null, addOn: null, remarks: '早鸟-11月29-12月19', status: 'disabled' },
-  { id: 2, name: 'Early Bird', event: 1, discount: null, priceType: 'fixed', price: 24.95, weekdays: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'], validFrom: '2026-01-02', validTo: '2026-02-28', timeStart: null, timeEnd: null, addOn: null, remarks: '早鸟-1月2日-2月28日', status: 'disabled' },
-  { id: 3, name: 'Regular', event: 1, discount: { type: 'percent', value: 10, expired: true }, priceType: 'daily', price: null, weekdays: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'], validFrom: null, validTo: null, timeStart: null, timeEnd: null, addOn: null, remarks: '常规(1-4)', status: 'enabled' },
-  { id: 4, name: 'Child (7-15)', event: 1, discount: { type: 'percent', value: 10, expired: true }, priceType: 'daily', priceAdj: -10, weekdays: ['Mon','Tue','Wed','Thu'], validFrom: null, validTo: null, timeStart: '10:00', timeEnd: '15:00', addOn: null, remarks: '儿童(1-4)', status: 'enabled' },
-  { id: 5, name: 'Child (7-15)', event: 1, discount: { type: 'percent', value: 10, expired: true }, priceType: 'daily', priceAdj: -10, weekdays: ['Mon','Tue','Wed','Thu'], validFrom: null, validTo: null, timeStart: '15:00', timeEnd: '19:00', addOn: null, remarks: '儿童(1-4)', status: 'enabled' },
-  { id: 6, name: 'Child (7-15)', event: 1, discount: { type: 'percent', value: 10, expired: true }, priceType: 'daily', priceAdj: -10, weekdays: ['Mon','Tue','Wed','Thu'], validFrom: null, validTo: null, timeStart: '19:00', timeEnd: '22:00', addOn: null, remarks: '儿童(1-4)', status: 'enabled' },
-  { id: 7, name: 'Child (7-15)', event: 1, discount: { type: 'percent', value: 10, expired: true }, priceType: 'daily', priceAdj: -10, weekdays: ['Fri'], validFrom: null, validTo: null, timeStart: '00:00', timeEnd: '14:00', addOn: null, remarks: '儿童(5)', status: 'enabled' },
-  { id: 8, name: 'Senior (65+)', event: 1, discount: null, priceType: 'daily', priceAdj: -5, weekdays: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'], validFrom: null, validTo: null, timeStart: null, timeEnd: null, addOn: null, remarks: '老年(1-4)', status: 'enabled' },
-  { id: 9, name: 'Family Bundle (max. 2 adults)', event: 1, discount: null, priceType: 'fixed', price: 149.95, weekdays: ['Sat','Sun'], validFrom: null, validTo: null, timeStart: null, timeEnd: null, addOn: null, remarks: '家庭套餐', status: 'enabled' },
-  { id: 10, name: 'Group Ticket (min. 6 people)', event: 1, discount: null, priceType: 'daily', priceAdj: -8, weekdays: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'], validFrom: null, validTo: null, timeStart: null, timeEnd: null, addOn: null, remarks: '团体票', status: 'enabled' },
-  { id: 11, name: 'VIP', event: 1, discount: null, priceType: 'fixed', price: 79.95, weekdays: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'], validFrom: null, validTo: null, timeStart: null, timeEnd: null, addOn: 'VIP Lounge', remarks: 'VIP体验', status: 'enabled' },
+  // Adult — Off-peak (Mon–Thu all day, Fri 10:00–14:00)
+  { id: 1, name: 'Adult', event: 1, discount: null, priceType: 'fixed', price: 37.95, weekdays: ['Mon','Tue','Wed','Thu'], validFrom: null, validTo: null, timeStart: '10:00', timeEnd: '19:30', addOn: null, remarks: 'Off-peak', status: 'enabled' },
+  { id: 2, name: 'Adult', event: 1, discount: null, priceType: 'fixed', price: 37.95, weekdays: ['Fri'], validFrom: null, validTo: null, timeStart: '10:00', timeEnd: '14:00', addOn: null, remarks: 'Off-peak (Fri)', status: 'enabled' },
+  // Adult — Peak (Fri 14:00+, Sat–Sun all day)
+  { id: 3, name: 'Adult', event: 1, discount: null, priceType: 'fixed', price: 45.95, weekdays: ['Fri'], validFrom: null, validTo: null, timeStart: '14:00', timeEnd: '20:30', addOn: null, remarks: 'Peak (Fri)', status: 'enabled' },
+  { id: 4, name: 'Adult', event: 1, discount: null, priceType: 'fixed', price: 45.95, weekdays: ['Sat','Sun'], validFrom: null, validTo: null, timeStart: '10:00', timeEnd: '20:30', addOn: null, remarks: 'Peak (Weekend)', status: 'enabled' },
+  // Child (7-15) — Off-peak
+  { id: 5, name: 'Child (7-15)', event: 1, discount: null, priceType: 'fixed', price: 27.95, weekdays: ['Mon','Tue','Wed','Thu'], validFrom: null, validTo: null, timeStart: '10:00', timeEnd: '19:30', addOn: null, remarks: 'Off-peak', status: 'enabled' },
+  { id: 6, name: 'Child (7-15)', event: 1, discount: null, priceType: 'fixed', price: 27.95, weekdays: ['Fri'], validFrom: null, validTo: null, timeStart: '10:00', timeEnd: '14:00', addOn: null, remarks: 'Off-peak (Fri)', status: 'enabled' },
+  // Child (7-15) — Peak
+  { id: 7, name: 'Child (7-15)', event: 1, discount: null, priceType: 'fixed', price: 34.95, weekdays: ['Fri'], validFrom: null, validTo: null, timeStart: '14:00', timeEnd: '20:30', addOn: null, remarks: 'Peak (Fri)', status: 'enabled' },
+  { id: 8, name: 'Child (7-15)', event: 1, discount: null, priceType: 'fixed', price: 34.95, weekdays: ['Sat','Sun'], validFrom: null, validTo: null, timeStart: '10:00', timeEnd: '20:30', addOn: null, remarks: 'Peak (Weekend)', status: 'enabled' },
+  // Senior (65+) — Off-peak
+  { id: 9, name: 'Senior (65+)', event: 1, discount: null, priceType: 'fixed', price: 34.95, weekdays: ['Mon','Tue','Wed','Thu'], validFrom: null, validTo: null, timeStart: '10:00', timeEnd: '19:30', addOn: null, remarks: 'Off-peak', status: 'enabled' },
+  { id: 10, name: 'Senior (65+)', event: 1, discount: null, priceType: 'fixed', price: 34.95, weekdays: ['Fri'], validFrom: null, validTo: null, timeStart: '10:00', timeEnd: '14:00', addOn: null, remarks: 'Off-peak (Fri)', status: 'enabled' },
+  // Senior (65+) — Peak
+  { id: 11, name: 'Senior (65+)', event: 1, discount: null, priceType: 'fixed', price: 41.95, weekdays: ['Fri'], validFrom: null, validTo: null, timeStart: '14:00', timeEnd: '20:30', addOn: null, remarks: 'Peak (Fri)', status: 'enabled' },
+  { id: 12, name: 'Senior (65+)', event: 1, discount: null, priceType: 'fixed', price: 41.95, weekdays: ['Sat','Sun'], validFrom: null, validTo: null, timeStart: '10:00', timeEnd: '20:30', addOn: null, remarks: 'Peak (Weekend)', status: 'enabled' },
+  // Group (6+ people) — Off-peak
+  { id: 13, name: 'Group (6+ people)', event: 1, discount: null, priceType: 'fixed', price: 32.95, weekdays: ['Mon','Tue','Wed','Thu'], validFrom: null, validTo: null, timeStart: '10:00', timeEnd: '19:30', addOn: null, remarks: 'Off-peak', status: 'enabled' },
+  { id: 14, name: 'Group (6+ people)', event: 1, discount: null, priceType: 'fixed', price: 32.95, weekdays: ['Fri'], validFrom: null, validTo: null, timeStart: '10:00', timeEnd: '14:00', addOn: null, remarks: 'Off-peak (Fri)', status: 'enabled' },
+  // Group (6+ people) — Peak
+  { id: 15, name: 'Group (6+ people)', event: 1, discount: null, priceType: 'fixed', price: 40.95, weekdays: ['Fri'], validFrom: null, validTo: null, timeStart: '14:00', timeEnd: '20:30', addOn: null, remarks: 'Peak (Fri)', status: 'enabled' },
+  { id: 16, name: 'Group (6+ people)', event: 1, discount: null, priceType: 'fixed', price: 40.95, weekdays: ['Sat','Sun'], validFrom: null, validTo: null, timeStart: '10:00', timeEnd: '20:30', addOn: null, remarks: 'Peak (Weekend)', status: 'enabled' },
+  // Family (2 adults + 1 child) — Off-peak
+  { id: 17, name: 'Family (2 adults + 1 child)', event: 1, discount: null, priceType: 'fixed', price: 31.95, weekdays: ['Mon','Tue','Wed','Thu'], validFrom: null, validTo: null, timeStart: '10:00', timeEnd: '19:30', addOn: null, remarks: 'Off-peak', status: 'enabled' },
+  { id: 18, name: 'Family (2 adults + 1 child)', event: 1, discount: null, priceType: 'fixed', price: 31.95, weekdays: ['Fri'], validFrom: null, validTo: null, timeStart: '10:00', timeEnd: '14:00', addOn: null, remarks: 'Off-peak (Fri)', status: 'enabled' },
+  // Family (2 adults + 1 child) — Peak
+  { id: 19, name: 'Family (2 adults + 1 child)', event: 1, discount: null, priceType: 'fixed', price: 39.95, weekdays: ['Fri'], validFrom: null, validTo: null, timeStart: '14:00', timeEnd: '20:30', addOn: null, remarks: 'Peak (Fri)', status: 'enabled' },
+  { id: 20, name: 'Family (2 adults + 1 child)', event: 1, discount: null, priceType: 'fixed', price: 39.95, weekdays: ['Sat','Sun'], validFrom: null, validTo: null, timeStart: '10:00', timeEnd: '20:30', addOn: null, remarks: 'Peak (Weekend)', status: 'enabled' },
+  // Early Bird (disabled)
+  { id: 21, name: 'Early Bird', event: 1, discount: null, priceType: 'fixed', price: 24.95, weekdays: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'], validFrom: '2025-11-17', validTo: '2025-12-19', timeStart: null, timeEnd: null, addOn: null, remarks: '早鸟-11月29-12月19', status: 'disabled' },
+  { id: 22, name: 'Early Bird', event: 1, discount: null, priceType: 'fixed', price: 24.95, weekdays: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'], validFrom: '2026-01-02', validTo: '2026-02-28', timeStart: null, timeEnd: null, addOn: null, remarks: '早鸟-1月2日-2月28日', status: 'disabled' },
+  // VIP
+  { id: 23, name: 'VIP', event: 1, discount: null, priceType: 'fixed', price: 79.95, weekdays: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'], validFrom: null, validTo: null, timeStart: null, timeEnd: null, addOn: 'VIP Lounge', remarks: 'VIP体验', status: 'enabled' },
 ]
 
 export const SLOTS_DATA = (() => {
@@ -189,20 +213,23 @@ export const MARKETING_SETTINGS = {
   referralReward: 5,
 }
 
-export const MARKETING_RECORDS = Array.from({ length: 30 }, (_, i) => {
-  const order = ORDERS_DATA[i % ORDERS_DATA.length]
-  const coupon = COUPONS_DATA[i % COUPONS_DATA.length]
-  return {
-    id: i + 1,
-    recipientName: order.user.name,
-    recipientEmail: order.user.email || `guest${i + 1}@example.com`,
-    couponCode: coupon.code,
-    orderId: order.id,
-    status: i < 2 ? 'failed' : i < 4 ? 'cancelled' : 'sent',
-    sentAt: `2026-05-${String(Math.max(1, 13 - Math.floor(i / 5))).padStart(2,'0')} ${String(10 + (i % 12)).padStart(2,'0')}:${String((i * 7) % 60).padStart(2,'0')}:00`,
-    couponUsed: i === 5,
-  }
-})
+export const MARKETING_RECORDS = (() => {
+  const mktCoupons = COUPONS_DATA.filter(c => c.source === 'marketing')
+  return Array.from({ length: 30 }, (_, i) => {
+    const order = ORDERS_DATA[i % ORDERS_DATA.length]
+    const coupon = mktCoupons[i % mktCoupons.length]
+    return {
+      id: i + 1,
+      recipientName: order.user.name,
+      recipientEmail: order.user.email || `guest${i + 1}@example.com`,
+      couponCode: coupon.code,
+      orderId: order.id,
+      status: i < 2 ? 'failed' : i < 4 ? 'cancelled' : 'sent',
+      sentAt: `2026-05-${String(Math.max(1, 13 - Math.floor(i / 5))).padStart(2,'0')} ${String(10 + (i % 12)).padStart(2,'0')}:${String((i * 7) % 60).padStart(2,'0')}:00`,
+      couponUsed: i === 5,
+    }
+  })
+})()
 
 export const DASHBOARD_STATS = {
   todayRevenue: 786.32,

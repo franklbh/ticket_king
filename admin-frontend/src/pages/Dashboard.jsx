@@ -7,7 +7,7 @@ import {
 import { useLang } from '../context/AuthContext'
 import { useT } from '../i18n/translations'
 import { useAuth } from '../context/AuthContext'
-import { DASHBOARD_STATS, SALES_TREND_90, SLOTS_DATA, TICKET_DISTRIBUTION } from '../data/mockData'
+import { DASHBOARD_STATS, SALES_TREND_90, SLOTS_DATA, TICKET_DISTRIBUTION, TICKETS_DATA } from '../data/mockData'
 
 const RANGE_DAYS = { last7Days: 7, last14Days: 14, last30Days: 30, last90Days: 90 }
 
@@ -43,6 +43,16 @@ function buildDistribution(totalTickets) {
   }))
 }
 
+const SLOT_TICKET_BREAKDOWN = (() => {
+  const map = {}
+  TICKETS_DATA.forEach(t => {
+    const key = `${t.slotDate} ${t.slotStart}:00`
+    if (!map[key]) map[key] = {}
+    map[key][t.ticketType] = (map[key][t.ticketType] || 0) + 1
+  })
+  return map
+})()
+
 function buildPopularSlots() {
   return SLOTS_DATA
     .map(slot => ({
@@ -51,7 +61,7 @@ function buildPopularSlots() {
       total: slot.totalSeats,
     }))
     .filter(slot => slot.sold > 0)
-    .sort((a, b) => b.sold - a.sold)
+    .sort((a, b) => a.slot.localeCompare(b.slot))
     .slice(0, 10)
 }
 
@@ -117,18 +127,20 @@ function formatSlot(slot) {
 }
 
 function PopularSlotsChart({ data }) {
-  const rows = [...data].filter(s => s.sold > 0).sort((a, b) => b.sold - a.sold)
-  if (!rows.length) return <div style={{ color: '#9ca3af', textAlign: 'center', padding: 24 }}>No data</div>
+  const [hoveredIdx, setHoveredIdx] = useState(null)
+  if (!data.length) return <div style={{ color: '#9ca3af', textAlign: 'center', padding: 24 }}>No data</div>
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      {rows.map((s, i) => {
-        const pct = Math.round((s.sold / s.total) * 100)
+      {data.map((s, i) => {
         const barPct = (s.sold / s.total) * 100
         const { date, time } = formatSlot(s.slot)
-        const isHigh = barPct >= 70
+        const breakdown = Object.entries(SLOT_TICKET_BREAKDOWN[s.slot] || {})
         return (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 14, position: 'relative' }}
+            onMouseEnter={() => setHoveredIdx(i)}
+            onMouseLeave={() => setHoveredIdx(null)}
+          >
             {/* Label */}
             <div style={{ width: 96, flexShrink: 0, textAlign: 'right', lineHeight: 1.25 }}>
               <div style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>{date}</div>
@@ -136,39 +148,64 @@ function PopularSlotsChart({ data }) {
             </div>
 
             {/* Progress bar track */}
-            <div style={{ flex: 1, height: 28, background: '#f3f4f6', borderRadius: 6, overflow: 'hidden', position: 'relative' }}>
+            <div style={{ flex: 1, height: 28, background: '#f3f4f6', borderRadius: 6, overflow: 'hidden' }}>
               <div style={{
                 height: '100%',
-                width: `${barPct}%`,
-                background: isHigh
-                  ? 'linear-gradient(90deg, #6366f1, #4f46e5)'
-                  : 'linear-gradient(90deg, #818cf8, #a5b4fc)',
+                width: barPct > 0 ? `max(${barPct}%, 72px)` : 0,
+                background: 'linear-gradient(90deg, #818cf8, #a5b4fc)',
                 borderRadius: 6,
                 display: 'flex', alignItems: 'center',
                 transition: 'width 0.5s ease',
-                minWidth: barPct > 0 ? 2 : 0,
               }}>
-                {barPct > 25 && (
-                  <span style={{ color: '#fff', fontSize: 11, fontWeight: 700, paddingLeft: 10, whiteSpace: 'nowrap' }}>
-                    {s.sold} / {s.total}
-                  </span>
-                )}
-              </div>
-              {barPct <= 25 && (
-                <span style={{ position: 'absolute', left: `${barPct}%`, top: '50%', transform: 'translateY(-50%)', paddingLeft: 8, fontSize: 11, color: '#374151', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                <span style={{ color: '#fff', fontSize: 11, fontWeight: 700, paddingLeft: 10, whiteSpace: 'nowrap' }}>
                   {s.sold} / {s.total}
                 </span>
-              )}
+              </div>
             </div>
 
-            {/* Percentage badge */}
-            <div style={{
-              width: 96, flexShrink: 0, textAlign: 'right',
-              fontSize: 12, fontWeight: 700,
-              color: isHigh ? '#6366f1' : '#6b7280',
-            }}>
-              Occupancy {pct}%
-            </div>
+            {/* Hover tooltip */}
+            {hoveredIdx === i && breakdown.length > 0 && (
+              <div style={{
+                position: 'absolute', left: 110, bottom: 'calc(100% + 10px)',
+                background: '#fff', borderRadius: 10, zIndex: 10,
+                whiteSpace: 'nowrap', pointerEvents: 'none',
+                boxShadow: '0 8px 24px rgba(0,0,0,0.15)', border: '1px solid #e5e7eb',
+                minWidth: 220,
+              }}>
+                {/* Header */}
+                <div style={{ padding: '8px 14px', borderBottom: '1px solid #f3f4f6', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <i className="fa fa-ticket" style={{ color: '#6366f1', fontSize: 11 }} />
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#111827' }}>Slot Breakdown</span>
+                  <span style={{ marginLeft: 'auto', fontSize: 11, color: '#9ca3af' }}>{date} {time}</span>
+                </div>
+                {/* Rows */}
+                <div style={{ padding: '8px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {breakdown.map(([type, count]) => (
+                    <div key={type} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#818cf8', flexShrink: 0 }} />
+                      <span style={{ fontSize: 12, color: '#374151', flex: 1 }}>
+                        <span style={{ color: '#9ca3af', marginRight: 4 }}>Ticket Type:</span>{type}
+                      </span>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: '#6366f1', background: '#eef2ff', borderRadius: 4, padding: '1px 7px' }}>
+                        × {count}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                {/* Footer total */}
+                <div style={{ padding: '6px 14px', borderTop: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 11, color: '#9ca3af' }}>Total Sold</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#111827' }}>{s.sold} / {s.total} seats</span>
+                </div>
+                {/* Arrow */}
+                <div style={{
+                  position: 'absolute', bottom: -5, left: 20,
+                  width: 9, height: 9, background: '#fff',
+                  border: '1px solid #e5e7eb', borderTop: 'none', borderLeft: 'none',
+                  transform: 'rotate(45deg)',
+                }} />
+              </div>
+            )}
           </div>
         )
       })}
