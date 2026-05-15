@@ -3,11 +3,13 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import auth, health, test_db
 from app.core.config import settings
-from app.database import init_db
+
+API_V1_PREFIX = "/api/v1"
+APP_NAME = "Ticket King API"
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title=settings.app_name)
+    app = FastAPI(title=APP_NAME)
 
     app.add_middleware(
         CORSMiddleware,
@@ -17,13 +19,9 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    app.include_router(health.router, prefix=settings.api_v1_prefix)
+    app.include_router(health.router, prefix=API_V1_PREFIX)
     app.include_router(test_db.router)
     app.include_router(auth.router)
-
-    @app.on_event("startup")
-    def on_startup() -> None:
-        init_db()
 
     return app
 

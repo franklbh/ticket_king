@@ -13,5 +13,6 @@ dependencies = [
   "python-dotenv",
   "sqlalchemy",
   "psycopg2-binary",
+  "PyJWT[crypto]",
   "uvicorn[standard]",
 ]

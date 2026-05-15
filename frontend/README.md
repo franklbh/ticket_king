@@ -6,15 +6,26 @@ Run the UI and the Stripe Checkout server locally without extra config files.
 Copy `.env.example` to `.env.local` and fill real values:
 ```
 STRIPE_SECRET_KEY=sk_live_xxx          # secret, server only
-VITE_STRIPE_PUBLISHABLE_KEY=pk_live_xxx
 VITE_BASE_URL=https://yourdomain.com   # production site
 VITE_API_BASE=http://localhost:4242    # dev API base
+VITE_SUPABASE_URL=https://your-project-ref.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=your-supabase-publishable-or-anon-key
+```
+
+Supabase Auth redirect URLs that must be allowed in the Supabase dashboard:
+```
+http://localhost:5173/auth/callback
+http://localhost:5173/reset-password
+https://yourdomain.com/auth/callback
+https://yourdomain.com/reset-password
 ```
 
 ## Install
 ```
 npm install
 ```
+
+The UI uses `@supabase/supabase-js` for email/password signup, login, logout, email verification, and password reset.
 
 ## Run (frontend + Stripe API)
 Run both dev servers:

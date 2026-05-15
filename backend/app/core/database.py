@@ -49,15 +49,6 @@ SessionLocal = (
 )
 
 
-def init_db() -> None:
-    if engine is None:
-        return
-
-    from app import models  # noqa: F401
-
-    Base.metadata.create_all(bind=engine)
-
-
 def get_db() -> Generator[Session, None, None]:
     if SessionLocal is None:
         raise HTTPException(

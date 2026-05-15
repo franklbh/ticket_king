@@ -1,9 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
-import { loginUser, signupUser } from './api/auth'
+import {
+  getAuthSession,
+  getDisplayName,
+  sendPasswordReset,
+  signInWithEmail,
+  signOut,
+  signUpWithEmail,
+  updatePassword,
+} from './api/auth'
+import { syncCurrentUser } from './api/backend'
+import { isSupabaseConfigured, missingSupabaseEnvVars, supabase } from './api/supabase'
 
-const USERS_KEY = 'ticket_king_local_users'
-const SESSION_KEY = 'ticket_king_local_session'
 const emailPattern = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/
 
 const languages = [
@@ -126,26 +134,6 @@ const qrPlaceholder =
 </svg>
 `)
 
-const loadUsers = () => {
-  try {
-    return JSON.parse(localStorage.getItem(USERS_KEY)) || []
-  } catch {
-    return []
-  }
-}
-
-const saveUsers = (users) => {
-  localStorage.setItem(USERS_KEY, JSON.stringify(users))
-}
-
-const readSession = () => {
-  try {
-    return JSON.parse(localStorage.getItem(SESSION_KEY))
-  } catch {
-    return null
-  }
-}
-
 const normalize = (value) => value.trim().toLowerCase()
 
 const isStrictEmail = (email) => {
@@ -170,14 +158,14 @@ function App() {
   const [langOpen, setLangOpen] = useState(false)
   const [view, setView] = useState('main')
   const [authMode, setAuthMode] = useState('login')
-  const [users, setUsers] = useState(() => loadUsers())
-  const [session, setSession] = useState(() => readSession())
+  const [session, setSession] = useState(null)
+  const [authReady, setAuthReady] = useState(!isSupabaseConfigured)
   const [authMessage, setAuthMessage] = useState('')
   const [authForm, setAuthForm] = useState({
     name: '',
     email: '',
-    username: '',
     password: '',
+    newPassword: '',
   })
   const [showBooking, setShowBooking] = useState(false)
   const [step, setStep] = useState('date')
@@ -203,11 +191,7 @@ function App() {
   const bookingRef = useRef(null)
   const introRef = useRef(null)
 
-  const currentUser = useMemo(() => {
-    if (!session) return null
-    if (session.user) return session.user
-    return users.find((user) => user.id === session.userId) || null
-  }, [session, users])
+  const currentUser = session?.user || null
 
   const totals = useMemo(() => {
     const ticketTotal = ticketTypes.reduce((sum, t) => sum + counts[t.id] * t.price, 0)
@@ -217,6 +201,14 @@ function App() {
     return { ticketTotal, vipTotal, subtotal, fees, grand: subtotal + fees }
   }, [counts, vipQty])
 
+  const syncUser = async () => {
+    try {
+      await syncCurrentUser()
+    } catch (error) {
+      console.error('Unable to sync user', error)
+    }
+  }
+
   useEffect(() => {
     if (step !== 'payment') return undefined
     setTimeLeft(300)
@@ -225,6 +217,59 @@ function App() {
     }, 1000)
     return () => clearInterval(timer)
   }, [step])
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase) {
+      setAuthReady(true)
+      return undefined
+    }
+
+    let mounted = true
+    getAuthSession()
+      .then((activeSession) => {
+        if (!mounted) return
+        setSession(activeSession)
+        if (activeSession) syncUser()
+        if (activeSession && window.location.pathname === '/auth/callback') {
+          setAuthMessage('Email verified. You are now signed in.')
+          setView('auth')
+          setAuthMode('login')
+          window.history.replaceState({}, document.title, '/')
+        }
+        if (window.location.pathname === '/reset-password') {
+          setView('auth')
+          setAuthMode('reset')
+        }
+      })
+      .catch((error) => {
+        if (!mounted) return
+        setAuthMessage(error.message || 'Unable to load your session.')
+      })
+      .finally(() => {
+        if (mounted) setAuthReady(true)
+      })
+
+    const { data } = supabase.auth.onAuthStateChange((event, activeSession) => {
+      setSession(activeSession)
+      if (activeSession) syncUser()
+      if (event === 'PASSWORD_RECOVERY') {
+        setView('auth')
+        setAuthMode('reset')
+        setAuthMessage('Enter a new password for your account.')
+      }
+      if (event === 'SIGNED_IN' && window.location.pathname === '/auth/callback') {
+        setView('auth')
+        setAuthMode('login')
+        setAuthMessage('Email verified. You are now signed in.')
+        window.history.replaceState({}, document.title, '/')
+      }
+    })
+
+    return () => {
+      mounted = false
+      data.subscription.unsubscribe()
+    }
+  }, [])
 
   useEffect(() => {
     const onScroll = () => {
@@ -240,7 +285,7 @@ function App() {
   }, [])
 
   const resetAuthForm = () => {
-    setAuthForm({ name: '', email: '', username: '', password: '' })
+    setAuthForm({ name: '', email: '', password: '', newPassword: '' })
     setAuthMessage('')
   }
 
@@ -251,32 +296,14 @@ function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  const createSession = (user) => {
-    const nextSession = {
-      userId: user.id,
-      username: user.username,
-      user,
-      createdAt: new Date().toISOString(),
-    }
-    localStorage.setItem(SESSION_KEY, JSON.stringify(nextSession))
-    setSession(nextSession)
-    setView('main')
-  }
-
   const handleSignup = async (event) => {
     event.preventDefault()
     const name = authForm.name.trim()
-    const username = normalize(authForm.username)
     const email = normalize(authForm.email)
     const password = authForm.password
 
     if (name.length < 2) {
       setAuthMessage('Please enter your full name.')
-      return
-    }
-
-    if (!/^[a-z0-9_]{3,24}$/.test(username)) {
-      setAuthMessage('Username must be 3-24 characters: lowercase letters, numbers, or underscores.')
       return
     }
 
@@ -291,12 +318,16 @@ function App() {
     }
 
     try {
-      const data = await signupUser({ name, username, email, password })
-      const user = data.user
-      const nextUsers = [...users.filter((existing) => existing.id !== user.id), user]
-      saveUsers(nextUsers)
-      setUsers(nextUsers)
-      createSession(user)
+      const data = await signUpWithEmail({ name, email, password })
+      if (data.session) {
+        setSession(data.session)
+        await syncUser()
+        setView('main')
+      } else {
+        setAuthMessage('Check your email to verify your account before logging in.')
+        setAuthMode('login')
+        setAuthForm({ name: '', email, password: '', newPassword: '' })
+      }
     } catch (error) {
       setAuthMessage(error.message || 'Unable to sign up. Please try again.')
     }
@@ -304,26 +335,71 @@ function App() {
 
   const handleLogin = async (event) => {
     event.preventDefault()
-    const usernameOrEmail = normalize(authForm.username)
+    const email = normalize(authForm.email)
+
+    if (!isStrictEmail(email)) {
+      setAuthMessage('Please enter the email address for your account.')
+      return
+    }
+
     try {
-      const data = await loginUser({
-        username_or_email: usernameOrEmail,
-        password: authForm.password,
-      })
-      const user = data.user
-      const nextUsers = [...users.filter((existing) => existing.id !== user.id), user]
-      saveUsers(nextUsers)
-      setUsers(nextUsers)
-      createSession(user)
+      const data = await signInWithEmail({ email, password: authForm.password })
+      setSession(data.session)
+      await syncUser()
+      setView('main')
+      resetAuthForm()
     } catch (error) {
-      setAuthMessage(error.message || 'Username or password is incorrect.')
+      setAuthMessage(error.message || 'Email or password is incorrect.')
     }
   }
 
-  const logout = () => {
-    localStorage.removeItem(SESSION_KEY)
-    setSession(null)
-    setView('main')
+  const handlePasswordResetRequest = async (event) => {
+    event.preventDefault()
+    const email = normalize(authForm.email)
+
+    if (!isStrictEmail(email)) {
+      setAuthMessage('Please enter the email address for your account.')
+      return
+    }
+
+    try {
+      await sendPasswordReset(email)
+      setAuthMessage('Password reset email sent. Check your inbox for the reset link.')
+    } catch (error) {
+      setAuthMessage(error.message || 'Unable to send reset email. Please try again.')
+    }
+  }
+
+  const handlePasswordUpdate = async (event) => {
+    event.preventDefault()
+    const nextPassword = authForm.newPassword || authForm.password
+
+    if (nextPassword.length < 8) {
+      setAuthMessage('Password must be at least 8 characters.')
+      return
+    }
+
+    try {
+      await updatePassword(nextPassword)
+      setAuthMessage('Password updated. You can continue using your account.')
+      setAuthMode('login')
+      setView('main')
+      window.history.replaceState({}, document.title, '/')
+      resetAuthForm()
+    } catch (error) {
+      setAuthMessage(error.message || 'Unable to update password. Please use a fresh reset link.')
+    }
+  }
+
+  const logout = async () => {
+    try {
+      await signOut()
+      setSession(null)
+      setView('main')
+    } catch (error) {
+      setAuthMessage(error.message || 'Unable to log out. Please try again.')
+      setView('auth')
+    }
   }
 
   const revealBooking = () => {
@@ -697,83 +773,116 @@ function App() {
     </div>
   )
 
-  const renderAuth = () => (
-    <div className="min-h-[calc(100vh-96px)] bg-slate-950 px-4 py-10 text-white">
-      <div className="mx-auto grid max-w-5xl items-center gap-8 lg:grid-cols-[0.9fr_1.1fr]">
-        <section>
-          <p className="text-sm font-bold uppercase tracking-widest text-amber-200">Ticket King account</p>
-          <h2 className="mt-3 text-4xl font-black leading-tight">Local login for the frontend preview.</h2>
-          <p className="mt-4 text-lg leading-8 text-slate-300">
-            Accounts are saved in browser local storage for now. Email verification can be added later; new users already
-            include an emailVerified field set to false.
-          </p>
-        </section>
+  const renderAuth = () => {
+    const isSignup = authMode === 'signup'
+    const isForgot = authMode === 'forgot'
+    const isReset = authMode === 'reset'
+    const formTitle = isReset ? 'Set new password' : isForgot ? 'Reset password' : isSignup ? 'Create your account' : 'Welcome back'
+    const formSubmit = isReset ? handlePasswordUpdate : isForgot ? handlePasswordResetRequest : isSignup ? handleSignup : handleLogin
+    const submitLabel = isReset ? 'Update password' : isForgot ? 'Send reset email' : isSignup ? 'Sign up' : 'Log in'
 
-        <section className="rounded-xl bg-white p-5 text-slate-950 shadow-2xl sm:p-7">
-          <button className="mb-5 text-sm font-bold text-slate-500 hover:text-slate-950" onClick={() => setView('main')} type="button">
-            Back to main page
-          </button>
-          <div className="mb-6 grid grid-cols-2 rounded-lg bg-slate-100 p-1">
-            <button
-              className={`rounded-md px-4 py-2 text-sm font-black transition ${authMode === 'login' ? 'bg-slate-950 text-white shadow' : 'text-slate-600 hover:text-slate-950'}`}
-              onClick={() => {
-                setAuthMode('login')
-                resetAuthForm()
-              }}
-              type="button"
-            >
-              Login
-            </button>
-            <button
-              className={`rounded-md px-4 py-2 text-sm font-black transition ${authMode === 'signup' ? 'bg-slate-950 text-white shadow' : 'text-slate-600 hover:text-slate-950'}`}
-              onClick={() => {
-                setAuthMode('signup')
-                resetAuthForm()
-              }}
-              type="button"
-            >
-              Sign up
-            </button>
-          </div>
+    return (
+      <div className="min-h-[calc(100vh-96px)] bg-slate-950 px-4 py-10 text-white">
+        <div className="mx-auto grid max-w-5xl items-center gap-8 lg:grid-cols-[0.9fr_1.1fr]">
+          <section>
+            <p className="text-sm font-bold uppercase tracking-widest text-amber-200">Ticket King account</p>
+            <h2 className="mt-3 text-4xl font-black leading-tight">Secure account access for tickets and orders.</h2>
+            <p className="mt-4 text-lg leading-8 text-slate-300">
+              Supabase handles email verification, password login, logout, and reset links. Your session is backed by a JWT
+              that can be sent to the API for protected routes.
+            </p>
+          </section>
 
-          <h3 className="mb-5 text-3xl font-black">{authMode === 'login' ? 'Welcome back' : 'Create your account'}</h3>
-          <form className="grid gap-4" onSubmit={authMode === 'login' ? handleLogin : handleSignup}>
-            {authMode === 'signup' && (
-              <>
-                <AuthField label="Full name" value={authForm.name} onChange={(value) => setAuthForm({ ...authForm, name: value })} placeholder="Jane Smith" autoComplete="name" />
-                <AuthField label="Email address" value={authForm.email} onChange={(value) => setAuthForm({ ...authForm, email: value })} placeholder="name@example.com" type="email" autoComplete="email" />
-              </>
-            )}
-            <AuthField
-              label={authMode === 'login' ? 'Username or email' : 'Username'}
-              value={authForm.username}
-              onChange={(value) => setAuthForm({ ...authForm, username: value })}
-              placeholder={authMode === 'login' ? 'username or email' : 'jane_smith'}
-              autoComplete="username"
-              helper={authMode === 'signup' ? '3-24 lowercase letters, numbers, or underscores.' : 'You can use your username or email.'}
-            />
-            <AuthField
-              label="Password"
-              value={authForm.password}
-              onChange={(value) => setAuthForm({ ...authForm, password: value })}
-              placeholder="Enter your password"
-              type="password"
-              autoComplete={authMode === 'login' ? 'current-password' : 'new-password'}
-              helper={authMode === 'signup' ? 'Use at least 8 characters.' : undefined}
-            />
-            {authMessage && (
-              <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
-                {authMessage}
+          <section className="rounded-xl bg-white p-5 text-slate-950 shadow-2xl sm:p-7">
+            <button className="mb-5 text-sm font-bold text-slate-500 hover:text-slate-950" onClick={() => setView('main')} type="button">
+              Back to main page
+            </button>
+            {!isReset && (
+              <div className="mb-6 grid grid-cols-2 rounded-lg bg-slate-100 p-1">
+                <button
+                  className={`rounded-md px-4 py-2 text-sm font-black transition ${authMode === 'login' || isForgot ? 'bg-slate-950 text-white shadow' : 'text-slate-600 hover:text-slate-950'}`}
+                  onClick={() => {
+                    setAuthMode('login')
+                    resetAuthForm()
+                  }}
+                  type="button"
+                >
+                  Login
+                </button>
+                <button
+                  className={`rounded-md px-4 py-2 text-sm font-black transition ${authMode === 'signup' ? 'bg-slate-950 text-white shadow' : 'text-slate-600 hover:text-slate-950'}`}
+                  onClick={() => {
+                    setAuthMode('signup')
+                    resetAuthForm()
+                  }}
+                  type="button"
+                >
+                  Sign up
+                </button>
               </div>
             )}
-            <button className="rounded-lg bg-rose-700 px-5 py-3 font-black text-white shadow-lg shadow-rose-950/20 transition hover:bg-rose-800" type="submit">
-              {authMode === 'login' ? 'Log in' : 'Sign up'}
-            </button>
-          </form>
-        </section>
+
+            <h3 className="mb-5 text-3xl font-black">{formTitle}</h3>
+            {!isSupabaseConfigured && (
+              <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800">
+                Supabase is not configured yet. Add {missingSupabaseEnvVars.join(' and ')} to frontend/.env, then restart Vite.
+              </div>
+            )}
+            <form className="grid gap-4" onSubmit={formSubmit}>
+              {isSignup && (
+                <AuthField label="Full name" value={authForm.name} onChange={(value) => setAuthForm({ ...authForm, name: value })} placeholder="Jane Smith" autoComplete="name" />
+              )}
+              {!isReset && (
+                <AuthField
+                  label="Email address"
+                  value={authForm.email}
+                  onChange={(value) => setAuthForm({ ...authForm, email: value })}
+                  placeholder="name@example.com"
+                  type="email"
+                  autoComplete="email"
+                />
+              )}
+              {!isForgot && (
+                <AuthField
+                  label={isReset ? 'New password' : 'Password'}
+                  value={isReset ? authForm.newPassword : authForm.password}
+                  onChange={(value) => setAuthForm(isReset ? { ...authForm, newPassword: value } : { ...authForm, password: value })}
+                  placeholder={isReset ? 'Enter a new password' : 'Enter your password'}
+                  type="password"
+                  autoComplete={isReset || isSignup ? 'new-password' : 'current-password'}
+                  helper={isSignup || isReset ? 'Use at least 8 characters.' : undefined}
+                />
+              )}
+              {authMessage && (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
+                  {authMessage}
+                </div>
+              )}
+              <button
+                className="rounded-lg bg-rose-700 px-5 py-3 font-black text-white shadow-lg shadow-rose-950/20 transition hover:bg-rose-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+                disabled={!isSupabaseConfigured}
+                type="submit"
+              >
+                {submitLabel}
+              </button>
+              {!isSignup && !isReset && (
+                <button
+                  className="text-left text-sm font-bold text-slate-500 hover:text-slate-950"
+                  onClick={() => {
+                    setAuthMode(isForgot ? 'login' : 'forgot')
+                    setAuthMessage('')
+                  }}
+                  type="button"
+                >
+                  {isForgot ? 'Back to login' : 'Forgot your password?'}
+                </button>
+              )}
+            </form>
+          </section>
+        </div>
       </div>
-    </div>
-  )
+    )
+  }
 
   return (
     <div className="page">
@@ -784,9 +893,11 @@ function App() {
           <div className="title">Secrets of the First Emperor&apos;s Mausoleum</div>
         </button>
         <div className="top-actions">
-          {currentUser ? (
+          {!authReady ? (
+            <span className="auth-welcome">Checking session...</span>
+          ) : currentUser ? (
             <>
-              <span className="auth-welcome">Hi, {currentUser.name}</span>
+              <span className="auth-welcome">Hi, {getDisplayName(currentUser)}</span>
               <button className="primary ghost" onClick={logout} type="button">Logout</button>
             </>
           ) : (

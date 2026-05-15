@@ -1,5 +1,4 @@
 import json
-from functools import lru_cache
 from pathlib import Path
 
 from pydantic import Field, field_validator
@@ -10,9 +9,6 @@ BACKEND_DIR = Path(__file__).resolve().parents[2]
 
 
 class Settings(BaseSettings):
-    app_name: str = "Ticket King API"
-    app_env: str = "local"
-    api_v1_prefix: str = "/api/v1"
     backend_cors_origins: list[str] = Field(
         default_factory=lambda: [
             "http://localhost:5173",
@@ -21,18 +17,18 @@ class Settings(BaseSettings):
         ],
     )
     database_url: str | None = None
-    db_user: str | None = Field(default=None, validation_alias="DB_USER")
-    db_password: str | None = Field(default=None, validation_alias="DB_PASSWORD")
-    db_host: str | None = Field(default=None, validation_alias="DB_HOST")
-    db_port: int = Field(default=5432, validation_alias="DB_PORT")
-    db_name: str | None = Field(default=None, validation_alias="DB_NAME")
+    db_user: str | None = None
+    db_password: str | None = None
+    db_host: str | None = None
+    db_port: int = 5432
+    db_name: str = "postgres"
     supabase_url: str | None = None
-    supabase_service_role_key: str | None = None
 
     @field_validator("backend_cors_origins", mode="before")
     @classmethod
-    def parse_cors_origins(cls, value: str | list[str]) -> list[str]:
+    def parse_cors_origins(cls, value: str | list[str]) -> list[str] | str:
         if isinstance(value, str):
+            value = value.strip()
             if value.startswith("["):
                 return json.loads(value)
             return [origin.strip() for origin in value.split(",") if origin.strip()]
@@ -46,9 +42,4 @@ class Settings(BaseSettings):
     )
 
 
-@lru_cache
-def get_settings() -> Settings:
-    return Settings()
-
-
-settings = get_settings()
+settings = Settings()
