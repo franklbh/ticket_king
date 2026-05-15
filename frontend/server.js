@@ -13,8 +13,7 @@ app.use(express.json());
 
 app.post('/api/checkout', async (req, res) => {
   try {
-    const { quantity = 1, showName, date, time } = req.body;
-    const unitAmount = 4330; // CA$43.30 in cents
+    const { amount, showName, date, time } = req.body;
 
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
@@ -23,13 +22,13 @@ app.post('/api/checkout', async (req, res) => {
         {
           price_data: {
             currency: 'cad',
-            unit_amount: unitAmount,
+            unit_amount: amount,
             product_data: {
               name: showName || 'Terracotta Warriors VR',
               description: `Date: ${date || 'TBD'} • Time: ${time || 'TBD'}`
             }
           },
-          quantity
+          quantity: 1
         }
       ],
       success_url: `${process.env.VITE_BASE_URL || 'http://localhost:5173'}/success?session_id={CHECKOUT_SESSION_ID}`,

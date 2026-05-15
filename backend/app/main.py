@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import health
+from app.api.routes import alphapay, health
 from app.core.config import settings
 
 
@@ -17,6 +17,7 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(health.router, prefix=settings.api_v1_prefix)
+    app.include_router(alphapay.router, prefix=settings.api_v1_prefix)
 
     return app
 

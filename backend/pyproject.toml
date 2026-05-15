@@ -11,4 +11,6 @@ dependencies = [
   "fastapi",
   "pydantic-settings",
   "uvicorn[standard]",
+  "httpx",
+  "cryptography",
 ]

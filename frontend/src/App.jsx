@@ -496,6 +496,9 @@ function App() {
   const [scrollProgress, setScrollProgress] = useState(0)
   const [showBackTop, setShowBackTop] = useState(false)
   const [stripeLoading, setStripeLoading] = useState(false)
+  const [alphapayQrImage, setAlphapayQrImage] = useState(null)
+  const [alphapayLoading, setAlphapayLoading] = useState(false)
+  const alphapayEventSourceRef = useRef(null)
   const [faqOpen, setFaqOpen] = useState(0)
   const [newsletterEmail, setNewsletterEmail] = useState('')
   const [newsletterMessage, setNewsletterMessage] = useState('')
@@ -740,6 +743,9 @@ function App() {
   }
   const cancelQrPayment = () => {
     if (window.confirm(t('cancelConfirm'))) {
+      alphapayEventSourceRef.current?.close()
+      alphapayEventSourceRef.current = null
+      setAlphapayQrImage(null)
       setShowQr(null)
     }
   }
@@ -779,7 +785,7 @@ function App() {
       const apiBase = import.meta.env.VITE_API_BASE || ''
       const res = await fetch(`${apiBase}/api/checkout`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ quantity: Math.max(1, counts.adult || 1), showName: 'Terracotta Warriors VR', date: selectedDate ? fullDateDisplay(selectedDate.date) : 'TBD', time: selectedTime?.time || 'TBD' }),
+        body: JSON.stringify({ amount: Math.round(totals.grand * 100), showName: 'Terracotta Warriors VR', date: selectedDate ? fullDateDisplay(selectedDate.date) : 'TBD', time: selectedTime?.time || 'TBD' }),
       })
       if (!res.ok) throw new Error('Checkout failed')
       const data = await res.json()
@@ -787,6 +793,43 @@ function App() {
     } catch (err) {
       console.error(err); alert(t('unableCheckout'))
     } finally { setStripeLoading(false) }
+  }
+
+  const startAlphapayCheckout = async (method) => {
+    if (paymentExpired) return
+    try {
+      setAlphapayLoading(true)
+      const backendBase = import.meta.env.VITE_BACKEND_BASE || 'http://localhost:8000'
+      const paymentRequestId = `order_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+      const totalCents = Math.round(totals.grand * 100)
+      const res = await fetch(`${backendBase}/api/v1/alphapay/qr`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ method, amount: totalCents, payment_request_id: paymentRequestId, description: 'Terracotta Warriors VR' }),
+      })
+      if (!res.ok) throw new Error('Failed to create QR')
+      const data = await res.json()
+      setAlphapayQrImage(data.qrImage)
+      setShowQr(method)
+      const es = new EventSource(`${backendBase}/api/v1/alphapay/events/${paymentRequestId}`)
+      alphapayEventSourceRef.current = es
+      es.onmessage = (e) => {
+        const payload = JSON.parse(e.data)
+        if (payload.paid) {
+          es.close()
+          alphapayEventSourceRef.current = null
+          setShowQr(null)
+          setAlphapayQrImage(null)
+          window.location.href = `${import.meta.env.VITE_BASE_URL || ''}/success`
+        }
+      }
+      es.onerror = () => es.close()
+    } catch (err) {
+      console.error(err)
+      alert(t('unableCheckout'))
+    } finally {
+      setAlphapayLoading(false)
+    }
   }
 
   const renderLangSelect = () => (
@@ -1038,13 +1081,13 @@ function App() {
               <span className="pay-icon stripe-word">stripe</span>
               <span>{stripeLoading ? t('processingPayment') : t('creditCard')}</span>
             </button>
-            <button className="pay-btn wechat" onClick={() => setShowQr('wechat')} disabled={paymentExpired} type="button">
+            <button className="pay-btn wechat" onClick={() => startAlphapayCheckout('wechat')} disabled={alphapayLoading || paymentExpired} type="button">
               <span className="pay-icon wechat-icon" aria-hidden="true">
                 <svg viewBox="0 0 32 32"><path d="M13.2 7.2C6.9 7.2 2 11.1 2 16.1c0 2.8 1.6 5.2 4 6.8l-.8 3 3.5-1.7c1.3.5 2.8.8 4.5.8.8 0 1.6-.1 2.4-.2-.4-1-.6-2-.6-3.1 0-4.4 4.2-8 9.6-8.5-1.5-3.5-5.9-6-11.4-6z"/><path d="M25 15.1c-4.2 0-7.6 2.8-7.6 6.3s3.4 6.3 7.6 6.3c1 0 2-.2 2.9-.5l2.5 1.2-.6-2.1c1.4-1.1 2.2-2.8 2.2-4.8 0-3.6-3.4-6.4-7-6.4z"/></svg>
               </span>
               <span>WeChat Pay</span>
             </button>
-            <button className="pay-btn alipay" onClick={() => setShowQr('alipay')} disabled={paymentExpired} type="button">
+            <button className="pay-btn alipay" onClick={() => startAlphapayCheckout('alipay')} disabled={alphapayLoading || paymentExpired} type="button">
               <span className="pay-icon alipay-icon" aria-hidden="true">支</span>
               <span>Alipay</span>
             </button>
@@ -1422,7 +1465,7 @@ function App() {
             <p className="qr-subtitle">{t('qrScan', { method: showQr === 'wechat' ? 'WeChat' : 'Alipay' })}</p>
             <div className="qr-warning">{t('qrWarning')}</div>
             <div className="qr-code-frame">
-              <img src={qrPlaceholder} alt={`${showQr === 'wechat' ? 'WeChat Pay' : 'Alipay'} QR code`} />
+              <img src={alphapayQrImage || qrPlaceholder} alt={`${showQr === 'wechat' ? 'WeChat Pay' : 'Alipay'} QR code`} />
             </div>
             <button className="qr-cancel-btn" onClick={cancelQrPayment} type="button">{t('cancelPayment')}</button>
           </div>
