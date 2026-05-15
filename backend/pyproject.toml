@@ -13,4 +13,5 @@ dependencies = [
   "uvicorn[standard]",
   "httpx",
   "cryptography",
+  "stripe",
 ]
