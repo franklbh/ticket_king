@@ -1715,7 +1715,7 @@ input:focus-visible {
   font-size: 15px;
 }
 .slot-grid {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px;
 }
 .slot {
   background: #f6fdfa; border: 1px solid #c6e6d7; color: #0d653f;
@@ -1814,7 +1814,14 @@ input:focus-visible {
   border-radius: 12px; overflow: hidden; border: 1px solid #d8d8e0;
 }
 .counter button { border: none; background: #f1f1f7; font-size: 18px; cursor: pointer; }
-.counter-value { display: grid; place-items: center; font-weight: 700; }
+.counter-value {
+  display: grid; place-items: center; font-weight: 700;
+  border: none; background: #fff; text-align: center; width: 40px; font-size: 16px;
+  -moz-appearance: textfield; outline: none; padding: 0;
+}
+.counter-value:focus, .counter-value:focus-visible { outline: none; }
+.counter-value::-webkit-inner-spin-button,
+.counter-value::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 
 .summary-row {
   background: #eef3ff; padding: 12px 14px; border-radius: 14px; margin-top: 10px;
@@ -1912,8 +1919,35 @@ small { color: #7c6157; }
 .line-qty { font-weight: 700; color: #4a5568; }
 
 .totals { background: #fff; border-radius: 12px; padding: 12px; border: 1px solid #eceef5; }
-.totals-row { display: flex; justify-content: space-between; margin: 6px 0; font-weight: 600; }
+.totals-row { display: flex; justify-content: space-between; align-items: center; margin: 6px 0; font-weight: 600; }
 .totals-row.due { color: var(--rust); font-size: 18px; font-weight: 700; }
+
+.fees-label { display: inline-flex; align-items: center; gap: 6px; }
+.fees-info-wrap { position: relative; display: inline-flex; align-items: center; }
+.fees-badge {
+  display: inline-grid; place-items: center;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: #4a7cdc; color: #fff;
+  font-size: 11px; font-weight: 700; cursor: default; flex-shrink: 0;
+}
+.fees-tooltip {
+  display: none;
+  position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+  background: #1a100c; color: #fff; border-radius: 10px;
+  padding: 10px 14px; min-width: 210px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.22);
+  flex-direction: column; gap: 6px; z-index: 50;
+  pointer-events: none;
+}
+.fees-tooltip::after {
+  content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+  border: 6px solid transparent; border-top-color: #1a100c;
+}
+.fees-info-wrap:hover .fees-tooltip { display: flex; }
+.fees-tooltip-row {
+  display: flex; justify-content: space-between; gap: 24px;
+  font-size: 13px; font-weight: 500; white-space: nowrap;
+}
 
 .warning {
   margin-top: 10px; background: #fff3f0; border: 1px solid #f4c9c1;
@@ -2186,4 +2220,10 @@ small { color: #7c6157; }
     opacity: 1;
     transform: none;
   }
+}
+
+/* Booking flow: system-ui for all text after clicking "Buy Ticket" */
+#booking,
+#booking * {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif !important;
 }

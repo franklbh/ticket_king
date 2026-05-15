@@ -92,13 +92,13 @@ const translations = {
     emailTaken: 'That email is already registered.', loginIncorrect: 'Username or password is incorrect.',
     couponFirst: 'Enter a coupon code first.', couponUnavailable: 'Code "{code}" is not available for this preview checkout.',
     hi: 'Hi,', unavailable: 'unavailable', dateTbd: 'Date TBD',
-    ticketTypeRegular: 'Regular', ticketTypeChild: 'Child (7-15)', ticketTypeSenior: 'Senior (65+)',
-    ticketTypeFamily: 'Family Bundle (max. 2 adults)', ticketTypeGroup: 'Group Ticket (min. 6 people)',
+    ticketTypeRegular: 'Adult', ticketTypeChild: 'Child (7–15)', ticketTypeSenior: 'Senior (65+)',
+    ticketTypeFamily: 'Family (2 adults + 1 child)', ticketTypeGroup: 'Group (6+ people)',
     regularDesc: '$37.95/each', childDesc: '$27.95/each', seniorDesc: '$34.95/each', familyDesc: '$31.95/each', groupDesc: '$33.95/each',
-    childInfo: 'Children under 7 years old are not permitted. Children aged 7 to 14 years must be accompanied by an adult.',
-    familyInfo: 'Ticket for min. 3 people, max. 2 adults.', groupInfo: 'Ticket for min. 6 people.',
+    childInfo: 'Children under 7 are not permitted. Ages 7–14 must be accompanied by an adult.',
+    familyInfo: 'Min. 3 people (2 adults + 1 child).', groupInfo: 'Min. 6 people.',
     pricingRegularDesc: 'Standard entry for one person', pricingChildDesc: 'Must be accompanied by an adult',
-    pricingSeniorDesc: 'Ticket for seniors 65+', pricingFamilyDesc: 'Ticket for min. 3 people, max. 2 adults', pricingGroupDesc: 'Ticket for min. 6 people',
+    pricingSeniorDesc: 'Ticket for seniors 65+', pricingFamilyDesc: 'Min. 3 people (2 adults + 1 child)', pricingGroupDesc: 'Min. 6 people',
     startsFrom: 'Starts from {price}/each',
     faq1Q: 'If I wear glasses, can I still attend?', faq1A: 'Yes — our VR headset is designed so that you can usually wear your corrective or reading glasses inside the device comfortably.',
     faq2Q: 'Can children attend?', faq2A: 'Children aged 7–15 are welcome with a child ticket and must be accompanied by a paying adult at all times during the experience.',
@@ -162,13 +162,13 @@ const translations = {
     emailTaken: '该邮箱已注册。', loginIncorrect: '用户名或密码不正确。',
     couponFirst: '请先输入优惠码。', couponUnavailable: '优惠码“{code}”不适用于当前预览结账。',
     hi: '你好，', unavailable: '不可用', dateTbd: '日期待定',
-    ticketTypeRegular: '普通票', ticketTypeChild: '儿童票（7–15 岁）', ticketTypeSenior: '长者票（65+）',
-    ticketTypeFamily: '家庭套票（最多 2 位成人）', ticketTypeGroup: '团体票（至少 6 人）',
+    ticketTypeRegular: '成人票', ticketTypeChild: '儿童票（7–15 岁）', ticketTypeSenior: '长者票（65+）',
+    ticketTypeFamily: '家庭票（2大1小）', ticketTypeGroup: '团体票（6人以上）',
     regularDesc: '$37.95/张', childDesc: '$27.95/张', seniorDesc: '$34.95/张', familyDesc: '$31.95/张', groupDesc: '$33.95/张',
     childInfo: '7 岁以下儿童不可入场。7 至 14 岁儿童必须由成人陪同。',
-    familyInfo: '至少 3 人起订，最多 2 位成人。', groupInfo: '团体票至少 6 人起订。',
+    familyInfo: '最少 3 人（2 大 1 小）。', groupInfo: '团体票至少 6 人起订。',
     pricingRegularDesc: '单人标准入场', pricingChildDesc: '须由成人陪同',
-    pricingSeniorDesc: '适用于 65 岁及以上长者', pricingFamilyDesc: '至少 3 人，最多 2 位成人', pricingGroupDesc: '至少 6 人起订',
+    pricingSeniorDesc: '适用于 65 岁及以上长者', pricingFamilyDesc: '最少 3 人（2 大 1 小）', pricingGroupDesc: '至少 6 人起订',
     startsFrom: '{price}/张起',
     faq1Q: '戴眼镜可以参加吗？', faq1A: '可以。我们的 VR 头显通常可容纳近视或阅读眼镜，佩戴舒适。',
     faq2Q: '儿童可以参加吗？', faq2A: '7–15 岁儿童可购买儿童票参加，并须全程由购票成人陪同。',
@@ -232,13 +232,13 @@ const translations = {
     emailTaken: '該電郵已註冊。', loginIncorrect: '使用者名稱或密碼不正確。',
     couponFirst: '請先輸入優惠碼。', couponUnavailable: '優惠碼「{code}」不適用於目前預覽結帳。',
     hi: '你好，', unavailable: '不可用', dateTbd: '日期待定',
-    ticketTypeRegular: '普通票', ticketTypeChild: '兒童票（7–15 歲）', ticketTypeSenior: '長者票（65+）',
-    ticketTypeFamily: '家庭套票（最多 2 位成人）', ticketTypeGroup: '團體票（至少 6 人）',
+    ticketTypeRegular: '成人票', ticketTypeChild: '兒童票（7–15 歲）', ticketTypeSenior: '長者票（65+）',
+    ticketTypeFamily: '家庭票（2大1小）', ticketTypeGroup: '團體票（6人以上）',
     regularDesc: '$37.95/張', childDesc: '$27.95/張', seniorDesc: '$34.95/張', familyDesc: '$31.95/張', groupDesc: '$33.95/張',
     childInfo: '7 歲以下兒童不可入場。7 至 14 歲兒童必須由成人陪同。',
-    familyInfo: '至少 3 人起訂，最多 2 位成人。', groupInfo: '團體票至少 6 人起訂。',
+    familyInfo: '最少 3 人（2 大 1 小）。', groupInfo: '團體票至少 6 人起訂。',
     pricingRegularDesc: '單人標準入場', pricingChildDesc: '須由成人陪同',
-    pricingSeniorDesc: '適用於 65 歲及以上長者', pricingFamilyDesc: '至少 3 人，最多 2 位成人', pricingGroupDesc: '至少 6 人起訂',
+    pricingSeniorDesc: '適用於 65 歲及以上長者', pricingFamilyDesc: '最少 3 人（2 大 1 小）', pricingGroupDesc: '至少 6 人起訂',
     startsFrom: '{price}/張起',
     faq1Q: '戴眼鏡可以參加嗎？', faq1A: '可以。我們的 VR 頭戴裝置通常可容納近視或閱讀眼鏡，佩戴舒適。',
     faq2Q: '兒童可以參加嗎？', faq2A: '7–15 歲兒童可購買兒童票參加，並須全程由購票成人陪同。',
@@ -273,31 +273,46 @@ const dateGrid = [
   { day: 30, price: 37.95, level: 'normal' }, { day: 31, price: 37.95, level: 'normal' },
 ]
 
-const timeSlots = [
-  { time: '10:00 AM', price: 37.95 }, { time: '10:30 AM', price: 37.95 },
-  { time: '11:00 AM', price: 37.95 }, { time: '11:30 AM', price: 37.95 },
-  { time: '12:00 PM', price: 37.95 }, { time: '12:30 PM', price: 37.95 },
-  { time: '1:00 PM', price: 37.95 }, { time: '1:30 PM', price: 37.95 },
-  { time: '2:00 PM', price: 37.95 }, { time: '2:30 PM', price: 37.95 },
-  { time: '3:00 PM', price: 43.95 }, { time: '3:30 PM', price: 43.95 },
-  { time: '4:00 PM', price: 43.95 }, { time: '4:30 PM', price: 43.95 },
-  { time: '5:00 PM', price: 43.95 },
+const ALL_TIME_SLOTS = [
+  '10:00 AM', '10:30 AM', '11:00 AM', '11:30 AM',
+  '12:00 PM', '12:30 PM', '1:00 PM', '1:30 PM',
+  '2:00 PM', '2:30 PM', '3:00 PM', '3:30 PM',
+  '4:00 PM', '4:30 PM', '5:00 PM', '5:30 PM',
+  '6:00 PM', '6:30 PM', '7:00 PM', '7:30 PM', '8:00 PM',
 ]
 
+const OFF_PEAK_PRICES = { adult: 37.95, child: 27.95, senior: 34.95, group: 32.95, family: 31.95 }
+const PEAK_PRICES     = { adult: 45.95, child: 34.95, senior: 41.95, group: 40.95, family: 39.95 }
+
+function parseSlotHour(timeStr) {
+  const [time, period] = timeStr.split(' ')
+  let h = parseInt(time)
+  if (period === 'PM' && h !== 12) h += 12
+  if (period === 'AM' && h === 12) h = 0
+  return h
+}
+
+function isDateTimePeak(date, timeStr) {
+  const dow = date.getDay() // 0=Sun, 6=Sat
+  if (dow === 0 || dow === 6) return true
+  if (dow === 5) return parseSlotHour(timeStr) >= 14 // Fri 14:00+
+  return false
+}
+
 const ticketTypes = [
-  { id: 'regular', label: 'Regular', description: '$37.95/each', price: 37.95 },
-  { id: 'child', label: 'Child (7-15)', description: '$27.95/each', price: 27.95, info: 'Children under 7 years old are not permitted. Children aged 7 to 14 years must be accompanied by an adult.' },
-  { id: 'senior', label: 'Senior (65+)', description: '$34.95/each', price: 34.95 },
-  { id: 'family', label: 'Family Bundle (max. 2 adults)', description: '$31.95/each', price: 31.95, info: 'Ticket for min. 3 people, max. 2 adults.' },
-  { id: 'group', label: 'Group Ticket (min. 6 people)', description: '$33.95/each', price: 33.95, info: 'Ticket for min. 6 people.' },
+  { id: 'adult' },
+  { id: 'child' },
+  { id: 'senior' },
+  { id: 'group' },
+  { id: 'family' },
 ]
 
 const ticketPricing = [
-  { label: 'Regular', desc: 'Standard entry for one person', price: 'Starts from $37.95/each' },
-  { label: 'Child (7-15)', desc: 'Must be accompanied by an adult', price: 'Starts from $27.95/each' },
-  { label: 'Senior (65+)', desc: 'Ticket for seniors 65+', price: 'Starts from $34.95/each' },
-  { label: 'Family Bundle', desc: 'Ticket for min. 3 people, max. 2 adults', price: 'Starts from $31.95/each' },
-  { label: 'Group Ticket', desc: 'Ticket for min. 6 people', price: 'Starts from $33.95/each' },
+  { label: 'Adult', desc: 'Standard entry for one person', price: 'From $37.95/each' },
+  { label: 'Child (7–15)', desc: 'Must be accompanied by an adult', price: 'From $27.95/each' },
+  { label: 'Senior (65+)', desc: 'Ticket for seniors 65+', price: 'From $34.95/each' },
+  { label: 'Family (2 adults + 1 child)', desc: 'Min. 3 people (2 adults + 1 child)', price: 'From $31.95/each' },
+  { label: 'Group (6+ people)', desc: 'Min. 6 people', price: 'From $32.95/each' },
 ]
 
 const faqItems = [
@@ -471,6 +486,7 @@ function App() {
   const [selectedDate, setSelectedDate] = useState(null)
   const [selectedTime, setSelectedTime] = useState(null)
   const [counts, setCounts] = useState(() => ticketTypes.reduce((acc, t) => ({ ...acc, [t.id]: 0 }), {}))
+  const [rawCounts, setRawCounts] = useState({})
   const [vipQty, setVipQty] = useState(0)
   const [vipModal, setVipModal] = useState(false)
   const [contact, setContact] = useState({ first: '', last: '', email: '', phone: '', optIn: false })
@@ -493,24 +509,18 @@ function App() {
     return Object.entries(params).reduce((text, [name, value]) => text.replaceAll(`{${name}}`, value), template)
   }
   const ticketCopyKeys = {
-    regular: ['ticketTypeRegular', 'regularDesc'],
-    child: ['ticketTypeChild', 'childDesc', 'childInfo'],
-    senior: ['ticketTypeSenior', 'seniorDesc'],
-    family: ['ticketTypeFamily', 'familyDesc', 'familyInfo'],
-    group: ['ticketTypeGroup', 'groupDesc', 'groupInfo'],
+    adult:  ['ticketTypeRegular', null, null],
+    child:  ['ticketTypeChild',   null, 'childInfo'],
+    senior: ['ticketTypeSenior',  null, null],
+    family: ['ticketTypeFamily',  null, 'familyInfo'],
+    group:  ['ticketTypeGroup',   null, 'groupInfo'],
   }
-  const localizedTicketTypes = ticketTypes.map((ticket) => ({
-    ...ticket,
-    label: t(ticketCopyKeys[ticket.id][0]),
-    description: t(ticketCopyKeys[ticket.id][1]),
-    info: ticketCopyKeys[ticket.id][2] ? t(ticketCopyKeys[ticket.id][2]) : undefined,
-  }))
   const localizedTicketPricing = [
     { label: t('ticketTypeRegular'), desc: t('pricingRegularDesc'), price: t('startsFrom', { price: '$37.95' }) },
-    { label: t('ticketTypeChild'), desc: t('pricingChildDesc'), price: t('startsFrom', { price: '$27.95' }) },
-    { label: t('ticketTypeSenior'), desc: t('pricingSeniorDesc'), price: t('startsFrom', { price: '$34.95' }) },
-    { label: selectedLang.code === 'en' ? 'Family Bundle' : t('ticketTypeFamily'), desc: t('pricingFamilyDesc'), price: t('startsFrom', { price: '$31.95' }) },
-    { label: selectedLang.code === 'en' ? 'Group Ticket' : t('ticketTypeGroup'), desc: t('pricingGroupDesc'), price: t('startsFrom', { price: '$33.95' }) },
+    { label: t('ticketTypeChild'),   desc: t('pricingChildDesc'),   price: t('startsFrom', { price: '$27.95' }) },
+    { label: t('ticketTypeSenior'),  desc: t('pricingSeniorDesc'),  price: t('startsFrom', { price: '$34.95' }) },
+    { label: t('ticketTypeFamily'),  desc: t('pricingFamilyDesc'),  price: t('startsFrom', { price: '$31.95' }) },
+    { label: t('ticketTypeGroup'),   desc: t('pricingGroupDesc'),   price: t('startsFrom', { price: '$32.95' }) },
   ]
   const localizedFaqItems = [1, 2, 3, 4, 5, 6].map((idx) => ({ q: t(`faq${idx}Q`), a: t(`faq${idx}A`) }))
   const localizedTestimonials = testimonials.map((item, idx) => ({ ...item, quote: t(`review${idx + 1}`) }))
@@ -529,13 +539,32 @@ function App() {
     return users.find((u) => u.id === session.userId) || null
   }, [session, users])
 
+  const isPeak = useMemo(() => {
+    if (!selectedDate || !selectedTime) return false
+    return isDateTimePeak(selectedDate.date, selectedTime.time)
+  }, [selectedDate, selectedTime])
+
+  const activePrices = isPeak ? PEAK_PRICES : OFF_PEAK_PRICES
+  const perEach = selectedLang.code === 'zh-Hans' ? '/张' : selectedLang.code === 'zh-Hant' ? '/張' : '/each'
+  const localizedTicketTypes = ticketTypes.map((ticket) => ({
+    ...ticket,
+    price: activePrices[ticket.id],
+    label: t(ticketCopyKeys[ticket.id][0]),
+    description: currency(activePrices[ticket.id]) + perEach,
+    info: ticketCopyKeys[ticket.id][2] ? t(ticketCopyKeys[ticket.id][2]) : undefined,
+  }))
+
   const totals = useMemo(() => {
-    const ticketTotal = ticketTypes.reduce((sum, t) => sum + counts[t.id] * t.price, 0)
+    const prices = isPeak ? PEAK_PRICES : OFF_PEAK_PRICES
+    const numTickets = ticketTypes.reduce((sum, tk) => sum + counts[tk.id], 0)
+    const ticketTotal = ticketTypes.reduce((sum, tk) => sum + counts[tk.id] * prices[tk.id], 0)
     const vipTotal = vipQty * 20
     const subtotal = ticketTotal + vipTotal
-    const fees = subtotal > 0 ? Math.max(2.5, subtotal * 0.139) : 0
-    return { ticketTotal, vipTotal, subtotal, fees, grand: subtotal + fees }
-  }, [counts, vipQty])
+    const processingFee = numTickets > 0 ? 1.8 * numTickets + 0.04 * ticketTotal : 0
+    const tax = numTickets > 0 ? 0.05 * ticketTotal : 0
+    const fees = processingFee + tax
+    return { numTickets, ticketTotal, vipTotal, subtotal, fees, processingFee, tax, grand: subtotal + fees }
+  }, [counts, vipQty, isPeak])
 
   const contactErrors = useMemo(() => {
     const errors = {}
@@ -687,7 +716,17 @@ function App() {
     setCalendarMonth(new Date(2025, 11, 1))
   }
 
-  const changeCount = (id, delta) => setCounts((p) => ({ ...p, [id]: Math.max(0, p[id] + delta) }))
+  const changeCount = (id, delta) => {
+    setCounts((p) => {
+      const cur = p[id]
+      let next
+      if (delta > 0 && cur === 0 && id === 'family') next = 3
+      else if (delta > 0 && cur === 0 && id === 'group') next = 6
+      else next = Math.max(0, cur + delta)
+      return { ...p, [id]: next }
+    })
+    setRawCounts((p) => { const n = { ...p }; delete n[id]; return n })
+  }
   const changeCalendarMonth = (delta) => {
     setCalendarMonth((current) => new Date(current.getFullYear(), current.getMonth() + delta, 1))
   }
@@ -717,12 +756,9 @@ function App() {
 
   const canProceedDate = Boolean(selectedDate)
   const canProceedTime = Boolean(selectedTime)
-  const ticketErrors = {
-    family: counts.family > 0 && counts.family < 3 ? t('familyError') : '',
-    group: counts.group > 0 && counts.group < 6 ? t('groupError') : '',
-  }
-  const hasTicketErrors = Object.values(ticketErrors).some(Boolean)
-  const canProceedTickets = totals.subtotal > 0 && !hasTicketErrors
+  const effectiveCount = (id) => rawCounts[id] !== undefined ? Math.max(0, parseInt(rawCounts[id]) || 0) : counts[id]
+  const effectiveSubtotal = ticketTypes.reduce((sum, tk) => sum + effectiveCount(tk.id) * activePrices[tk.id], 0)
+  const canProceedTickets = effectiveSubtotal > 0
   const canProceedContact = Object.keys(contactErrors).length === 0
   const minutes = String(Math.floor(timeLeft / 60)).padStart(2, '0')
   const seconds = String(timeLeft % 60).padStart(2, '0')
@@ -743,7 +779,7 @@ function App() {
       const apiBase = import.meta.env.VITE_API_BASE || ''
       const res = await fetch(`${apiBase}/api/checkout`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ quantity: Math.max(1, counts.regular || 1), showName: 'Terracotta Warriors VR', date: selectedDate ? fullDateDisplay(selectedDate.date) : 'TBD', time: selectedTime?.time || 'TBD' }),
+        body: JSON.stringify({ quantity: Math.max(1, counts.adult || 1), showName: 'Terracotta Warriors VR', date: selectedDate ? fullDateDisplay(selectedDate.date) : 'TBD', time: selectedTime?.time || 'TBD' }),
       })
       if (!res.ok) throw new Error('Checkout failed')
       const data = await res.json()
@@ -800,9 +836,13 @@ function App() {
     <div className="panel">
       <div className="panel-title"><div className="title-accent" /><h3>{t('selectDate')}</h3></div>
       <div className="month-bar">
-        <button className="nav-arrow" onClick={() => changeCalendarMonth(-1)} type="button" aria-label="Previous month">{'<'}</button>
+        <button className="nav-arrow" onClick={() => changeCalendarMonth(-1)} type="button" aria-label="Previous month">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
         <div className="month-label">{monthDisplay(calendarMonth)}</div>
-        <button className="nav-arrow" onClick={() => changeCalendarMonth(1)} type="button" aria-label="Next month">{'>'}</button>
+        <button className="nav-arrow" onClick={() => changeCalendarMonth(1)} type="button" aria-label="Next month">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
       </div>
       <div className="calendar">
         {weekdayLabels.map((d) => <div className="dow" key={d}>{d}</div>)}
@@ -834,12 +874,21 @@ function App() {
       <div className="panel-title"><div className="title-accent" /><h3>{t('selectTime')}</h3></div>
       <div className="time-hint">{t('timeHint')}</div>
       <div className="slot-grid">
-        {timeSlots.map((slot) => (
-          <button key={slot.time} className={`slot ${selectedTime?.time === slot.time ? 'selected' : ''} ${slot.price > 40 ? 'peak' : ''}`} onClick={() => setSelectedTime(slot)} type="button">
-            <span className="slot-time">{slot.time}</span>
-            <span className="slot-price">{currency(slot.price)}</span>
-          </button>
-        ))}
+        {ALL_TIME_SLOTS.map((time) => {
+          const peak = selectedDate ? isDateTimePeak(selectedDate.date, time) : false
+          const slotPrice = (peak ? PEAK_PRICES : OFF_PEAK_PRICES).adult
+          return (
+            <button
+              key={time}
+              className={`slot ${selectedTime?.time === time ? 'selected' : ''} ${peak ? 'peak' : ''}`}
+              onClick={() => setSelectedTime({ time, price: slotPrice })}
+              type="button"
+            >
+              <span className="slot-time">{time}</span>
+              <span className="slot-price">{currency(slotPrice)}</span>
+            </button>
+          )
+        })}
       </div>
       <div className="actions">
         <button className="secondary" onClick={() => setStep('date')} type="button">{t('back')}</button>
@@ -853,7 +902,7 @@ function App() {
       <div className="panel-title"><div className="title-accent" /><h3>{t('selectTickets')}</h3></div>
       <div className="ticket-list">
         {localizedTicketTypes.map((ticket) => (
-          <div key={ticket.id} className={`ticket-row ${ticketErrors[ticket.id] ? 'ticket-row-error' : ''}`}>
+          <div key={ticket.id} className="ticket-row">
             <div className="ticket-info">
               <div className="ticket-title-row">
                 <div className="ticket-title">{ticket.label}</div>
@@ -865,12 +914,22 @@ function App() {
                 )}
               </div>
               <div className="ticket-desc">{ticket.description}</div>
-              {ticketErrors[ticket.id] && <div className="ticket-error">{ticketErrors[ticket.id]}</div>}
             </div>
             <div className="ticket-actions">
               <div className="counter">
                 <button onClick={() => changeCount(ticket.id, -1)} disabled={counts[ticket.id] === 0} type="button">-</button>
-                <div className="counter-value">{counts[ticket.id]}</div>
+                <input
+                  className="counter-value"
+                  type="number"
+                  min="0"
+                  value={rawCounts[ticket.id] !== undefined ? rawCounts[ticket.id] : counts[ticket.id]}
+                  onChange={(e) => setRawCounts((p) => ({ ...p, [ticket.id]: e.target.value }))}
+                  onBlur={(e) => {
+                    const val = Math.max(0, parseInt(e.target.value) || 0)
+                    setCounts((p) => ({ ...p, [ticket.id]: val }))
+                    setRawCounts((p) => { const n = { ...p }; delete n[ticket.id]; return n })
+                  }}
+                />
                 <button onClick={() => changeCount(ticket.id, 1)} type="button">+</button>
               </div>
             </div>
@@ -933,14 +992,29 @@ function App() {
           <div className="order-block">
             <div className="order-date"><div className="order-label">{selectedDate ? fullDateDisplay(selectedDate.date) : t('dateTbd')} · {selectedTime?.time}</div><div className="order-sub">{t('duration')}</div></div>
             <div className="line-items">
-              {ticketTypes.map((t) => counts[t.id] > 0 && (
-                <div key={t.id} className="line"><div><div className="line-label">{localizedTicketTypes.find((item) => item.id === t.id)?.label ?? t.label}</div><div className="line-price">{currency(t.price)}</div></div><div className="line-qty">×{counts[t.id]}</div></div>
+              {localizedTicketTypes.map((tk) => counts[tk.id] > 0 && (
+                <div key={tk.id} className="line">
+                  <div><div className="line-label">{tk.label}</div><div className="line-price">{currency(tk.price)}</div></div>
+                  <div className="line-qty">×{counts[tk.id]}</div>
+                </div>
               ))}
               {vipQty > 0 && <div className="line"><div><div className="line-label">{t('vipTitle')}</div><div className="line-price">{t('vipPrice')}</div></div><div className="line-qty">×{vipQty}</div></div>}
             </div>
             <div className="totals">
               <div className="totals-row"><span>{t('subtotal')}</span><span>{currency(totals.subtotal)}</span></div>
-              <div className="totals-row"><span>{t('feesTaxes')}</span><span>{currency(totals.fees)}</span></div>
+              <div className="totals-row fees-row">
+                <span className="fees-label">
+                  {t('feesTaxes')}
+                  <span className="fees-info-wrap">
+                    <span className="fees-badge" aria-label="Fee breakdown">!</span>
+                    <span className="fees-tooltip">
+                      <span className="fees-tooltip-row"><span>Processing fee</span><span>{currency(totals.processingFee)}</span></span>
+                      <span className="fees-tooltip-row"><span>Tax (5%)</span><span>{currency(totals.tax)}</span></span>
+                    </span>
+                  </span>
+                </span>
+                <span>{currency(totals.fees)}</span>
+              </div>
               <div className="totals-row due"><span>{t('totalDue')}</span><span>{currency(totals.grand)}</span></div>
             </div>
             <div className="warning">{t('warningNonRefund')}</div>
