@@ -60,5 +60,8 @@ ENV/
 tmp/
 temp/
 
+# RSA keys
+*.pem
+
 # Supabase local tooling
 .supabase/

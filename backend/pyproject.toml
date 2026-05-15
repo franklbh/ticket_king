@@ -15,4 +15,7 @@ dependencies = [
   "psycopg2-binary",
   "PyJWT[crypto]",
   "uvicorn[standard]",
+  "httpx",
+  "cryptography",
+  "stripe",
 ]

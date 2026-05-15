@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import auth, health, test_db
+from app.api.routes import alphapay, auth, health, shows, stripe_pay, test_db
 from app.core.config import settings
 
 API_V1_PREFIX = "/api/v1"
@@ -20,6 +20,9 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(health.router, prefix=API_V1_PREFIX)
+    app.include_router(alphapay.router, prefix=API_V1_PREFIX)
+    app.include_router(stripe_pay.router, prefix=API_V1_PREFIX)
+    app.include_router(shows.router, prefix=API_V1_PREFIX)
     app.include_router(test_db.router)
     app.include_router(auth.router)
 
