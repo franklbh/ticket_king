@@ -53,7 +53,7 @@ const translations = {
     selectDate: 'Select Date', selectTime: 'Select Time', selectTickets: 'Select Tickets', contactDetails: 'Contact Details',
     timeHint: 'Choose a start time; each event lasts about 45 minutes.',
     totalAmount: 'Total Amount', firstName: 'First name', lastName: 'Last name', email: 'Email', phoneOptional: 'Phone (optional)',
-    firstNamePlaceholder: 'Your first name', lastNamePlaceholder: 'Your last name', emailPlaceholder: 'name@example.com', phonePlaceholder: 'e.g. (778) 123-4567',
+    firstNamePlaceholder: 'Your first name (required)', lastNamePlaceholder: 'Your last name (required)', emailPlaceholder: 'name@example.com (required)', phonePlaceholder: 'e.g. (778) 123-4567',
     ticketsSent: 'Your tickets will be sent to this email.', optIn: 'I agree to receive updates and special offers.',
     policyCopy: 'By continuing you agree to the Privacy Policy and Terms and Conditions.', continuePayment: 'Continue to Payment',
     firstNameError: 'Enter a valid first name using letters, spaces, hyphens, or apostrophes.',
@@ -949,17 +949,17 @@ function App() {
       <div className="panel-title"><div className="title-accent" /><h3>{t('contactDetails')}</h3></div>
       <div className="form-grid">
         <label className={contactTouched.first && contactErrors.first ? 'field-invalid' : ''}>
-          <span>{t('firstName')}</span>
+          <span>{t('firstName')}<span className="required-mark">*</span></span>
           <input type="text" placeholder={t('firstNamePlaceholder')} value={contact.first} onBlur={() => markContactTouched('first')} onChange={(e) => updateContact('first', e.target.value)} autoComplete="given-name" />
           {contactTouched.first && contactErrors.first && <small className="field-error">{contactErrors.first}</small>}
         </label>
         <label className={contactTouched.last && contactErrors.last ? 'field-invalid' : ''}>
-          <span>{t('lastName')}</span>
+          <span>{t('lastName')}<span className="required-mark">*</span></span>
           <input type="text" placeholder={t('lastNamePlaceholder')} value={contact.last} onBlur={() => markContactTouched('last')} onChange={(e) => updateContact('last', e.target.value)} autoComplete="family-name" />
           {contactTouched.last && contactErrors.last && <small className="field-error">{contactErrors.last}</small>}
         </label>
         <label className={contactTouched.email && contactErrors.email ? 'field-invalid' : ''}>
-          <span>{t('email')}</span>
+          <span>{t('email')}<span className="required-mark">*</span></span>
           <input type="email" placeholder={t('emailPlaceholder')} value={contact.email} onBlur={() => markContactTouched('email')} onChange={(e) => updateContact('email', e.target.value)} autoComplete="email" />
           {contactTouched.email && contactErrors.email ? <small className="field-error">{contactErrors.email}</small> : <small>{t('ticketsSent')}</small>}
         </label>

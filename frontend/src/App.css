@@ -1849,6 +1849,7 @@ small { color: #7c6157; }
   color: #a63f32;
   font-weight: 700;
 }
+.required-mark { color: #b84b3d; margin-left: 2px; }
 .checkbox { flex-direction: row; align-items: center; gap: 10px; font-weight: 500; }
 .policy-copy { color: #6a534c; font-weight: 500; }
 
