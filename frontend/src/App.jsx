@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import StripeCheckout from './StripeCheckout'
+import Cart from './Cart'
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -496,6 +498,7 @@ function App() {
   const [scrollProgress, setScrollProgress] = useState(0)
   const [showBackTop, setShowBackTop] = useState(false)
   const [stripeLoading, setStripeLoading] = useState(false)
+  const [showStripeCheckout, setShowStripeCheckout] = useState(false)
   const [alphapayQrImage, setAlphapayQrImage] = useState(null)
   const [alphapayLoading, setAlphapayLoading] = useState(false)
   const alphapayEventSourceRef = useRef(null)
@@ -504,6 +507,11 @@ function App() {
   const [newsletterMessage, setNewsletterMessage] = useState('')
   const [showMapModal, setShowMapModal] = useState(false)
   const [showNavMenu, setShowNavMenu] = useState(false)
+  const [cartItems, setCartItems] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('wearevr_cart') || '[]') } catch { return [] }
+  })
+  const [showCart, setShowCart] = useState(false)
+  const [showCartCheckout, setShowCartCheckout] = useState(false)
   const [couponCode, setCouponCode] = useState('')
   const [couponMessage, setCouponMessage] = useState('')
   const bookingRef = useRef(null)
@@ -710,6 +718,45 @@ function App() {
   }
 
   const backToMain = () => { setShowBooking(false); setView('main'); window.scrollTo({ top: 0, behavior: 'smooth' }) }
+
+  const cartCount = cartItems.reduce((s, i) => s + i.quantity, 0)
+
+  const handleAddToCart = () => {
+    const prices = isPeak ? PEAK_PRICES : OFF_PEAK_PRICES
+    const newItems = ticketTypes
+      .filter(tk => counts[tk.id] > 0)
+      .map(tk => ({
+        id: `${Date.now()}-${tk.id}-${Math.random().toString(36).slice(2, 7)}`,
+        show_id: 'terracotta-warriors-vr',
+        show_title: 'Terracotta Warriors VR',
+        session_date: selectedDate ? fullDateDisplay(selectedDate.date) : '',
+        session_time: selectedTime?.time || '',
+        ticket_type_id: tk.id,
+        ticket_type_label: localizedTicketTypes.find(lt => lt.id === tk.id)?.label || tk.id,
+        unit_price: prices[tk.id],
+        quantity: counts[tk.id],
+      }))
+    if (vipQty > 0) {
+      newItems.push({
+        id: `${Date.now()}-vip-${Math.random().toString(36).slice(2, 7)}`,
+        show_id: 'terracotta-warriors-vr',
+        show_title: 'Terracotta Warriors VR',
+        session_date: selectedDate ? fullDateDisplay(selectedDate.date) : '',
+        session_time: selectedTime?.time || '',
+        ticket_type_id: 'vip',
+        ticket_type_label: 'VIP Add-on',
+        unit_price: 20,
+        quantity: vipQty,
+      })
+    }
+    if (newItems.length === 0) return
+    setCartItems(prev => {
+      const updated = [...prev, ...newItems]
+      localStorage.setItem('wearevr_cart', JSON.stringify(updated))
+      return updated
+    })
+    backToMain()
+  }
   const restartBooking = () => {
     setStep('date')
     setSelectedDate(null)
@@ -778,21 +825,9 @@ function App() {
   ]
   const currentStepIndex = bookingSteps.findIndex((item) => item.id === step)
 
-  const startStripeCheckout = async () => {
+  const startStripeCheckout = () => {
     if (paymentExpired) return
-    try {
-      setStripeLoading(true)
-      const apiBase = import.meta.env.VITE_API_BASE || ''
-      const res = await fetch(`${apiBase}/api/checkout`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: Math.round(totals.grand * 100), showName: 'Terracotta Warriors VR', date: selectedDate ? fullDateDisplay(selectedDate.date) : 'TBD', time: selectedTime?.time || 'TBD' }),
-      })
-      if (!res.ok) throw new Error('Checkout failed')
-      const data = await res.json()
-      if (data.url) window.location.href = data.url
-    } catch (err) {
-      console.error(err); alert(t('unableCheckout'))
-    } finally { setStripeLoading(false) }
+    setShowStripeCheckout(true)
   }
 
   const startAlphapayCheckout = async (method) => {
@@ -1076,9 +1111,20 @@ function App() {
               <div><div className="label">{t('phoneOptional')}</div><div className="value">{contact.phone || '—'}</div></div>
             </div>
           </div>
+          <button
+            className="add-to-cart-btn"
+            onClick={handleAddToCart}
+            disabled={totals.numTickets === 0 || paymentExpired}
+            type="button"
+          >
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+            Add to Cart
+          </button>
           <div className="pay-options">
             <button className="pay-btn stripe" onClick={startStripeCheckout} disabled={stripeLoading || paymentExpired} type="button">
-              <span className="pay-icon stripe-word">stripe</span>
+              <span className="pay-icon" aria-hidden="true">
+                <svg viewBox="0 0 32 32" fill="currentColor" width="22" height="22"><rect x="2" y="7" width="28" height="18" rx="3" fill="none" stroke="currentColor" strokeWidth="2"/><rect x="2" y="12" width="28" height="5" fill="currentColor" opacity="0.35"/><rect x="6" y="20" width="6" height="2" rx="1" fill="currentColor"/></svg>
+              </span>
               <span>{stripeLoading ? t('processingPayment') : t('creditCard')}</span>
             </button>
             <button className="pay-btn wechat" onClick={() => startAlphapayCheckout('wechat')} disabled={alphapayLoading || paymentExpired} type="button">
@@ -1120,6 +1166,10 @@ function App() {
               <button className="ghost-btn" onClick={() => openAuth('login')} type="button">{t('loginSignup')}</button>
             )}
             {renderLangSelect()}
+            <button className="cart-icon-btn" onClick={() => setShowCart(true)} type="button" aria-label="Shopping cart">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+              {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
+            </button>
             <button className="menu-dots-btn" onClick={() => setShowNavMenu(true)} type="button" aria-label="Navigation menu">
               <span /><span /><span /><span /><span /><span /><span /><span /><span />
             </button>
@@ -1182,6 +1232,10 @@ function App() {
                       <button className="ghost-btn" onClick={() => openAuth('login')} type="button">{t('loginSignup')}</button>
                     )}
                     {renderLangSelect()}
+                    <button className="cart-icon-btn" onClick={() => setShowCart(true)} type="button" aria-label="Shopping cart">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+                      {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
+                    </button>
                     <button className="menu-dots-btn" onClick={() => setShowNavMenu(true)} type="button" aria-label="Navigation menu">
                       <span /><span /><span /><span /><span /><span /><span /><span /><span />
                     </button>
@@ -1196,6 +1250,10 @@ function App() {
                       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="1" y="7" width="22" height="10" rx="2"/><path d="M17 7V5a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2v2"/><path d="M17 17v2a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-2"/></svg>
                       {t('buyTicket')}
                     </button>
+                    <a href="https://www.showpass.com/" target="_blank" rel="noreferrer" className="hero-showpass-btn">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                      Buy on Showpass
+                    </a>
                   </div>
                   <div className="hero-meta-row">
                     <div className="hero-pill">
@@ -1474,6 +1532,64 @@ function App() {
 
       {showMapModal && <MapModal onClose={() => setShowMapModal(false)} />}
       {showNavMenu && <NavMenu onClose={() => setShowNavMenu(false)} onBuyTicket={revealBooking} onNavigateToSection={navigateToMainSection} t={t} />}
+
+      {showStripeCheckout && (
+        <StripeCheckout
+          orderData={{
+            orderId: `WEAREVR-${Date.now().toString().slice(-12)}`,
+            amount: totals.grand,
+            description: 'Tickets for Terracotta Warriors VR',
+            date: selectedDate ? fullDateDisplay(selectedDate.date) : null,
+            time: selectedTime?.time || null,
+            email: contact.email,
+          }}
+          onClose={() => setShowStripeCheckout(false)}
+          onSuccess={() => { setShowStripeCheckout(false); backToMain(); }}
+        />
+      )}
+
+      {showCart && (
+        <Cart
+          items={cartItems}
+          onUpdateQty={(id, qty) => setCartItems(prev => {
+            const updated = qty <= 0
+              ? prev.filter(i => i.id !== id)
+              : prev.map(i => i.id === id ? { ...i, quantity: qty } : i)
+            localStorage.setItem('wearevr_cart', JSON.stringify(updated))
+            return updated
+          })}
+          onRemove={(id) => setCartItems(prev => {
+            const updated = prev.filter(i => i.id !== id)
+            localStorage.setItem('wearevr_cart', JSON.stringify(updated))
+            return updated
+          })}
+          onClose={() => setShowCart(false)}
+          onCheckout={() => { setShowCart(false); setShowCartCheckout(true) }}
+        />
+      )}
+
+      {showCartCheckout && (() => {
+        const sub = cartItems.reduce((s, i) => s + i.unit_price * i.quantity, 0)
+        const n   = cartItems.reduce((s, i) => s + i.quantity, 0)
+        const grand = sub + (n > 0 ? 1.8 * n + 0.04 * sub + 0.05 * sub : 0)
+        return (
+          <StripeCheckout
+            orderData={{
+              orderId: `WEAREVR-${Date.now().toString().slice(-12)}`,
+              amount: grand,
+              description: `${n} ticket${n !== 1 ? 's' : ''} · Terracotta Warriors VR`,
+              email: contact.email,
+            }}
+            onClose={() => setShowCartCheckout(false)}
+            onSuccess={() => {
+              setShowCartCheckout(false)
+              setCartItems([])
+              localStorage.removeItem('wearevr_cart')
+              backToMain()
+            }}
+          />
+        )
+      })()}
 
       {view === 'main' && !showBooking && (
         <div className="floating-cta">

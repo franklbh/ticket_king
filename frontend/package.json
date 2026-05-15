@@ -12,6 +12,8 @@
     "dev:full": "concurrently \"npm run server\" \"npm run dev\""
   },
   "dependencies": {
+    "@stripe/react-stripe-js": "^6.3.0",
+    "@stripe/stripe-js": "^9.5.0",
     "@tailwindcss/vite": "^4.3.0",
     "cors": "^2.8.5",
     "express": "^4.19.2",
