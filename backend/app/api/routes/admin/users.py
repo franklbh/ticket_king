@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 
 from app.core.config import settings
-from app.schemas import AdminAccountCreate, OwnerBootstrapCreate, UserRoleUpdate
-from app.services.security import current_user, public_user, require_admin, require_owner
-from app.services.users import user_service
+from app.schemas.admin import AdminAccountCreate, OwnerBootstrapCreate, UserRoleUpdate
+from app.services.admin_security import current_user, public_user, require_admin, require_owner
+from app.services.admin_users import user_service
 
 router = APIRouter(prefix="/users", tags=["users"])
 

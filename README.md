@@ -4,8 +4,9 @@ Ticketing and operations system for an in-person VR experience business.
 
 ## Repository Layout
 
-- `frontend/` - Next.js app for customer booking and admin UI
-- `backend/` - FastAPI app for business logic and API endpoints
+- `frontend/` - customer booking frontend
+- `admin-frontend/` - admin operations frontend
+- `backend/` - single FastAPI app for customer and admin API endpoints
 - `agent/` - planning and architecture notes
 
 Frontend styling uses Tailwind CSS.
@@ -31,6 +32,8 @@ uvicorn app.main:app --reload
 ```
 
 The FastAPI app runs on `http://localhost:8000` by default.
+
+Admin API endpoints are served by the same backend under `http://localhost:8000/api/v1/admin`.
 
 ## Local Configuration
 

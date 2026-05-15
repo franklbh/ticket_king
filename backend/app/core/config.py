@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from pydantic import Field, field_validator
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -9,20 +9,43 @@ BACKEND_DIR = Path(__file__).resolve().parents[2]
 
 
 class Settings(BaseSettings):
+    app_name: str = "Ticket King API"
+    app_env: str = "local"
+    api_v1_prefix: str = "/api/v1"
     backend_cors_origins: list[str] = Field(
         default_factory=lambda: [
             "http://localhost:5173",
             "http://127.0.0.1:5173",
+            "http://localhost:5175",
+            "http://127.0.0.1:5175",
             "http://localhost:3000",
         ],
     )
     database_url: str | None = None
-    db_user: str | None = None
-    db_password: str | None = None
-    db_host: str | None = None
-    db_port: int = 5432
-    db_name: str = "postgres"
+    db_user: str | None = Field(default=None, validation_alias=AliasChoices("user", "DB_USER", "POSTGRES_USER"))
+    db_password: str | None = Field(default=None, validation_alias=AliasChoices("password", "DB_PASSWORD", "POSTGRES_PASSWORD"))
+    db_host: str | None = Field(default=None, validation_alias=AliasChoices("host", "DB_HOST", "POSTGRES_HOST"))
+    db_port: int = Field(default=5432, validation_alias=AliasChoices("port", "DB_PORT", "POSTGRES_PORT"))
+    db_name: str = Field(default="postgres", validation_alias=AliasChoices("dbname", "DB_NAME", "POSTGRES_DB"))
     supabase_url: str | None = None
+    supabase_publishable_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("SUPABASE_PUBLISHABLE_KEY", "SUPABASE_ANON_KEY"),
+    )
+    supabase_auth_users_table: str = "auth.users"
+
+    admin_orders_table: str = "orders"
+    admin_tickets_table: str = "tickets"
+    admin_slots_table: str = "slots"
+    admin_ticket_types_table: str = "ticket_types"
+    admin_audit_logs_table: str = "audit_logs"
+    admin_users_table: str = "users"
+    admin_bootstrap_token: str | None = None
+
+    admin_order_id_column: str = "order_id"
+    admin_ticket_id_column: str = "ticket_id"
+    admin_ticket_status_column: str = "ticket_status"
+    max_table_rows: int = 10000
 
     # Alphapay — replace placeholders once credentials are received
     alphapay_partner_code: str = "YOUR_PARTNER_CODE"
@@ -51,6 +74,7 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
+        enable_decoding=False,
     )
 
 

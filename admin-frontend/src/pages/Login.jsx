@@ -10,23 +10,22 @@ export default function Login() {
   const t = useT(lang)
   const navigate = useNavigate()
 
-  const [form, setForm] = useState({ username: '', password: '', remember: false })
+  const [form, setForm] = useState({ email: '', password: '', remember: false })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
     setError('')
     setLoading(true)
-    setTimeout(() => {
-      const ok = login(form.username.trim(), form.password, form.remember)
+    try {
+      await login(form.email.trim(), form.password, form.remember)
+      navigate('/dashboard')
+    } catch (err) {
+      setError(err?.message || t.loginFailed)
+    } finally {
       setLoading(false)
-      if (ok) {
-        navigate('/dashboard')
-      } else {
-        setError(t.loginFailed)
-      }
-    }, 300)
+    }
   }
 
   return (
@@ -67,15 +66,15 @@ export default function Login() {
 
         <form onSubmit={handleSubmit}>
           <div style={{ marginBottom: 18 }}>
-            <label style={{ display: 'block', fontWeight: 500, marginBottom: 6, fontSize: 14, color: '#374151' }}>{t.username}</label>
+            <label style={{ display: 'block', fontWeight: 500, marginBottom: 6, fontSize: 14, color: '#374151' }}>{t.email}</label>
             <input
               className="form-input"
-              type="text"
-              placeholder={t.enterUsername}
-              value={form.username}
-              onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
+              type="email"
+              placeholder="name@example.com"
+              value={form.email}
+              onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
               required
-              autoComplete="username"
+              autoComplete="email"
               autoFocus
             />
           </div>

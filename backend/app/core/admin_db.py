@@ -58,7 +58,7 @@ class SupabasePostgresClient:
         except ImportError as exc:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="Install admin-backend dependencies first: pip install -e .",
+                detail="Install backend dependencies first: pip install -e .",
             ) from exc
         try:
             if self.database_url:

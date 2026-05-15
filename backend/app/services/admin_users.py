@@ -6,9 +6,9 @@ from typing import Any
 from fastapi import HTTPException, status
 
 from app.core.config import settings
-from app.db.supabase import supabase
-from app.schemas import AdminAccountCreate, OwnerBootstrapCreate, UserRoleUpdate
-from app.services.security import ADMINISTRATOR, ALL_ROLES, OWNER, normalize_role, now_utc, public_user
+from app.core.admin_db import supabase
+from app.schemas.admin import AdminAccountCreate, OwnerBootstrapCreate, UserRoleUpdate
+from app.services.admin_security import ADMINISTRATOR, ALL_ROLES, OWNER, normalize_role, now_utc, public_user
 
 
 class UserService:

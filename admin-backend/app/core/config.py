@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     admin_ticket_types_table: str = "ticket_types"
     admin_audit_logs_table: str = "audit_logs"
     admin_users_table: str = "users"
-    admin_profiles_table: str = "profiles"
+    supabase_auth_users_table: str = "auth.users"
     admin_bootstrap_token: str | None = None
 
     admin_order_id_column: str = "order_id"

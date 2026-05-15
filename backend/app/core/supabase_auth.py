@@ -58,12 +58,8 @@ def verify_supabase_token(token: str) -> SupabaseUser:
             audience="authenticated",
             issuer=_get_issuer(),
         )
-    except (InvalidTokenError, PyJWKClientError) as exc:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired access token.",
-            headers={"WWW-Authenticate": "Bearer"},
-        ) from exc
+    except (InvalidTokenError, PyJWKClientError):
+        claims = verify_token_with_supabase(token)
 
     user_id = claims.get("sub")
     if not user_id:
@@ -82,6 +78,57 @@ def verify_supabase_token(token: str) -> SupabaseUser:
         role=role,
         claims=claims,
     )
+
+
+def verify_token_with_supabase(token: str) -> dict[str, Any]:
+    if not settings.supabase_url or not settings.supabase_publishable_key:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired access token.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    try:
+        import httpx
+    except ImportError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="HTTP client dependency is not installed.",
+        ) from exc
+
+    try:
+        response = httpx.get(
+            f"{settings.supabase_url.rstrip('/')}/auth/v1/user",
+            headers={
+                "apikey": settings.supabase_publishable_key,
+                "Authorization": f"Bearer {token}",
+            },
+            timeout=10,
+        )
+    except httpx.HTTPError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not verify Supabase access token.",
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from exc
+
+    if response.status_code != 200:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired access token.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    user = response.json()
+    app_metadata = user.get("app_metadata") or {}
+    user_metadata = user.get("user_metadata") or {}
+    return {
+        "sub": user.get("id"),
+        "email": user.get("email"),
+        "app_metadata": app_metadata,
+        "user_metadata": user_metadata,
+        "user_role": app_metadata.get("role") or user_metadata.get("role"),
+    }
 
 
 def get_current_user(
