@@ -25,8 +25,9 @@ _pending: dict[str, asyncio.Queue] = {}
 
 
 def _load_private_key():
-    if settings.alphapay_private_key_path:
-        pem = Path(settings.alphapay_private_key_path).read_text()
+    path = settings.alphapay_private_key_path
+    if path and Path(path).exists():
+        pem = Path(path).read_text()
     elif settings.alphapay_private_key_pem:
         pem = settings.alphapay_private_key_pem.replace("\\n", "\n")
     else:
