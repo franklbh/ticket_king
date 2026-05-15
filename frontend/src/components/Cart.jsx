@@ -9,14 +9,6 @@ export default function Cart({ items, onUpdateQty, onRemove, onClose, onCheckout
   const tax         = numTickets > 0 ? 0.05 * subtotal : 0
   const grand       = subtotal + procFee + tax
 
-  // Group items by show + session for display
-  const grouped = items.reduce((acc, item) => {
-    const key = `${item.show_id}||${item.session_date}||${item.session_time}`
-    if (!acc[key]) acc[key] = { show_title: item.show_title, session_date: item.session_date, session_time: item.session_time, items: [] }
-    acc[key].items.push(item)
-    return acc
-  }, {})
-
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 9100,
