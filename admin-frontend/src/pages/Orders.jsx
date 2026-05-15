@@ -301,6 +301,24 @@ function AmountDetailContent({ order, t }) {
   )
 }
 
+function CouponContent({ order }) {
+  const { coupon } = getAmountBreakdown(order)
+  return (
+    <div>
+      <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 10 }}>Coupon Details</div>
+      <div style={{ height: 1, background: '#f3f4f6', marginBottom: 12 }} />
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 6 }}>
+        <span style={{ color: '#9ca3af' }}>Code</span>
+        <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#6366f1' }}>{order.couponCode}</span>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+        <span style={{ color: '#9ca3af' }}>Discount</span>
+        <span style={{ fontWeight: 600, color: '#dc2626' }}>{coupon.toFixed(2)}</span>
+      </div>
+    </div>
+  )
+}
+
 function IpContent({ order, t, copiedId, onCopy }) {
   const isCopied = copiedId === order.id
   return (
@@ -655,9 +673,14 @@ export default function Orders() {
 
                   {/* Coupon */}
                   <td style={{ whiteSpace: 'nowrap' }}>
-                    {o.couponDiscount < 0
-                      ? <span style={{ color: '#dc2626', fontWeight: 500, fontSize: 13 }}>{o.couponDiscount.toFixed(2)}</span>
-                      : <span style={{ color: '#9ca3af' }}>-</span>}
+                    {o.couponDiscount < 0 ? (
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                        <span style={{ color: '#dc2626', fontWeight: 500, fontSize: 13 }}>{o.couponDiscount.toFixed(2)}</span>
+                        <IconBtn icon="fa-tag" onClick={e => openPopover('coupon', o.id, e)} title="Coupon Details" color="#6366f1" bg="#eef2ff" />
+                      </div>
+                    ) : (
+                      <span style={{ color: '#9ca3af' }}>-</span>
+                    )}
                   </td>
 
                   {/* Remarks */}
@@ -703,11 +726,12 @@ export default function Orders() {
 
       {/* Popover */}
       {popover && popoverOrder && (
-        <Popover rect={popover.rect} onClose={() => setPopover(null)} width={popover.type === 'ip' ? 300 : 280}>
+        <Popover rect={popover.rect} onClose={() => setPopover(null)} width={popover.type === 'ip' ? 300 : popover.type === 'coupon' ? 220 : 280}>
           {popover.type === 'email' && <EmailHistoryContent order={popoverOrder} t={t} />}
           {popover.type === 'ticket' && <TicketDetailContent order={popoverOrder} t={t} />}
           {popover.type === 'amount' && <AmountDetailContent order={popoverOrder} t={t} />}
           {popover.type === 'ip' && <IpContent order={popoverOrder} t={t} copiedId={copiedId} onCopy={copyIp} />}
+          {popover.type === 'coupon' && <CouponContent order={popoverOrder} />}
         </Popover>
       )}
 
