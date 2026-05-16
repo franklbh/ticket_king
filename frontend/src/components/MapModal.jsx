@@ -13,7 +13,7 @@ L.Icon.Default.mergeOptions({
 })
 
 const rustIcon = new L.DivIcon({
-  html: '<div style="width:18px;height:24px;position:relative"><div style="width:18px;height:18px;background:#7d2c21;border-radius:50% 50% 50% 0;transform:rotate(-45deg);border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.4)"></div></div>',
+  html: '<div style="width:18px;height:24px;position:relative"><div style="width:18px;height:18px;background:#2563eb;border-radius:50% 50% 50% 0;transform:rotate(-45deg);border:2px solid #fff;box-shadow:0 2px 8px rgba(37,99,235,0.35)"></div></div>',
   iconSize: [18, 24],
   iconAnchor: [9, 24],
   popupAnchor: [0, -26],

@@ -1,217 +1,278 @@
-function currency(n) {
-  return `CA$${Number(n).toFixed(2)}`
+import { useMemo, useState } from 'react'
+
+function fmt(n) { return `CA$${Number(n).toFixed(2)}` }
+function validEmail(value) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim()) }
+
+function CartIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" />
+      <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
+    </svg>
+  )
 }
 
-export default function Cart({ items, onUpdateQty, onRemove, onClose, onCheckout }) {
-  const subtotal    = items.reduce((s, i) => s + i.unit_price * i.quantity, 0)
-  const numTickets  = items.reduce((s, i) => s + i.quantity, 0)
-  const procFee     = numTickets > 0 ? 1.8 * numTickets + 0.04 * subtotal : 0
-  const tax         = numTickets > 0 ? 0.05 * subtotal : 0
-  const grand       = subtotal + procFee + tax
+function QtyControl({ qty, onDecrease, onIncrease }) {
+  return (
+    <div className="crt-qty">
+      <button className="crt-qty-btn" onClick={onDecrease} aria-label="Decrease">−</button>
+      <span className="crt-qty-val">{qty}</span>
+      <button className="crt-qty-btn" onClick={onIncrease} aria-label="Increase">+</button>
+    </div>
+  )
+}
+
+function SummaryRow({ label, value, muted, bold, large }) {
+  return (
+    <div className={`crt-sum-row ${bold ? 'crt-sum-bold' : ''} ${muted ? 'crt-sum-muted' : ''}`}>
+      <span>{label}</span>
+      <span style={large ? { fontSize: 15, fontWeight: 800 } : {}}>{value}</span>
+    </div>
+  )
+}
+
+export default function Cart({ items, onUpdateQty, onUpdateTicketType, onRemove, onClose, onCheckout }) {
+  const [step, setStep] = useState('review')
+  const [contact, setContact] = useState({ first: '', last: '', email: '', phone: '' })
+  const [touched, setTouched] = useState({})
+  const subtotal   = items.reduce((s, i) => s + i.unit_price * i.quantity, 0)
+  const numTickets = items.reduce((s, i) => s + i.quantity, 0)
+  const procFee    = numTickets > 0 ? 1.8 * numTickets + 0.04 * subtotal : 0
+  const tax        = numTickets > 0 ? 0.05 * subtotal : 0
+  const grand      = subtotal + procFee + tax
+
+  // Group items by project + session preserving insertion order
+  const groups = useMemo(() => items.reduce((acc, item) => {
+    const groupId = [item.show_id, item.session_date || 'date', item.session_time || 'time'].join('__')
+    if (!acc[groupId]) {
+      acc[groupId] = {
+        group_id: groupId,
+        show_title: item.show_title,
+        session_date: item.session_date,
+        session_time: item.session_time,
+        accent: item.experience_accent || '#2563eb',
+        category: item.experience_category || 'vr-show',
+        image: item.experience_image,
+        gradient: item.experience_gradient,
+        items: [],
+      }
+    }
+    acc[groupId].items.push(item)
+    return acc
+  }, {}), [items])
+  const groupedItems = useMemo(() => Object.values(groups), [groups])
+  const contactReady = contact.first.trim().length > 1 && contact.last.trim().length > 1 && validEmail(contact.email)
+  const updateContact = (field, value) => setContact((previous) => ({ ...previous, [field]: value }))
+  const completeCheckout = () => {
+    setTouched({ first: true, last: true, email: true })
+    if (!contactReady) return
+    onCheckout(contact)
+  }
 
   return (
-    <div style={{
-      position: 'fixed', inset: 0, zIndex: 9100,
-      background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',
-      display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
-      padding: '24px 16px', overflowY: 'auto',
-    }}>
-      <div style={{
-        background: '#fff', borderRadius: 20, width: '100%', maxWidth: 860,
-        boxShadow: '0 24px 80px rgba(0,0,0,0.2)',
-        display: 'flex', flexDirection: 'column', overflow: 'hidden',
-      }}>
+    <div className="crt-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-label="Shopping cart">
+      <div className="crt-panel" onClick={(e) => e.stopPropagation()}>
 
-        {/* Header */}
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '22px 28px', borderBottom: '1px solid #f0f0f0',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#7d2c21" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
-              <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
-            </svg>
-            <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#111' }}>
-              Shopping Cart
-              {items.length > 0 && (
-                <span style={{ marginLeft: 8, fontSize: 14, fontWeight: 500, color: '#9ca3af' }}>
-                  ({numTickets} ticket{numTickets !== 1 ? 's' : ''})
-                </span>
-              )}
-            </h2>
+        {/* ── Header ── */}
+        <div className="crt-header">
+          <div className="crt-header-left">
+            <CartIcon />
+            <h2 className="crt-title">Your Basket</h2>
+            {numTickets > 0 && (
+              <span className="crt-count-pill">{numTickets} ticket{numTickets !== 1 ? 's' : ''}</span>
+            )}
           </div>
-          <button
-            onClick={onClose}
-            style={{
-              background: '#f9fafb', border: 'none', borderRadius: 8,
-              width: 36, height: 36, cursor: 'pointer', fontSize: 18, color: '#6b7280',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}
-            aria-label="Close cart"
-          >
-            ×
+          <button className="crt-close" onClick={onClose} aria-label="Close cart">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
         </div>
 
         {items.length === 0 ? (
-          /* Empty state */
-          <div style={{
-            display: 'flex', flexDirection: 'column', alignItems: 'center',
-            justifyContent: 'center', padding: '72px 32px', gap: 16, color: '#9ca3af',
-          }}>
-            <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
-              <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
-            </svg>
-            <p style={{ margin: 0, fontSize: 16, fontWeight: 500 }}>Your cart is empty</p>
-            <p style={{ margin: 0, fontSize: 14 }}>Add tickets from any show to get started.</p>
-            <button
-              onClick={onClose}
-              style={{
-                marginTop: 8, padding: '10px 24px', borderRadius: 8,
-                background: '#7d2c21', color: '#fff', border: 'none',
-                fontSize: 14, fontWeight: 600, cursor: 'pointer',
-              }}
-            >
-              Browse Shows
-            </button>
+          /* ── Empty state ── */
+          <div className="crt-empty">
+            <div className="crt-empty-icon">
+              <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" />
+                <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
+              </svg>
+            </div>
+            <p className="crt-empty-title">Your basket is empty</p>
+            <p className="crt-empty-sub">Add tickets from any show or game to get started.</p>
+            <button className="crt-browse-btn" onClick={onClose}>Browse Experiences</button>
           </div>
         ) : (
           <>
-            {/* Items */}
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-                <thead>
-                  <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
-                    {['Show', 'Session', 'Ticket Type', 'Unit Price', 'Quantity', 'Subtotal', ''].map((h) => (
-                      <th key={h} style={{
-                        padding: '12px 16px', textAlign: 'left',
-                        fontWeight: 600, color: '#6b7280', fontSize: 12,
-                        letterSpacing: '0.04em', textTransform: 'uppercase',
-                        whiteSpace: 'nowrap',
-                      }}>
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.map((item, idx) => (
-                    <tr
-                      key={item.id}
-                      style={{ borderBottom: '1px solid #f3f4f6', background: idx % 2 === 0 ? '#fff' : '#fafafa' }}
-                    >
-                      {/* Show */}
-                      <td style={{ padding: '14px 16px', fontWeight: 600, color: '#111', minWidth: 160 }}>
-                        {item.show_title}
-                      </td>
-                      {/* Session */}
-                      <td style={{ padding: '14px 16px', color: '#374151', whiteSpace: 'nowrap' }}>
-                        {item.session_date && item.session_time
-                          ? `${item.session_date} · ${item.session_time}`
-                          : '—'}
-                      </td>
-                      {/* Ticket type */}
-                      <td style={{ padding: '14px 16px', color: '#374151' }}>
-                        {item.ticket_type_label}
-                      </td>
-                      {/* Unit price */}
-                      <td style={{ padding: '14px 16px', color: '#374151', whiteSpace: 'nowrap' }}>
-                        {currency(item.unit_price)}
-                      </td>
-                      {/* Quantity */}
-                      <td style={{ padding: '14px 16px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <button
-                            onClick={() => onUpdateQty(item.id, item.quantity - 1)}
-                            style={qtyBtnStyle}
-                            aria-label="Decrease"
-                          >−</button>
-                          <span style={{ minWidth: 24, textAlign: 'center', fontWeight: 600, color: '#111' }}>
-                            {item.quantity}
-                          </span>
-                          <button
-                            onClick={() => onUpdateQty(item.id, item.quantity + 1)}
-                            style={qtyBtnStyle}
-                            aria-label="Increase"
-                          >+</button>
-                        </div>
-                      </td>
-                      {/* Subtotal */}
-                      <td style={{ padding: '14px 16px', fontWeight: 700, color: '#111', whiteSpace: 'nowrap' }}>
-                        {currency(item.unit_price * item.quantity)}
-                      </td>
-                      {/* Remove */}
-                      <td style={{ padding: '14px 16px' }}>
-                        <button
-                          onClick={() => onRemove(item.id)}
-                          style={{
-                            background: 'none', border: 'none', cursor: 'pointer',
-                            color: '#d1d5db', fontSize: 18, lineHeight: 1,
-                            transition: 'color 0.15s', padding: 4,
-                          }}
-                          onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
-                          onMouseLeave={e => e.currentTarget.style.color = '#d1d5db'}
-                          aria-label="Remove item"
-                        >
-                          ×
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="crt-flow">
+              <button className={`crt-flow-step ${step === 'review' ? 'active' : ''}`} onClick={() => setStep('review')} type="button">
+                <span>1</span> Review
+              </button>
+              <button className={`crt-flow-step ${step === 'details' ? 'active' : ''}`} onClick={() => setStep('details')} type="button">
+                <span>2</span> Details
+              </button>
+              <div className="crt-flow-step disabled"><span>3</span> Pay</div>
             </div>
 
-            {/* Footer */}
-            <div style={{
-              padding: '24px 28px', borderTop: '1px solid #f0f0f0',
-              display: 'flex', flexWrap: 'wrap', gap: 24,
-              alignItems: 'flex-start', justifyContent: 'space-between',
-            }}>
-              {/* Clear button */}
-              <button
-                onClick={() => items.forEach(i => onRemove(i.id))}
-                style={{
-                  background: 'none', border: '1px solid #e5e7eb', borderRadius: 8,
-                  color: '#9ca3af', fontSize: 13, cursor: 'pointer', padding: '8px 16px',
-                  transition: 'all 0.15s',
-                }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = '#ef4444'; e.currentTarget.style.color = '#ef4444' }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = '#e5e7eb'; e.currentTarget.style.color = '#9ca3af' }}
-              >
-                Clear cart
-              </button>
+            {/* ── Item groups ── */}
+            <div className="crt-body">
+              {step === 'review' ? (
+                groupedItems.map((group) => (
+                  <div key={group.group_id} className="crt-group">
+                    <div className="crt-group-header">
+                      <div className="crt-group-product">
+                        <div
+                          className="crt-group-thumb"
+                          style={group.image ? { backgroundImage: `url(${group.image})` } : { background: group.gradient || group.accent }}
+                          aria-hidden="true"
+                        />
+                        <div className="crt-group-copy">
+                          <span className="crt-group-badge">
+                            {group.category === 'arcade' ? 'Arcade Game' : 'VR Show'}
+                          </span>
+                          <span className="crt-group-name">{group.show_title}</span>
+                        </div>
+                      </div>
+                      <div className="crt-group-session">
+                        {group.session_date || 'Date not selected'} · {group.session_time || 'Time not selected'}
+                      </div>
+                    </div>
 
-              {/* Order summary + checkout */}
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8, minWidth: 280 }}>
-                <div style={{ width: '100%', background: '#f9fafb', borderRadius: 12, padding: '16px 18px' }}>
-                  <SummaryRow label="Subtotal" value={currency(subtotal)} />
-                  <SummaryRow label={`Fees & taxes`} value={currency(procFee + tax)} muted />
-                  <div style={{ borderTop: '1px solid #e5e7eb', marginTop: 10, paddingTop: 10 }}>
-                    <SummaryRow label="Total due" value={currency(grand)} bold />
+                    <div className="crt-table-head" aria-hidden="true">
+                      <span>Product</span>
+                      <span>Time slot</span>
+                      <span>Ticket type</span>
+                      <span>Unit price</span>
+                      <span>Ticket number</span>
+                      <span>Subtotal</span>
+                      <span />
+                    </div>
+                    {group.items.map((item) => (
+                      <div key={item.id} className="crt-item">
+                        <div className="crt-item-project">
+                          <span className="crt-mobile-label">Product</span>
+                          <div className="crt-product-cell">
+                            <div
+                              className="crt-product-thumb"
+                              style={item.experience_image ? { backgroundImage: `url(${item.experience_image})` } : { background: item.experience_gradient || item.experience_accent }}
+                              aria-hidden="true"
+                            />
+                            <div className="crt-product-copy">
+                              <strong>{item.show_title}</strong>
+                              <span>{item.experience_category === 'arcade' ? 'Arcade Game' : 'VR Show'}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="crt-item-session">
+                          {item.session_date || '—'}<br />{item.session_time || '—'}
+                        </div>
+                        <div className="crt-item-type">
+                          <span className="crt-mobile-label">Ticket type</span>
+                          {item.ticket_options?.length > 1 ? (
+                            <select
+                              className="crt-ticket-type-select"
+                              value={item.ticket_type_id}
+                              onChange={(event) => onUpdateTicketType(item.id, event.target.value)}
+                              aria-label={`Ticket type for ${item.show_title}`}
+                            >
+                              {item.ticket_options.map((option) => (
+                                <option key={option.id} value={option.id}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            item.ticket_type_label
+                          )}
+                        </div>
+                        <div className="crt-item-unit">
+                          <span className="crt-mobile-label">Unit price</span>
+                          {fmt(item.unit_price)}
+                        </div>
+                        <QtyControl
+                          qty={item.quantity}
+                          onDecrease={() => onUpdateQty(item.id, item.quantity - 1)}
+                          onIncrease={() => onUpdateQty(item.id, item.quantity + 1)}
+                        />
+                        <div className="crt-item-sub">
+                          <span className="crt-mobile-label">Subtotal</span>
+                          {fmt(item.unit_price * item.quantity)}
+                        </div>
+                        <button
+                          className="crt-item-remove"
+                          onClick={() => onRemove(item.id)}
+                          aria-label="Remove item"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ))
+              ) : (
+                <div className="crt-details">
+                  <div className="crt-details-card">
+                    <div className="crt-details-title">Where should we send the tickets?</div>
+                    <div className="crt-details-sub">Use a real email. Your confirmation and tickets go here after payment.</div>
+                    <div className="crt-mini-review">
+                      <strong>{numTickets} ticket{numTickets !== 1 ? 's' : ''}</strong>
+                      <span>{groupedItems.map((group) => group.show_title).join(' + ')}</span>
+                    </div>
+                    <div className="crt-form-grid">
+                      <label className={touched.first && contact.first.trim().length <= 1 ? 'crt-field-error' : ''}>
+                        First name
+                        <input value={contact.first} onBlur={() => setTouched((p) => ({ ...p, first: true }))} onChange={(event) => updateContact('first', event.target.value)} autoComplete="given-name" />
+                      </label>
+                      <label className={touched.last && contact.last.trim().length <= 1 ? 'crt-field-error' : ''}>
+                        Last name
+                        <input value={contact.last} onBlur={() => setTouched((p) => ({ ...p, last: true }))} onChange={(event) => updateContact('last', event.target.value)} autoComplete="family-name" />
+                      </label>
+                      <label className={touched.email && !validEmail(contact.email) ? 'crt-field-error crt-field-wide' : 'crt-field-wide'}>
+                        Email
+                        <input type="email" value={contact.email} onBlur={() => setTouched((p) => ({ ...p, email: true }))} onChange={(event) => updateContact('email', event.target.value)} autoComplete="email" placeholder="(required)" />
+                      </label>
+                      <label className="crt-field-wide">
+                        Phone number
+                        <input type="tel" value={contact.phone} onChange={(event) => updateContact('phone', event.target.value)} autoComplete="tel" placeholder="(required)" />
+                      </label>
+                    </div>
                   </div>
                 </div>
+              )}
+            </div>
+
+            {/* ── Footer ── */}
+            <div className="crt-footer">
+              <div className="crt-summary">
+                <SummaryRow label="Subtotal" value={fmt(subtotal)} />
+                <SummaryRow label="Processing fee" value={fmt(procFee)} muted />
+                <SummaryRow label="GST (5%)" value={fmt(tax)} muted />
+                <div className="crt-sum-divider" />
+                <SummaryRow label="Total due" value={fmt(grand)} bold large />
+              </div>
+
+              <div className="crt-footer-actions">
+                {step === 'details' && (
+                  <button className="crt-back-btn" onClick={() => setStep('review')} type="button">Back</button>
+                )}
                 <button
-                  onClick={() => onCheckout(grand)}
-                  style={{
-                    width: '100%', padding: '15px', borderRadius: 10,
-                    background: 'linear-gradient(135deg, #7d2c21, #9b3b2c)',
-                    color: '#fff', border: 'none', fontSize: 16, fontWeight: 700,
-                    cursor: 'pointer', letterSpacing: '0.02em',
-                    boxShadow: '0 4px 16px rgba(125,44,33,0.3)',
-                    transition: 'opacity 0.2s',
-                  }}
+                  className="crt-checkout-btn"
+                  onClick={step === 'review' ? () => setStep('details') : completeCheckout}
+                  type="button"
                 >
-                  Checkout — {currency(grand)}
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                  {step === 'review' ? `Continue — ${fmt(grand)}` : `Pay ${fmt(grand)}`}
                 </button>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#9ca3af', fontSize: 12 }}>
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                    <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                  </svg>
-                  Secured by&nbsp;<span style={{ color: '#635BFF', fontWeight: 700 }}>stripe</span>
-                </div>
+              </div>
+
+              <div className="crt-security">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                Secured by <strong style={{ color: '#2563eb' }}>Stripe</strong>
+                &nbsp;&nbsp;·&nbsp;&nbsp;
+                <button
+                  className="crt-clear-link"
+                  onClick={() => items.forEach((i) => onRemove(i.id))}
+                >
+                  Clear all
+                </button>
               </div>
             </div>
           </>
@@ -219,22 +280,4 @@ export default function Cart({ items, onUpdateQty, onRemove, onClose, onCheckout
       </div>
     </div>
   )
-}
-
-function SummaryRow({ label, value, muted, bold }) {
-  return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 14 }}>
-      <span style={{ color: muted ? '#9ca3af' : '#6b7280' }}>{label}</span>
-      <span style={{ fontWeight: bold ? 700 : 500, fontSize: bold ? 16 : 14, color: bold ? '#111' : '#374151' }}>{value}</span>
-    </div>
-  )
-}
-
-const qtyBtnStyle = {
-  width: 26, height: 26, borderRadius: 6,
-  border: '1.5px solid #e5e7eb', background: '#fff',
-  cursor: 'pointer', fontSize: 16, lineHeight: 1,
-  display: 'flex', alignItems: 'center', justifyContent: 'center',
-  color: '#374151', fontWeight: 600, padding: 0,
-  transition: 'border-color 0.15s',
 }

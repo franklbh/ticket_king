@@ -10,16 +10,14 @@ import PaymentQrModal from './components/PaymentQrModal'
 import VipModal from './components/VipModal'
 import { languages, translations } from './i18n/translations'
 import {
-  OFF_PEAK_PRICES,
-  PEAK_PRICES,
-  dateGrid,
   isDateTimePeak,
   newsItems,
-  testimonials,
   ticketTypes,
 } from './data/showData'
+import { vrExperiences } from './data/experiences'
 import AuthPage from './pages/AuthPage'
 import BookingPage from './pages/BookingPage'
+import ExperienceDetailPage from './pages/ExperienceDetailPage'
 import MarketingPage from './pages/MarketingPage'
 import { useCustomerAuth } from './hooks/useCustomerAuth'
 import { currency } from './utils/format'
@@ -32,7 +30,7 @@ function App() {
   const [view, setView] = useState('main')
   const [showBooking, setShowBooking] = useState(false)
   const [step, setStep] = useState('date')
-  const [calendarMonth, setCalendarMonth] = useState(() => new Date(2025, 11, 1))
+  const [calendarMonth, setCalendarMonth] = useState(() => { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), 1) })
   const [selectedDate, setSelectedDate] = useState(null)
   const [selectedTime, setSelectedTime] = useState(null)
   const [counts, setCounts] = useState(() => ticketTypes.reduce((acc, t) => ({ ...acc, [t.id]: 0 }), {}))
@@ -53,12 +51,15 @@ function App() {
   const [newsletterEmail, setNewsletterEmail] = useState('')
   const [newsletterMessage, setNewsletterMessage] = useState('')
   const [showMapModal, setShowMapModal] = useState(false)
+  const [selectedExperience, setSelectedExperience] = useState(null)
+  const [bookingExperience, setBookingExperience] = useState(vrExperiences[0])
   const [showNavMenu, setShowNavMenu] = useState(false)
   const [cartItems, setCartItems] = useState(() => {
     try { return JSON.parse(localStorage.getItem('wearevr_cart') || '[]') } catch { return [] }
   })
   const [showCart, setShowCart] = useState(false)
   const [showCartCheckout, setShowCartCheckout] = useState(false)
+  const [cartCheckoutContact, setCartCheckoutContact] = useState({ first: '', last: '', email: '', phone: '' })
   const [couponCode, setCouponCode] = useState('')
   const [couponMessage, setCouponMessage] = useState('')
   const bookingRef = useRef(null)
@@ -96,15 +97,7 @@ function App() {
     family: ['ticketTypeFamily',  null, 'familyInfo'],
     group:  ['ticketTypeGroup',   null, 'groupInfo'],
   }
-  const localizedTicketPricing = [
-    { label: t('ticketTypeRegular'), desc: t('pricingRegularDesc'), price: t('startsFrom', { price: '$37.95' }) },
-    { label: t('ticketTypeChild'),   desc: t('pricingChildDesc'),   price: t('startsFrom', { price: '$27.95' }) },
-    { label: t('ticketTypeSenior'),  desc: t('pricingSeniorDesc'),  price: t('startsFrom', { price: '$34.95' }) },
-    { label: t('ticketTypeFamily'),  desc: t('pricingFamilyDesc'),  price: t('startsFrom', { price: '$31.95' }) },
-    { label: t('ticketTypeGroup'),   desc: t('pricingGroupDesc'),   price: t('startsFrom', { price: '$32.95' }) },
-  ]
   const localizedFaqItems = [1, 2, 3, 4, 5, 6].map((idx) => ({ q: t(`faq${idx}Q`), a: t(`faq${idx}A`) }))
-  const localizedTestimonials = testimonials.map((item, idx) => ({ ...item, quote: t(`review${idx + 1}`) }))
   const localizedNewsItems = newsItems.map((item, idx) => ({ ...item, title: t(`news${idx + 1}Title`), body: t(`news${idx + 1}Body`) }))
   const dateLocale = selectedLang.code === 'zh-Hans' ? 'zh-CN' : selectedLang.code === 'zh-Hant' ? 'zh-TW' : 'en-US'
   const monthDisplay = (date) => date.toLocaleDateString(dateLocale, { month: 'short', year: 'numeric' })
@@ -120,7 +113,7 @@ function App() {
     return isDateTimePeak(selectedDate.date, selectedTime.time)
   }, [selectedDate, selectedTime])
 
-  const activePrices = isPeak ? PEAK_PRICES : OFF_PEAK_PRICES
+  const activePrices = isPeak ? bookingExperience.peakPrices : bookingExperience.offPeakPrices
   const perEach = selectedLang.code === 'zh-Hans' ? '/张' : selectedLang.code === 'zh-Hant' ? '/張' : '/each'
   const localizedTicketTypes = ticketTypes.map((ticket) => ({
     ...ticket,
@@ -131,7 +124,7 @@ function App() {
   }))
 
   const totals = useMemo(() => {
-    const prices = isPeak ? PEAK_PRICES : OFF_PEAK_PRICES
+    const prices = isPeak ? bookingExperience.peakPrices : bookingExperience.offPeakPrices
     const numTickets = ticketTypes.reduce((sum, tk) => sum + counts[tk.id], 0)
     const ticketTotal = ticketTypes.reduce((sum, tk) => sum + counts[tk.id] * prices[tk.id], 0)
     const vipTotal = vipQty * 20
@@ -140,7 +133,7 @@ function App() {
     const tax = numTickets > 0 ? 0.05 * ticketTotal : 0
     const fees = processingFee + tax
     return { numTickets, ticketTotal, vipTotal, subtotal, fees, processingFee, tax, grand: subtotal + fees }
-  }, [counts, vipQty, isPeak])
+  }, [counts, vipQty, isPeak, bookingExperience])
 
   const contactErrors = useMemo(() => {
     const errors = {}
@@ -152,33 +145,32 @@ function App() {
   }, [contact, t])
 
   const visibleDateGrid = useMemo(() => {
+    const today = new Date(); today.setHours(0, 0, 0, 0)
     const year = calendarMonth.getFullYear()
     const month = calendarMonth.getMonth()
     const daysInMonth = new Date(year, month + 1, 0).getDate()
     const leadingBlanks = new Date(year, month, 1).getDay()
-    const specialDates = year === 2025 && month === 11 ? new Map(dateGrid.map((item) => [item.day, item])) : null
+    const prices = bookingExperience?.offPeakPrices ?? { adult: 37.95 }
+    const peakP = bookingExperience?.peakPrices ?? { adult: 45.95 }
     const dates = Array.from({ length: daysInMonth }, (_, idx) => {
       const day = idx + 1
       const date = new Date(year, month, day)
-      const special = specialDates?.get(day)
+      const isPast = date < today
       const isWeekend = date.getDay() === 0 || date.getDay() === 6
-      const price = special?.price ?? (isWeekend ? 45.95 : 37.95)
-      const disabled = special?.disabled ?? false
       return {
         day,
         date,
         key: `${year}-${month}-${day}`,
-        disabled,
-        price: disabled ? undefined : price,
-        level: disabled ? undefined : (special?.level ?? (isWeekend ? 'peak' : 'normal')),
+        disabled: isPast,
+        price: isPast ? undefined : (isWeekend ? peakP.adult : prices.adult),
+        level: isPast ? undefined : (isWeekend ? 'peak' : 'normal'),
       }
     })
-
     return [
       ...Array.from({ length: leadingBlanks }, (_, idx) => ({ key: `blank-${year}-${month}-${idx}`, blank: true })),
       ...dates,
     ]
-  }, [calendarMonth])
+  }, [calendarMonth, bookingExperience])
 
   useEffect(() => {
     if (step !== 'payment') return undefined
@@ -244,59 +236,50 @@ function App() {
     openAuth(mode)
   }
 
-  const revealBooking = () => {
-    setView('main'); setShowBooking(true); setStep('date')
-    if (!selectedDate) setCalendarMonth(new Date(2025, 11, 1))
-    requestAnimationFrame(() => bookingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+  const revealBooking = (experience = null) => {
+    const nextExperience = experience && experience.id ? experience : null
+    if (nextExperience) {
+      setBookingExperience(nextExperience)
+      setCounts(ticketTypes.reduce((acc, t) => ({ ...acc, [t.id]: 0 }), {}))
+      setVipQty(0)
+      setSelectedDate(null)
+      setSelectedTime(null)
+      setStep('date')
+    }
+    setView('main')
+    setShowBooking(true)
+    if (!selectedDate) { const n = new Date(); setCalendarMonth(new Date(n.getFullYear(), n.getMonth(), 1)) }
+    window.scrollTo({ top: 0, behavior: 'instant' })
   }
 
-  const backToMain = () => { setShowBooking(false); setView('main'); window.scrollTo({ top: 0, behavior: 'smooth' }) }
+  const backToMain = () => { setShowBooking(false); setSelectedExperience(null); setView('main'); window.scrollTo({ top: 0, behavior: 'smooth' }) }
+  const openExperience = (exp) => { setSelectedExperience(exp); setView('experience'); window.scrollTo({ top: 0, behavior: 'instant' }) }
 
   const cartCount = cartItems.reduce((s, i) => s + i.quantity, 0)
 
-  const handleAddToCart = () => {
-    const prices = isPeak ? PEAK_PRICES : OFF_PEAK_PRICES
-    const newItems = ticketTypes
-      .filter(tk => counts[tk.id] > 0)
-      .map(tk => ({
-        id: `${Date.now()}-${tk.id}-${Math.random().toString(36).slice(2, 7)}`,
-        show_id: 'terracotta-warriors-vr',
-        show_title: 'Terracotta Warriors VR',
-        session_date: selectedDate ? fullDateDisplay(selectedDate.date) : '',
-        session_time: selectedTime?.time || '',
-        ticket_type_id: tk.id,
-        ticket_type_label: localizedTicketTypes.find(lt => lt.id === tk.id)?.label || tk.id,
-        unit_price: prices[tk.id],
-        quantity: counts[tk.id],
-      }))
-    if (vipQty > 0) {
-      newItems.push({
-        id: `${Date.now()}-vip-${Math.random().toString(36).slice(2, 7)}`,
-        show_id: 'terracotta-warriors-vr',
-        show_title: 'Terracotta Warriors VR',
-        session_date: selectedDate ? fullDateDisplay(selectedDate.date) : '',
-        session_time: selectedTime?.time || '',
-        ticket_type_id: 'vip',
-        ticket_type_label: 'VIP Add-on',
-        unit_price: 20,
-        quantity: vipQty,
-      })
-    }
-    if (newItems.length === 0) return
-    setCartItems(prev => {
-      const updated = [...prev, ...newItems]
-      localStorage.setItem('wearevr_cart', JSON.stringify(updated))
-      return updated
-    })
-    backToMain()
+  const switchBookingExperience = (experienceId) => {
+    const nextExperience = vrExperiences.find((experience) => experience.id === experienceId)
+    if (!nextExperience || nextExperience.id === bookingExperience.id) return
+    setBookingExperience(nextExperience)
+    setSelectedDate(null)
+    setSelectedTime(null)
+    setCounts(ticketTypes.reduce((acc, t) => ({ ...acc, [t.id]: 0 }), {}))
+    setRawCounts({})
+    setVipQty(0)
+    setCouponCode('')
+    setCouponMessage('')
+    setTimeLeft(300)
+    setStep('date')
+    const n = new Date(); setCalendarMonth(new Date(n.getFullYear(), n.getMonth(), 1))
   }
+
   const restartBooking = () => {
     setStep('date')
     setSelectedDate(null)
     setSelectedTime(null)
     setVipQty(0)
     setTimeLeft(300)
-    setCalendarMonth(new Date(2025, 11, 1))
+    const n = new Date(); setCalendarMonth(new Date(n.getFullYear(), n.getMonth(), 1))
   }
 
   const changeCount = (id, delta) => {
@@ -311,7 +294,12 @@ function App() {
     setRawCounts((p) => { const n = { ...p }; delete n[id]; return n })
   }
   const changeCalendarMonth = (delta) => {
-    setCalendarMonth((current) => new Date(current.getFullYear(), current.getMonth() + delta, 1))
+    setCalendarMonth((current) => {
+      const next = new Date(current.getFullYear(), current.getMonth() + delta, 1)
+      const now = new Date()
+      const minMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+      return next < minMonth ? current : next
+    })
   }
   const markContactTouched = (field) => setContactTouched((prev) => ({ ...prev, [field]: true }))
   const updateContact = (field, value) => {
@@ -373,7 +361,7 @@ function App() {
       const res = await fetch(`${backendBase}/api/v1/alphapay/qr`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ method, amount: totalCents, payment_request_id: paymentRequestId, description: 'Terracotta Warriors VR' }),
+        body: JSON.stringify({ method, amount: totalCents, payment_request_id: paymentRequestId, description: bookingExperience.title }),
       })
       if (!res.ok) throw new Error('Failed to create QR')
       const data = await res.json()
@@ -458,8 +446,27 @@ function App() {
         />
       )}
 
+      {/* ── Experience Detail ── */}
+      {view === 'experience' && selectedExperience && (
+        <ExperienceDetailPage
+          authReady={authReady}
+          cartCount={cartCount}
+          currentUser={currentUser}
+          experience={selectedExperience}
+          onBack={backToMain}
+          onBuyTicket={revealBooking}
+          onLogout={logout}
+          onOpenAuth={() => openAuthScreen('login')}
+          onOpenCart={() => setShowCart(true)}
+          onOpenNav={() => setShowNavMenu(true)}
+          onSelectExperience={openExperience}
+          renderLangSelect={renderLangSelect}
+          t={t}
+        />
+      )}
+
       {/* ── Main ── */}
-      {view !== 'auth' && (
+      {view !== 'auth' && view !== 'experience' && (
         <>
           {!showBooking && (
             <MarketingPage
@@ -469,8 +476,6 @@ function App() {
               faqOpen={faqOpen}
               localizedFaqItems={localizedFaqItems}
               localizedNewsItems={localizedNewsItems}
-              localizedTestimonials={localizedTestimonials}
-              localizedTicketPricing={localizedTicketPricing}
               newsletterEmail={newsletterEmail}
               newsletterMessage={newsletterMessage}
               onBuyTicket={revealBooking}
@@ -480,6 +485,7 @@ function App() {
               onOpenCart={() => setShowCart(true)}
               onOpenMap={() => setShowMapModal(true)}
               onOpenNav={() => setShowNavMenu(true)}
+              onSelectExperience={openExperience}
               renderLangSelect={renderLangSelect}
               setFaqOpen={setFaqOpen}
               setNewsletterEmail={setNewsletterEmail}
@@ -493,6 +499,8 @@ function App() {
             <BookingPage
               alphapayLoading={alphapayLoading}
               applyCoupon={applyCoupon}
+              bookingExperience={bookingExperience}
+              bookingExperiences={vrExperiences}
               bookingRef={bookingRef}
               bookingSteps={bookingSteps}
               calendarMonth={calendarMonth}
@@ -510,11 +518,11 @@ function App() {
               couponMessage={couponMessage}
               currentStepIndex={currentStepIndex}
               fullDateDisplay={fullDateDisplay}
-              handleAddToCart={handleAddToCart}
               localizedTicketTypes={localizedTicketTypes}
               markContactTouched={markContactTouched}
               minutes={minutes}
               monthDisplay={monthDisplay}
+              onBookingExperienceChange={switchBookingExperience}
               paymentExpired={paymentExpired}
               rawCounts={rawCounts}
               restartBooking={restartBooking}
@@ -572,7 +580,7 @@ function App() {
           orderData={{
             orderId: `WEAREVR-${Date.now().toString().slice(-12)}`,
             amount: totals.grand,
-            description: 'Tickets for Terracotta Warriors VR',
+            description: `Tickets for ${bookingExperience.title}`,
             date: selectedDate ? fullDateDisplay(selectedDate.date) : null,
             time: selectedTime?.time || null,
             email: contact.email,
@@ -592,13 +600,44 @@ function App() {
             localStorage.setItem('wearevr_cart', JSON.stringify(updated))
             return updated
           })}
+          onUpdateTicketType={(id, ticketTypeId) => setCartItems(prev => {
+            const source = prev.find(item => item.id === id)
+            const option = source?.ticket_options?.find(item => item.id === ticketTypeId)
+            if (!source || !option) return prev
+            const nextId = [
+              source.show_id,
+              source.session_date || '',
+              source.session_time || '',
+              option.id,
+            ].join('__')
+            const updatedItem = {
+              ...source,
+              id: nextId,
+              ticket_type_id: option.id,
+              ticket_type_label: option.label,
+              unit_price: option.price,
+            }
+            const withoutSource = prev.filter(item => item.id !== id)
+            const existing = withoutSource.find(item => item.id === nextId)
+            const updated = existing
+              ? withoutSource.map(item => item.id === nextId
+                ? { ...item, quantity: item.quantity + source.quantity }
+                : item)
+              : [...withoutSource, updatedItem]
+            localStorage.setItem('wearevr_cart', JSON.stringify(updated))
+            return updated
+          })}
           onRemove={(id) => setCartItems(prev => {
             const updated = prev.filter(i => i.id !== id)
             localStorage.setItem('wearevr_cart', JSON.stringify(updated))
             return updated
           })}
           onClose={() => setShowCart(false)}
-          onCheckout={() => { setShowCart(false); setShowCartCheckout(true) }}
+          onCheckout={(checkoutContact) => {
+            setCartCheckoutContact(checkoutContact)
+            setShowCart(false)
+            setShowCartCheckout(true)
+          }}
         />
       )}
 
@@ -611,8 +650,9 @@ function App() {
             orderData={{
               orderId: `WEAREVR-${Date.now().toString().slice(-12)}`,
               amount: grand,
-              description: `${n} ticket${n !== 1 ? 's' : ''} · Terracotta Warriors VR`,
-              email: contact.email,
+              description: `${n} ticket${n !== 1 ? 's' : ''} · WE ARE VR`,
+              email: cartCheckoutContact.email || contact.email,
+              customerName: [cartCheckoutContact.first, cartCheckoutContact.last].filter(Boolean).join(' '),
             }}
             onClose={() => setShowCartCheckout(false)}
             onSuccess={() => {

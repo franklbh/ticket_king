@@ -1,7 +1,6 @@
+import { useState } from 'react'
 import {
   ALL_TIME_SLOTS,
-  OFF_PEAK_PRICES,
-  PEAK_PRICES,
   isDateTimePeak,
 } from '../data/showData'
 import { badge, currency } from '../utils/format'
@@ -9,6 +8,8 @@ import { badge, currency } from '../utils/format'
 function BookingPage({
   alphapayLoading,
   applyCoupon,
+  bookingExperience,
+  bookingExperiences,
   bookingRef,
   bookingSteps,
   calendarMonth,
@@ -26,11 +27,11 @@ function BookingPage({
   couponMessage,
   currentStepIndex,
   fullDateDisplay,
-  handleAddToCart,
   localizedTicketTypes,
   markContactTouched,
   minutes,
   monthDisplay,
+  onBookingExperienceChange,
   paymentExpired,
   rawCounts,
   restartBooking,
@@ -58,7 +59,14 @@ function BookingPage({
 }) {
   return (
     <div className="content" ref={bookingRef} id="booking">
-      <BookingHero bookingSteps={bookingSteps} currentStepIndex={currentStepIndex} t={t} />
+      <BookingHero
+        bookingExperience={bookingExperience}
+        bookingExperiences={bookingExperiences}
+        bookingSteps={bookingSteps}
+        currentStepIndex={currentStepIndex}
+        onBookingExperienceChange={onBookingExperienceChange}
+        t={t}
+      />
       <HeaderCards
         fullDateDisplay={fullDateDisplay}
         selectedDate={selectedDate}
@@ -85,6 +93,7 @@ function BookingPage({
       {step === 'time' && (
         <TimeStep
           canProceedTime={canProceedTime}
+          experience={bookingExperience}
           selectedDate={selectedDate}
           selectedTime={selectedTime}
           setSelectedTime={setSelectedTime}
@@ -129,7 +138,6 @@ function BookingPage({
           couponCode={couponCode}
           couponMessage={couponMessage}
           fullDateDisplay={fullDateDisplay}
-          handleAddToCart={handleAddToCart}
           localizedTicketTypes={localizedTicketTypes}
           minutes={minutes}
           paymentExpired={paymentExpired}
@@ -151,24 +159,73 @@ function BookingPage({
   )
 }
 
-function BookingHero({ bookingSteps, currentStepIndex, t }) {
+function BookingHero({ bookingExperience, bookingExperiences, bookingSteps, currentStepIndex, onBookingExperienceChange, t }) {
+  const [productMenuOpen, setProductMenuOpen] = useState(false)
+  const projectImage = bookingExperience?.heroImg || bookingExperience?.gallery?.[0]
   return (
     <div className="booking-hero">
-      <div>
+      <div className="booking-title-block">
         <p className="booking-eyebrow">{t('secureCheckout')}</p>
-        <h2>{t('reserveVisit')}</h2>
+        <h2>Checkout</h2>
+        <p className="booking-hero-copy">Choose date, time, tickets, then pay.</p>
       </div>
-      <div className="booking-stepper" aria-label="Booking progress">
-        {bookingSteps.map((item, index) => (
-          <div
-            key={item.id}
-            className={`booking-step ${index === currentStepIndex ? 'active' : ''} ${index < currentStepIndex ? 'done' : ''}`}
-          >
-            <span className="booking-step-dot">{index + 1}</span>
-            <span className="booking-step-label">{item.label}</span>
+      {bookingExperience && (
+        <div className="booking-project-card">
+          <div className="booking-project-thumb" style={projectImage ? { backgroundImage: `url(${projectImage})` } : { background: bookingExperience.cardGradient }} />
+          <div className="booking-project-body">
+            <div className="booking-project-title-row">
+              <span className="booking-project-dot" style={{ background: bookingExperience.accent }} />
+              <span className="booking-project-title">{bookingExperience.title}</span>
+            </div>
+            <div className="booking-project-meta">
+              <span>{bookingExperience.duration} min</span>
+              <span>Ages {bookingExperience.minAge}+</span>
+            </div>
           </div>
-        ))}
-      </div>
+          <div className="booking-product-menu-wrap">
+            <button
+              className="booking-product-switch-btn"
+              onClick={() => setProductMenuOpen((open) => !open)}
+              type="button"
+              aria-haspopup="menu"
+              aria-expanded={productMenuOpen}
+            >
+              Switch
+            </button>
+            {productMenuOpen && (
+              <div className="booking-product-menu" role="menu">
+                {bookingExperiences
+                  .filter((experience) => experience.id !== bookingExperience.id)
+                  .map((experience) => {
+                    const menuImage = experience.heroImg || experience.gallery?.[0]
+                  const productType = experience.category === 'arcade' ? 'VR Game' : 'VR Show'
+                    return (
+                      <button
+                        key={experience.id}
+                        onClick={() => {
+                          setProductMenuOpen(false)
+                          onBookingExperienceChange(experience.id)
+                        }}
+                        type="button"
+                        role="menuitem"
+                      >
+                        <span
+                          className="booking-product-menu-thumb"
+                          style={menuImage ? { backgroundImage: `url(${menuImage})` } : { background: experience.cardGradient }}
+                          aria-hidden="true"
+                        />
+                      <span className="booking-product-menu-text">
+                        <strong>{experience.title}</strong>
+                        <span>{productType}</span>
+                      </span>
+                      </button>
+                    )
+                  })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -177,7 +234,9 @@ function HeaderCards({ fullDateDisplay, selectedDate, selectedTime, setStep, ste
   return (
     <div className="header-cards">
       <div className={`header-card ${step === 'date' ? 'active' : ''} ${selectedDate ? 'complete' : ''}`}>
-        <div className="header-icon">📅</div>
+        <div className="header-icon" aria-hidden="true">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/></svg>
+        </div>
         <div className="header-meta">
           <div className="meta-label">{t('selectedDate')}</div>
           <div className="meta-value">{selectedDate ? fullDateDisplay(selectedDate.date) : t('chooseDate')}</div>
@@ -187,7 +246,9 @@ function HeaderCards({ fullDateDisplay, selectedDate, selectedTime, setStep, ste
         </button>
       </div>
       <div className={`header-card ${step === 'time' ? 'active' : ''} ${selectedTime ? 'complete' : ''}`}>
-        <div className="header-icon">🕐</div>
+        <div className="header-icon" aria-hidden="true">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+        </div>
         <div className="header-meta">
           <div className="meta-label">{t('selectedTime')}</div>
           <div className="meta-value">{selectedTime ? selectedTime.time : t('chooseTime')}</div>
@@ -251,7 +312,7 @@ function DateStep({
   )
 }
 
-function TimeStep({ canProceedTime, selectedDate, selectedTime, setSelectedTime, setStep, t }) {
+function TimeStep({ canProceedTime, experience, selectedDate, selectedTime, setSelectedTime, setStep, t }) {
   return (
     <div className="panel">
       <div className="panel-title"><div className="title-accent" /><h3>{t('selectTime')}</h3></div>
@@ -259,7 +320,8 @@ function TimeStep({ canProceedTime, selectedDate, selectedTime, setSelectedTime,
       <div className="slot-grid">
         {ALL_TIME_SLOTS.map((time) => {
           const peak = selectedDate ? isDateTimePeak(selectedDate.date, time) : false
-          const slotPrice = (peak ? PEAK_PRICES : OFF_PEAK_PRICES).adult
+          const prices = experience ? (peak ? experience.peakPrices : experience.offPeakPrices) : {}
+          const slotPrice = prices.adult ?? 0
           return (
             <button
               key={time}
@@ -320,7 +382,12 @@ function TicketsStep({
                   type="number"
                   min="0"
                   value={rawCounts[ticket.id] !== undefined ? rawCounts[ticket.id] : counts[ticket.id]}
-                  onChange={(event) => setRawCounts((previous) => ({ ...previous, [ticket.id]: event.target.value }))}
+                  onChange={(event) => {
+                    const rawValue = event.target.value
+                    const value = Math.max(0, parseInt(rawValue) || 0)
+                    setRawCounts((previous) => ({ ...previous, [ticket.id]: rawValue }))
+                    setCounts((previous) => ({ ...previous, [ticket.id]: value }))
+                  }}
                   onBlur={(event) => {
                     const value = Math.max(0, parseInt(event.target.value) || 0)
                     setCounts((previous) => ({ ...previous, [ticket.id]: value }))
@@ -334,9 +401,11 @@ function TicketsStep({
         ))}
       </div>
       <div className="summary-row"><div>{t('totalAmount')}</div><div className="summary-val">{currency(totals.ticketTotal)}</div></div>
-      <div className="actions">
-        <button className="secondary" onClick={() => setStep('time')} type="button">{t('back')}</button>
-        <button className="primary" disabled={!canProceedTickets} onClick={() => setVipModal(true)} type="button">{t('next')}</button>
+      <div className="tickets-actions-row">
+        <div className="actions" style={{ marginBottom: 0 }}>
+          <button className="secondary" onClick={() => setStep('time')} type="button">{t('back')}</button>
+          <button className="primary" disabled={!canProceedTickets} onClick={() => setVipModal(true)} type="button">{t('next')}</button>
+        </div>
       </div>
     </div>
   )
@@ -396,7 +465,6 @@ function PaymentStep({
   couponCode,
   couponMessage,
   fullDateDisplay,
-  handleAddToCart,
   localizedTicketTypes,
   minutes,
   paymentExpired,
@@ -417,7 +485,12 @@ function PaymentStep({
     return (
       <div className="panel payment-panel">
         <div className="payment-expired-card">
-          <div className="payment-expired-message"><span aria-hidden="true">⚠️</span><p>{t('expired')}</p></div>
+          <div className="payment-expired-message">
+            <span aria-hidden="true">
+              <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
+            </span>
+            <p>{t('expired')}</p>
+          </div>
           <button className="payment-start-over" onClick={restartBooking} type="button">{t('startOver')}</button>
         </div>
       </div>
@@ -472,21 +545,15 @@ function PaymentStep({
           <div><div className="label">{t('phoneOptional')}</div><div className="value">{contact.phone || '—'}</div></div>
         </div>
       </div>
-      <button
-        className="add-to-cart-btn"
-        onClick={handleAddToCart}
-        disabled={totals.numTickets === 0 || paymentExpired}
-        type="button"
-      >
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
-        Add to Cart
-      </button>
       <div className="pay-options">
         <button className="pay-btn stripe" onClick={startStripeCheckout} disabled={paymentExpired} type="button">
-          <span className="pay-icon" aria-hidden="true">
-            <svg viewBox="0 0 32 32" fill="currentColor" width="22" height="22"><rect x="2" y="7" width="28" height="18" rx="3" fill="none" stroke="currentColor" strokeWidth="2"/><rect x="2" y="12" width="28" height="5" fill="currentColor" opacity="0.35"/><rect x="6" y="20" width="6" height="2" rx="1" fill="currentColor"/></svg>
+          <span className="stripe-word" aria-hidden="true">stripe</span>
+          <span className="stripe-card-line">
+            <span className="pay-icon card-icon" aria-hidden="true">
+              <svg viewBox="0 0 32 32" fill="currentColor" width="22" height="22"><rect x="2" y="7" width="28" height="18" rx="3" fill="none" stroke="currentColor" strokeWidth="2"/><rect x="2" y="12" width="28" height="5" fill="currentColor" opacity="0.35"/><rect x="6" y="20" width="6" height="2" rx="1" fill="currentColor"/></svg>
+            </span>
+            <span>{t('creditCard')}</span>
           </span>
-          <span>{t('creditCard')}</span>
         </button>
         <button className="pay-btn wechat" onClick={() => startAlphapayCheckout('wechat')} disabled={alphapayLoading || paymentExpired} type="button">
           <span className="pay-icon wechat-icon" aria-hidden="true">
