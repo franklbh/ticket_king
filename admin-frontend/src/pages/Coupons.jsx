@@ -32,8 +32,8 @@ function CouponModal({ coupon, onClose, onSave, t }) {
             <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>
               {t.couponCode} <span style={{ color: '#ef4444' }}>*</span>
             </label>
-            <input className="form-input" value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value.toUpperCase() }))} placeholder="e.g. SUMMER2025" />
-            <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 4 }}>Recommended format: SUMMER2025</div>
+            <input className="form-input" value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value }))} placeholder="e.g. SUMMER2025" />
+            <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 4 }}>Coupon codes are case-sensitive.</div>
           </div>
 
           {/* Discount Type */}

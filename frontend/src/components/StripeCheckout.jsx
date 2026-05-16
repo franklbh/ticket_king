@@ -40,7 +40,7 @@ function SuccessOverlay({ orderData, onClose }) {
         </div>
 
         <h2 style={{ margin: '0 0 8px', fontSize: 22, fontWeight: 700, color: '#111' }}>
-          Payment Successful!
+          Payment successful
         </h2>
         <p style={{ margin: '0 0 18px', fontSize: 14, color: '#6b7280', lineHeight: 1.5 }}>
           Your order is confirmed. A confirmation and your tickets will be sent to your email.
@@ -127,34 +127,49 @@ function PaymentForm({ orderData, onSuccess, onCancel }) {
   const stripe = useStripe()
   const elements = useElements()
   const [loading, setLoading] = useState(false)
+  const [elementReady, setElementReady] = useState(false)
   const [errorMsg, setErrorMsg] = useState(null)
 
   async function handlePay(e) {
     e.preventDefault()
-    if (!stripe || !elements) return
+    if (!stripe || !elements || !elementReady) {
+      setErrorMsg('Payment form is still loading. Please wait a moment and try again.')
+      return
+    }
     setLoading(true)
     setErrorMsg(null)
 
-    const { error, paymentIntent } = await stripe.confirmPayment({
-      elements,
-      confirmParams: {
-        return_url: `${window.location.origin}/?payment=success`,
-      },
-      redirect: 'if_required',
-    })
+    try {
+      const { error, paymentIntent } = await stripe.confirmPayment({
+        elements,
+        confirmParams: {
+          return_url: `${window.location.origin}/?payment=success`,
+        },
+        redirect: 'if_required',
+      })
 
-    if (error) {
-      setErrorMsg(error.message)
-      setLoading(false)
-    } else if (paymentIntent?.status === 'succeeded') {
-      onSuccess()
-    } else {
+      if (error) {
+        setErrorMsg(error.message)
+        setLoading(false)
+      } else if (paymentIntent?.status === 'succeeded') {
+        onSuccess()
+      } else {
+        setErrorMsg('Payment was not completed. Please check your card details and try again.')
+        setLoading(false)
+      }
+    } catch (error) {
+      setErrorMsg(error.message || 'Payment failed to start. Please refresh and try again.')
       setLoading(false)
     }
   }
 
   return (
     <form onSubmit={handlePay} style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+      {!elementReady && (
+        <div style={{ marginBottom: 10, color: '#9ca3af', fontSize: 13 }}>
+          Loading card details…
+        </div>
+      )}
       <PaymentElement
         options={{
           layout: 'tabs',
@@ -166,6 +181,10 @@ function PaymentForm({ orderData, onSuccess, onCancel }) {
               address: { country: 'auto' },
             },
           },
+        }}
+        onReady={() => setElementReady(true)}
+        onLoadError={(event) => {
+          setErrorMsg(event?.error?.message || 'Unable to load Stripe payment form.')
         }}
       />
 
@@ -180,17 +199,17 @@ function PaymentForm({ orderData, onSuccess, onCancel }) {
 
       <button
         type="submit"
-        disabled={loading || !stripe}
+        disabled={loading || !stripe || !elementReady}
         style={{
           marginTop: 16, width: '100%', padding: '12px 0', borderRadius: 10,
-          background: loading ? '#bfdbfe' : 'linear-gradient(135deg, #2563eb, #1d4ed8)',
-          color: loading ? '#9ca3af' : '#fff',
-          border: 'none', fontSize: 15, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer',
+          background: loading || !elementReady ? '#bfdbfe' : 'linear-gradient(135deg, #2563eb, #1d4ed8)',
+          color: loading || !elementReady ? '#64748b' : '#fff',
+          border: 'none', fontSize: 15, fontWeight: 700, cursor: loading || !elementReady ? 'not-allowed' : 'pointer',
           letterSpacing: '0.02em', transition: 'background 0.2s',
-          boxShadow: loading ? 'none' : '0 4px 16px rgba(37,99,235,0.28)',
+          boxShadow: loading || !elementReady ? 'none' : '0 4px 16px rgba(37,99,235,0.28)',
         }}
       >
-        {loading ? 'Processing…' : `Pay ${currency(orderData.amount)}`}
+        {loading ? 'Processing…' : elementReady ? `Pay ${currency(orderData.amount)}` : 'Loading payment form'}
       </button>
 
       <StripeBadge />

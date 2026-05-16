@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import alphapay, auth, health, shows, stripe_pay, test_db
+from app.api.routes import alphapay, auth, coupons, health, shows, stripe_pay, test_db
 from app.api.routes.admin import catalog as admin_catalog
 from app.api.routes.admin import coupons as admin_coupons
 from app.api.routes.admin import dashboard as admin_dashboard
@@ -33,6 +33,7 @@ def create_app() -> FastAPI:
     app.include_router(health.router, prefix=API_V1_PREFIX)
     app.include_router(alphapay.router, prefix=API_V1_PREFIX)
     app.include_router(stripe_pay.router, prefix=API_V1_PREFIX)
+    app.include_router(coupons.router, prefix=API_V1_PREFIX)
     app.include_router(shows.router, prefix=API_V1_PREFIX)
     app.include_router(admin_health.router, prefix=ADMIN_API_PREFIX)
     app.include_router(admin_dashboard.router, prefix=ADMIN_API_PREFIX)
