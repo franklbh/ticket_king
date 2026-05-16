@@ -41,9 +41,10 @@ class Settings(BaseSettings):
     admin_audit_logs_table: str = "audit_logs"
     admin_users_table: str = "users"
     admin_bootstrap_token: str | None = None
+    admin_allow_dev_user_header: bool = True
 
-    admin_order_id_column: str = "order_id"
-    admin_ticket_id_column: str = "ticket_id"
+    admin_order_id_column: str = "id"
+    admin_ticket_id_column: str = "id"
     admin_ticket_status_column: str = "ticket_status"
     max_table_rows: int = 10000
 

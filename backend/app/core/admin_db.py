@@ -55,21 +55,41 @@ class SupabasePostgresClient:
         try:
             from psycopg import connect
             from psycopg.rows import dict_row
-        except ImportError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="Install backend dependencies first: pip install -e .",
-            ) from exc
+            try:
+                if self.database_url:
+                    return connect(self.database_url, row_factory=dict_row)
+                return connect(
+                    user=settings.db_user,
+                    password=settings.db_password,
+                    host=settings.db_host,
+                    port=settings.db_port,
+                    dbname=settings.db_name,
+                    row_factory=dict_row,
+                )
+            except Exception as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Could not connect to Admin Postgres database.",
+                ) from exc
+        except ImportError:
+            try:
+                from psycopg2 import connect
+                from psycopg2.extras import RealDictCursor
+            except ImportError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Install backend dependencies first: pip install -e .",
+                ) from exc
         try:
             if self.database_url:
-                return connect(self.database_url, row_factory=dict_row)
+                return connect(self.database_url, cursor_factory=RealDictCursor)
             return connect(
                 user=settings.db_user,
                 password=settings.db_password,
                 host=settings.db_host,
                 port=settings.db_port,
-                dbname=settings.db_name,
-                row_factory=dict_row,
+                database=settings.db_name,
+                cursor_factory=RealDictCursor,
             )
         except Exception as exc:
             raise HTTPException(
@@ -95,6 +115,7 @@ class SupabasePostgresClient:
     def _insert_sync(self, table: str, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if not rows:
             return []
+        rows = [self._adapt_json_values(row) for row in rows]
         columns = list(rows[0].keys())
         placeholders = ", ".join(["%s"] * len(columns))
         column_sql = ", ".join(self._identifier(column) for column in columns)
@@ -106,12 +127,10 @@ class SupabasePostgresClient:
         try:
             with self._connect() as connection:
                 with connection.cursor() as cursor:
-                    cursor.executemany(sql, values, returning=True)
                     results: list[dict[str, Any]] = []
-                    while True:
+                    for value in values:
+                        cursor.execute(sql, value)
                         results.extend(dict(row) for row in cursor.fetchall())
-                        if not cursor.nextset():
-                            break
                     return results
         except HTTPException:
             raise
@@ -127,6 +146,7 @@ class SupabasePostgresClient:
     ) -> list[dict[str, Any]]:
         if not values:
             return []
+        values = self._adapt_json_values(values)
         columns = list(values.keys())
         set_sql = ", ".join(f"{self._identifier(column)} = %s" for column in columns)
         sql = (
@@ -153,6 +173,22 @@ class SupabasePostgresClient:
             if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", part):
                 raise HTTPException(status_code=400, detail=f"Invalid SQL identifier: {value}")
         return ".".join(f'"{part}"' for part in parts)
+
+    @staticmethod
+    def _adapt_json_values(row: dict[str, Any]) -> dict[str, Any]:
+        try:
+            from psycopg.types.json import Jsonb
+            json_adapter = Jsonb
+        except ImportError:
+            try:
+                from psycopg2.extras import Json
+                json_adapter = Json
+            except ImportError:
+                return row
+        return {
+            key: json_adapter(value) if isinstance(value, (dict, list)) else value
+            for key, value in row.items()
+        }
 
     @staticmethod
     def _db_error_detail(action: str, table: str, exc: Exception) -> str:

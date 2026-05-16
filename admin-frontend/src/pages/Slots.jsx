@@ -2,9 +2,18 @@ import { useState, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useLang } from '../context/AuthContext'
 import { useT } from '../i18n/translations'
-import { SLOTS_DATA, EVENTS } from '../data/mockData'
+import { EVENTS } from '../data/staticCatalog'
+import { getSlots } from '../api/adminApi'
+import { useAdminQuery } from '../hooks/useAdminApi'
 
 const PAGE_SIZE = 15
+const TODAY = new Date().toISOString().slice(0, 10)
+
+function addDays(date, days) {
+  const next = new Date(`${date}T12:00:00`)
+  next.setDate(next.getDate() + days)
+  return next.toISOString().slice(0, 10)
+}
 
 function SeatBar({ website, inStore, total }) {
   const sold = website + inStore
@@ -113,10 +122,15 @@ export default function Slots() {
   const [searchParams] = useSearchParams()
   const linkedDate = searchParams.get('date')
   const linkedStart = searchParams.get('start')
-  const [slots, setSlots] = useState(SLOTS_DATA)
+  const { data: loadedSlots, error: loadError, loading: loadingSlots, setData: setLoadedSlots } = useAdminQuery(
+    () => getSlots({ dateFrom: linkedDate || undefined, dateTo: undefined }),
+    [linkedDate],
+    { initialData: [] }
+  )
+  const slots = loadedSlots || []
   const [filters, setFilters] = useState({
     event: 'all',
-    dateFrom: linkedDate || '2026-05-13', dateTo: linkedDate || '2026-11-13',
+    dateFrom: linkedDate || TODAY, dateTo: linkedDate || addDays(TODAY, 180),
     status: 'all', todayOnly: false, hideUnsold: false
   })
   const [page, setPage] = useState(1)
@@ -129,7 +143,7 @@ export default function Slots() {
       if (filters.dateTo && s.date > filters.dateTo) return false
       if (linkedStart && s.startTime !== linkedStart) return false
       if (filters.status !== 'all' && s.status !== filters.status) return false
-      if (filters.todayOnly && s.date !== '2026-05-13') return false
+      if (filters.todayOnly && s.date !== TODAY) return false
       if (filters.hideUnsold && s.websiteSeats === 0 && s.inStoreSeats === 0) return false
       return true
     })
@@ -139,20 +153,26 @@ export default function Slots() {
 
   function handleSave(form) {
     if (modal === 'create') {
-      setSlots(prev => [...prev, { ...form, id: Math.max(...prev.map(s => s.id)) + 1, websiteSeats: 0, inStoreSeats: 0 }])
+      setLoadedSlots(prev => [...(prev || []), { ...form, id: Math.max(...(prev || []).map(s => Number(s.id) || 0), 0) + 1, websiteSeats: 0, inStoreSeats: 0 }])
     } else {
-      setSlots(prev => prev.map(s => s.id === modal.id ? { ...s, ...form } : s))
+      setLoadedSlots(prev => (prev || []).map(s => s.id === modal.id ? { ...s, ...form } : s))
     }
     setModal(null)
   }
 
   function toggleSlotStatus(id) {
-    setSlots(prev => prev.map(s => s.id === id ? { ...s, status: s.status === 'active' ? 'disabled' : 'active' } : s))
+    setLoadedSlots(prev => (prev || []).map(s => s.id === id ? { ...s, status: s.status === 'active' ? 'disabled' : 'active' } : s))
   }
 
   return (
     <div>
       {modal && <SlotModal slot={modal === 'create' ? null : modal} onClose={() => setModal(null)} onSave={handleSave} />}
+      {loadError && (
+        <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', color: '#9a3412', padding: 12, borderRadius: 8, marginBottom: 16, fontSize: 13 }}>
+          Backend slots could not be loaded: {loadError.message}
+        </div>
+      )}
+      {loadingSlots && <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 12 }}>Loading live slots...</div>}
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         <div>

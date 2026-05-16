@@ -3,13 +3,16 @@ from __future__ import annotations
 import csv
 import io
 import secrets
+import uuid
 from collections import Counter, defaultdict
 from datetime import date, datetime, timedelta
 from typing import Any
 
+from fastapi import HTTPException, status
+
 from app.core.config import settings
 from app.core.admin_db import supabase
-from app.schemas.admin import TicketStatusUpdate, WalkInOrderCreate
+from app.schemas.admin import TicketCheckInRequest, TicketStatusUpdate, WalkInOrderCreate
 from app.services.normalizers import (
     as_float,
     db_order_status,
@@ -77,7 +80,12 @@ class AdminDataService:
         orders.sort(key=lambda row: row.get("createdAt") or "", reverse=True)
         return self._paginate(orders, filters.get("page", 1), filters.get("page_size", 25))
 
-    async def export_orders_csv(self, filters: dict[str, Any]) -> str:
+    async def export_orders_csv(
+        self,
+        filters: dict[str, Any],
+        actor: dict[str, Any] | None = None,
+        client_ip: str | None = None,
+    ) -> str:
         filters = filters | {"page": 1, "page_size": settings.max_table_rows}
         data = await self.list_orders(filters)
         output = io.StringIO()
@@ -121,7 +129,10 @@ class AdminDataService:
                 order.get("createdBy"),
                 order.get("ip"),
             ])
-        return output.getvalue()
+        csv_body = output.getvalue()
+        if actor:
+            await self._audit_log(actor, "Export", "Order", None, {"filters": filters, "rows": len(data["items"])}, client_ip)
+        return csv_body
 
     async def list_tickets(self, filters: dict[str, Any]) -> dict[str, Any]:
         tickets = await self._tickets()
@@ -129,7 +140,12 @@ class AdminDataService:
         tickets.sort(key=lambda row: row.get("createdAt") or "", reverse=True)
         return self._paginate(tickets, filters.get("page", 1), filters.get("page_size", 25))
 
-    async def export_tickets_csv(self, filters: dict[str, Any]) -> str:
+    async def export_tickets_csv(
+        self,
+        filters: dict[str, Any],
+        actor: dict[str, Any] | None = None,
+        client_ip: str | None = None,
+    ) -> str:
         filters = filters | {"page": 1, "page_size": settings.max_table_rows}
         data = await self.list_tickets(filters)
         output = io.StringIO()
@@ -165,17 +181,29 @@ class AdminDataService:
                 ticket.get("verifiedAt"),
                 ticket.get("createdAt"),
             ])
-        return output.getvalue()
+        csv_body = output.getvalue()
+        if actor:
+            await self._audit_log(actor, "Export", "Ticket", None, {"filters": filters, "rows": len(data["items"])}, client_ip)
+        return csv_body
 
-    async def update_ticket_status(self, ticket_id: str, update: TicketStatusUpdate) -> dict[str, Any]:
-        status = normalize_ticket_status(update.status)
+    async def update_ticket_status(
+        self,
+        ticket_id: str,
+        update: TicketStatusUpdate,
+        actor: dict[str, Any],
+        client_ip: str | None = None,
+    ) -> dict[str, Any]:
+        ticket_status = normalize_ticket_status(update.status)
         values = {
-            settings.admin_ticket_status_column: db_ticket_status(status),
+            settings.admin_ticket_status_column: db_ticket_status(ticket_status),
+            "updated_at": datetime.utcnow().isoformat(timespec="seconds"),
         }
-        if status == "used":
-            values["check_in_at"] = datetime.utcnow().isoformat(timespec="seconds")
-        elif status in {"not_used", "voided"}:
-            values["check_in_at"] = None
+        if ticket_status == "used":
+            values["checked_in_at"] = datetime.utcnow().isoformat(timespec="seconds")
+            values["checked_in_by"] = actor.get("id")
+        elif ticket_status in {"not_used", "voided"}:
+            values["checked_in_at"] = None
+            values["checked_in_by"] = None
 
         rows = await supabase.update(
             settings.admin_tickets_table,
@@ -183,11 +211,25 @@ class AdminDataService:
             match_value=ticket_id,
             values=values,
         )
-        return normalize_ticket(rows[0]) if rows else {"id": ticket_id, "status": status}
+        if not rows:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found.")
+        await self._audit_log(
+            actor,
+            "Update",
+            "Ticket",
+            ticket_id,
+            {"status": ticket_status},
+            client_ip,
+        )
+        return normalize_ticket(rows[0])
 
     async def list_slots(self, date_from: str | None = None, date_to: str | None = None) -> list[dict[str, Any]]:
         rows = await supabase.select(settings.admin_slots_table)
-        slots = [normalize_slot(row) for row in rows]
+        counts = await self._slot_inventory_counts()
+        slots = [
+            normalize_slot({**row, **self._slot_counts_for_row(row, counts)})
+            for row in rows
+        ]
         if date_from:
             slots = [slot for slot in slots if (slot.get("date") or "") >= date_from]
         if date_to:
@@ -203,32 +245,64 @@ class AdminDataService:
         types.sort(key=lambda row: (str(row.get("name") or ""), str(row.get("id") or "")))
         return types
 
-    async def create_walk_in_order(self, payload: WalkInOrderCreate) -> dict[str, Any]:
+    async def create_walk_in_order(
+        self,
+        payload: WalkInOrderCreate,
+        actor: dict[str, Any],
+        client_ip: str | None = None,
+    ) -> dict[str, Any]:
         now = datetime.utcnow().isoformat(timespec="seconds")
-        order_id = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+        order_id = str(uuid.uuid4())
+        order_number = self._order_number()
         total_amount = round(sum(item.quantity * item.unit_price for item in payload.tickets), 2)
         gst = round(total_amount * 0.05, 2)
         total_due = round(total_amount + gst, 2)
-        ticket_summary = ", ".join(f"{item.ticket_type} x{item.quantity}" for item in payload.tickets)
         order_status = "completed" if payload.mark_used_immediately else "paid"
-        email_status = "not_sent" if payload.mark_used_immediately or not payload.customer.email else "sent"
+        ticket_quantity = sum(item.quantity for item in payload.tickets)
+        ticket_details = [
+            {
+                "ticket_type_id": item.ticket_type_id,
+                "ticket_type": item.ticket_type,
+                "quantity": item.quantity,
+                "unit_price": item.unit_price,
+                "line_total": round(item.quantity * item.unit_price, 2),
+            }
+            for item in payload.tickets
+        ]
 
         order_row = {
-            settings.admin_order_id_column: order_id,
-            "customer_name": payload.customer.name or "Walk-in customer",
-            "email": payload.customer.email,
-            "phone": payload.customer.phone,
+            "id": order_id,
+            "order_number": order_number,
+            "slot_id": str(payload.slot_id) if payload.slot_id else None,
             "slot_date": payload.slot_date,
-            "slot_time": payload.slot_start_time,
-            "ticket_details": ticket_summary,
-            "ticket_amount": total_amount,
-            "gst": gst,
-            "total_amount": total_due,
-            "remarks": payload.customer.remarks,
-            "status": db_order_status(order_status),
+            "slot_time": self._slot_time_label(payload.slot_start_time, payload.slot_end_time),
+            "customer_name": payload.customer.name or "Walk-in customer",
+            "customer_email": payload.customer.email,
+            "customer_phone": payload.customer.phone,
+            "sales_channel": "walk_in",
+            "order_status": db_order_status(order_status),
+            "payment_status": "Paid",
+            "fulfillment_status": "Completed" if payload.mark_used_immediately else "Pending",
             "payment_method": payload.payment_method,
-            "email_status": email_status,
+            "payment_provider": "physical_pos",
+            "provider_reference": None,
+            "ticket_quantity": ticket_quantity,
+            "ticket_details": ticket_details,
+            "ticket_amount": total_amount,
+            "addon_amount": 0,
+            "platform_fee": 0,
+            "payment_fee": 0,
+            "gst": gst,
+            "pst": 0,
+            "coupon_discount": 0,
+            "admin_adjustment": 0,
+            "total_amount": total_due,
+            "coupon_code": None,
+            "coupon_details": {},
+            "remarks": payload.customer.remarks,
+            "created_by": actor.get("id"),
             "created_at": now,
+            "updated_at": now,
         }
         inserted_orders = await supabase.insert(settings.admin_orders_table, order_row)
 
@@ -236,28 +310,114 @@ class AdminDataService:
         for item in payload.tickets:
             for _ in range(item.quantity):
                 code = self._verification_code()
+                ticket_id = str(uuid.uuid4())
                 ticket_rows.append({
+                    "id": ticket_id,
+                    "ticket_number": self._ticket_number(),
                     "order_id": order_id,
+                    "slot_id": str(payload.slot_id) if payload.slot_id else None,
                     "verification_code": code,
-                    "qr_code": code,
                     "slot_date": payload.slot_date,
                     "slot_time": self._slot_time_label(payload.slot_start_time, payload.slot_end_time),
                     "ticket_type": item.ticket_type,
                     settings.admin_ticket_status_column: db_ticket_status("used" if payload.mark_used_immediately else "not_used"),
-                    "check_in_at": now if payload.mark_used_immediately else None,
+                    "qr_payload": f"ticket:{code}",
                     "net_ticket_amount": item.unit_price,
                     "original_ticket_amount": item.unit_price,
-                    "order_status": db_order_status(order_status),
+                    "checked_in_at": now if payload.mark_used_immediately else None,
+                    "checked_in_by": actor.get("id") if payload.mark_used_immediately else None,
                     "memo": payload.customer.remarks,
-                    "payment_method": payload.payment_method,
                     "created_at": now,
+                    "updated_at": now,
                 })
         inserted_tickets = await supabase.insert(settings.admin_tickets_table, ticket_rows) if ticket_rows else []
         normalized_order = normalize_order(inserted_orders[0] if inserted_orders else order_row)
+        await self._audit_log(
+            actor,
+            "Create",
+            "Order",
+            order_id,
+            {
+                "order_number": order_number,
+                "sales_channel": "walk_in",
+                "ticket_quantity": ticket_quantity,
+                "total_amount": total_due,
+                "mark_used_immediately": payload.mark_used_immediately,
+            },
+            client_ip,
+        )
         return {
             "order": normalized_order,
             "tickets": [normalize_ticket(ticket) for ticket in inserted_tickets],
         }
+
+    async def check_in_ticket(
+        self,
+        payload: TicketCheckInRequest,
+        actor: dict[str, Any],
+        client_ip: str | None = None,
+    ) -> dict[str, Any]:
+        code = payload.code.strip()
+        rows = await supabase.select(settings.admin_tickets_table)
+        match = next(
+            (
+                row for row in rows
+                if str(row.get("verification_code") or "") == code
+                or str(row.get("qr_payload") or "") == code
+                or str(row.get("qr_payload") or "").endswith(f":{code}")
+            ),
+            None,
+        )
+        if not match:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found.")
+
+        ticket = normalize_ticket(match)
+        if ticket["status"] == "used":
+            return {"result": "already_used", "ticket": ticket}
+        if ticket["status"] == "voided":
+            return {"result": "voided", "ticket": ticket}
+
+        now = datetime.utcnow().isoformat(timespec="seconds")
+        updated = await supabase.update(
+            settings.admin_tickets_table,
+            match_column=settings.admin_ticket_id_column,
+            match_value=str(match.get(settings.admin_ticket_id_column) or match.get("id")),
+            values={
+                settings.admin_ticket_status_column: db_ticket_status("used"),
+                "checked_in_at": now,
+                "checked_in_by": actor.get("id"),
+                "updated_at": now,
+            },
+        )
+        normalized = normalize_ticket(updated[0] if updated else match)
+        await self._audit_log(
+            actor,
+            "Check In",
+            "Ticket",
+            str(normalized.get("id") or ""),
+            {"verification_code": normalized.get("code"), "order_id": normalized.get("orderId")},
+            client_ip,
+        )
+        return {"result": "checked_in", "ticket": normalized}
+
+    async def recent_scans(self, minutes: int = 20) -> list[dict[str, Any]]:
+        cutoff = datetime.utcnow() - timedelta(minutes=minutes)
+        rows = await supabase.select(settings.admin_tickets_table)
+        tickets = [
+            normalize_ticket(row)
+            for row in rows
+            if row.get("checked_in_at")
+            and str(row.get("checked_in_at")).replace("T", " ")[:19] >= cutoff.strftime("%Y-%m-%d %H:%M:%S")
+        ]
+        tickets.sort(key=lambda row: row.get("verifiedAt") or "", reverse=True)
+        return tickets[:100]
+
+    async def list_activity_logs(self, filters: dict[str, Any]) -> dict[str, Any]:
+        rows = await supabase.select(settings.admin_audit_logs_table)
+        logs = [self._normalize_activity_log(row) for row in rows]
+        logs = self._filter_activity_logs(logs, filters)
+        logs.sort(key=lambda row: row.get("timestamp") or "", reverse=True)
+        return self._paginate(logs, filters.get("page", 1), filters.get("page_size", 25))
 
     async def _load_dashboard_rows(self) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
         tickets = await self._tickets()
@@ -272,7 +432,61 @@ class AdminDataService:
 
     async def _tickets(self) -> list[dict[str, Any]]:
         rows = await supabase.select(settings.admin_tickets_table)
-        return [normalize_ticket(row) for row in rows]
+        orders = await self._orders_by_id()
+        enriched_rows = [self._merge_ticket_order(row, orders.get(str(row.get("order_id")))) for row in rows]
+        return [normalize_ticket(row) for row in enriched_rows]
+
+    async def _orders_by_id(self) -> dict[str, dict[str, Any]]:
+        rows = await supabase.select(settings.admin_orders_table)
+        return {str(row.get("id")): row for row in rows if row.get("id") is not None}
+
+    @staticmethod
+    def _merge_ticket_order(ticket: dict[str, Any], order: dict[str, Any] | None) -> dict[str, Any]:
+        if not order:
+            return ticket
+        return {
+            **order,
+            **ticket,
+            "customer_name": order.get("customer_name"),
+            "customer_email": order.get("customer_email"),
+            "payment_method": order.get("payment_method"),
+            "remarks": ticket.get("memo") or order.get("remarks"),
+            "order_created_at": order.get("created_at"),
+        }
+
+    async def _slot_inventory_counts(self) -> dict[str, dict[str, int]]:
+        tickets = await supabase.select(settings.admin_tickets_table)
+        orders = await self._orders_by_id()
+        counts: dict[str, dict[str, int]] = defaultdict(lambda: {"online_sold": 0, "walkin_sold": 0})
+        for ticket in tickets:
+            key = self._slot_key(ticket)
+            if not key:
+                continue
+            order = orders.get(str(ticket.get("order_id")))
+            channel = str((order or {}).get("sales_channel") or "").lower()
+            if channel in {"walk_in", "walk-in", "instore", "in_store"}:
+                counts[key]["walkin_sold"] += 1
+            else:
+                counts[key]["online_sold"] += 1
+        return dict(counts)
+
+    @staticmethod
+    def _slot_key(row: dict[str, Any]) -> str:
+        slot_id = row.get("slot_id") or row.get("id")
+        if slot_id:
+            return str(slot_id)
+        slot_date = row.get("slot_date") or row.get("business_date") or row.get("date")
+        slot_time = row.get("slot_time") or row.get("slot_time_label")
+        return f"{slot_date}|{slot_time}" if slot_date and slot_time else ""
+
+    @staticmethod
+    def _slot_counts_for_row(row: dict[str, Any], counts: dict[str, dict[str, int]]) -> dict[str, int]:
+        direct = counts.get(str(row.get("id") or row.get("slot_id") or ""))
+        if direct:
+            return direct
+        slot_date = row.get("slot_date") or row.get("business_date") or row.get("date")
+        slot_time = row.get("slot_time") or row.get("slot_time_label")
+        return counts.get(f"{slot_date}|{slot_time}", {})
 
     @staticmethod
     def _ticket_counts(tickets: list[dict[str, Any]]) -> dict[str, dict[str, int]]:
@@ -334,6 +548,27 @@ class AdminDataService:
         if filters.get("ticket_type"):
             types = {item.strip() for item in str(filters["ticket_type"]).split(",") if item.strip()}
             result = [row for row in result if row.get("ticketType") in types]
+        return result
+
+    @staticmethod
+    def _filter_activity_logs(logs: list[dict[str, Any]], filters: dict[str, Any]) -> list[dict[str, Any]]:
+        result = logs
+        if filters.get("admin"):
+            needle = str(filters["admin"]).lower()
+            result = [row for row in result if needle in str(row.get("admin") or "").lower()]
+        if filters.get("action_type"):
+            allowed = {item.strip() for item in str(filters["action_type"]).split(",") if item.strip()}
+            result = [row for row in result if row.get("actionType") in allowed]
+        if filters.get("target_type"):
+            allowed = {item.strip() for item in str(filters["target_type"]).split(",") if item.strip()}
+            result = [row for row in result if row.get("targetType") in allowed]
+        if filters.get("target_id"):
+            needle = str(filters["target_id"]).lower()
+            result = [row for row in result if needle in str(row.get("targetId") or "").lower()]
+        if filters.get("date_from"):
+            result = [row for row in result if (row.get("timestamp") or "")[:10] >= filters["date_from"]]
+        if filters.get("date_to"):
+            result = [row for row in result if (row.get("timestamp") or "")[:10] <= filters["date_to"]]
         return result
 
     @staticmethod
@@ -427,6 +662,53 @@ class AdminDataService:
     @staticmethod
     def _slot_time_label(start: str, end: str | None) -> str:
         return f"{start}-{end}" if end else start
+
+    @staticmethod
+    def _order_number() -> str:
+        return f"TK{datetime.utcnow():%Y%m%d%H%M%S}{secrets.randbelow(9000) + 1000}"
+
+    @staticmethod
+    def _ticket_number() -> str:
+        return f"T{datetime.utcnow():%Y%m%d%H%M%S}{secrets.randbelow(900000) + 100000}"
+
+    async def _audit_log(
+        self,
+        actor: dict[str, Any],
+        action_type: str,
+        target_type: str,
+        target_id: str | None,
+        details: dict[str, Any],
+        client_ip: str | None = None,
+    ) -> None:
+        await supabase.insert(
+            settings.admin_audit_logs_table,
+            {
+                "admin_id": actor.get("id"),
+                "admin_email": actor.get("email"),
+                "admin_name": actor.get("name") or actor.get("username") or actor.get("email"),
+                "action_type": action_type,
+                "target_type": target_type,
+                "target_id": target_id,
+                "action_details": details,
+                "login_info": client_ip,
+                "created_at": datetime.utcnow().isoformat(timespec="seconds"),
+            },
+        )
+
+    @staticmethod
+    def _normalize_activity_log(row: dict[str, Any]) -> dict[str, Any]:
+        admin = pick(row, "admin_name", "admin_email", "admin_id", default="Unknown")
+        return {
+            "id": pick(row, "id"),
+            "admin": admin,
+            "adminId": pick(row, "admin_id"),
+            "actionType": pick(row, "action_type"),
+            "targetType": pick(row, "target_type"),
+            "targetId": pick(row, "target_id"),
+            "actionDetails": pick(row, "action_details", default={}),
+            "loginInfo": pick(row, "login_info", "ip"),
+            "timestamp": str(pick(row, "created_at", "timestamp", default=""))[:19],
+        }
 
 
 admin_data_service = AdminDataService()

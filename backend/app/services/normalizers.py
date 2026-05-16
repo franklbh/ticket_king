@@ -114,11 +114,12 @@ def db_ticket_status(value: str) -> str:
 
 def normalize_order(row: dict[str, Any], ticket_counts: dict[str, dict[str, int]] | None = None) -> dict[str, Any]:
     order_id = str(pick(row, "order_id", "order_number", "id"))
+    order_pk = str(pick(row, "id", "order_id", "order_number"))
     slot_time = pick(row, "slot_time", "slot_time_label")
     start_time, end_time = split_slot_time(slot_time)
     start_time = pick(row, "slot_start_time", "start_time", default=start_time)
     end_time = pick(row, "slot_end_time", "end_time", default=end_time)
-    counts = (ticket_counts or {}).get(order_id, {})
+    counts = (ticket_counts or {}).get(order_id) or (ticket_counts or {}).get(order_pk, {})
     total = as_int(pick(row, "ticket_total", "ticket_count", "total_tickets"), counts.get("total", 0))
     used = as_int(pick(row, "completed_tickets", "used_tickets"), counts.get("used", 0))
     not_used = as_int(pick(row, "not_used_tickets", "unused_tickets"), max(total - used, 0))
@@ -169,7 +170,7 @@ def normalize_ticket(row: dict[str, Any]) -> dict[str, Any]:
         "qrCode": pick(row, "qr_code", "qr_payload", "verification_code", "code"),
         "orderId": order_id,
         "orderUser": pick(row, "customer_name", "order_user", "user_name"),
-        "orderEmail": pick(row, "email", "order_email"),
+        "orderEmail": pick(row, "customer_email", "email", "order_email"),
         "orderPayment": pick(row, "payment_method", "order_payment"),
         "remarks": pick(row, "memo", "remarks"),
         "ticketType": pick(row, "ticket_type", "ticket_type_name", default="Regular"),
@@ -183,14 +184,14 @@ def normalize_ticket(row: dict[str, Any]) -> dict[str, Any]:
 
 
 def normalize_slot(row: dict[str, Any]) -> dict[str, Any]:
-    slot_time = pick(row, "slot_time")
+    slot_time = pick(row, "slot_time", "slot_time_label")
     start_time, end_time = split_slot_time(slot_time)
     start_time = pick(row, "start_time", "slot_start_time", default=start_time)
     end_time = pick(row, "end_time", "slot_end_time", default=end_time)
     return {
         "id": pick(row, "id", "slot_id"),
         "event": pick(row, "event", "event_id", default=1),
-        "date": to_date_string(pick(row, "date", "slot_date")),
+        "date": to_date_string(pick(row, "date", "slot_date", "business_date")),
         "startTime": str(start_time)[:5] if start_time else None,
         "endTime": str(end_time)[:5] if end_time else None,
         "price": as_float(pick(row, "price", "base_price"), 37.95),
@@ -240,4 +241,3 @@ def none_or_float(value: Any) -> float | None:
     if value in (None, ""):
         return None
     return as_float(value)
-

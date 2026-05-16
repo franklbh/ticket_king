@@ -1,7 +1,8 @@
 import { useState, useMemo } from 'react'
 import { useLang } from '../context/AuthContext'
 import { useT } from '../i18n/translations'
-import { LOGS_DATA, ADMINS_DATA } from '../data/mockData'
+import { getLogs } from '../api/adminApi'
+import { useAdminQuery } from '../hooks/useAdminApi'
 
 const ACTION_TYPES = ['Login', 'Create', 'Update', 'Batch Update', 'Check In', 'Restock', 'Void', 'Activate', 'Deactivate', 'Export', 'Other']
 const ACTION_COLORS = {
@@ -24,12 +25,6 @@ function IPModal({ ip, onClose }) {
         </div>
         <div style={{ fontSize: 13, lineHeight: 1.8 }}>
           <div><strong>IP Address:</strong> {ip}</div>
-          <div><strong>Location:</strong> Surrey, British Columbia, Canada</div>
-          <div><strong>ISP:</strong> TELUS Communications</div>
-          <div style={{ marginTop: 8 }}><strong>User Agent:</strong></div>
-          <div style={{ color: '#6b7280' }}>
-            <i className="fa fa-desktop" /> <i className="fa fa-globe" /> macOS · Chrome 147
-          </div>
         </div>
       </div>
     </div>
@@ -39,19 +34,25 @@ function IPModal({ ip, onClose }) {
 export default function Logs() {
   const { lang } = useLang()
   const t = useT(lang)
-  const adminNames = ['all', ...Array.from(new Set(ADMINS_DATA.map(a => a.username)))]
 
   const [filters, setFilters] = useState({
     admin: 'all',
     search: '',
-    dateFrom: '2026-04-13',
-    dateTo: '2026-05-13',
+    dateFrom: '',
+    dateTo: '',
     actionTypes: ACTION_TYPES.slice(),
     targetTypes: TARGET_TYPES.slice(),
   })
   const [page, setPage] = useState(1)
   const [ipModal, setIpModal] = useState(null)
   const [detailLog, setDetailLog] = useState(null)
+  const { data: logsData, error: loadError, loading: loadingLogs } = useAdminQuery(
+    () => getLogs({ page: 1, pageSize: 200 }),
+    [],
+    { initialData: { items: [], total: 0 } }
+  )
+  const logs = logsData?.items || []
+  const adminNames = ['all', ...Array.from(new Set(logs.map(a => a.admin).filter(Boolean)))]
 
   function toggleActionType(at) {
     setFilters(f => ({
@@ -70,14 +71,18 @@ export default function Logs() {
   }
 
   const filtered = useMemo(() => {
-    return LOGS_DATA.filter(log => {
+    return logs.filter(log => {
       if (filters.admin !== 'all' && log.admin !== filters.admin) return false
-      if (filters.search && !log.actionDetails.toLowerCase().includes(filters.search.toLowerCase())) return false
+      const detailsText = typeof log.actionDetails === 'string' ? log.actionDetails : JSON.stringify(log.actionDetails || {})
+      if (filters.search && !detailsText.toLowerCase().includes(filters.search.toLowerCase())) return false
       if (filters.actionTypes.length > 0 && !filters.actionTypes.includes(log.actionType)) return false
       if (filters.targetTypes.length > 0 && !filters.targetTypes.includes(log.targetType)) return false
+      const timestamp = log.timestamp || log.time || ''
+      if (filters.dateFrom && timestamp.slice(0, 10) < filters.dateFrom) return false
+      if (filters.dateTo && timestamp.slice(0, 10) > filters.dateTo) return false
       return true
     })
-  }, [filters])
+  }, [filters, logs])
 
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
   const pages = Math.ceil(filtered.length / PAGE_SIZE)
@@ -85,6 +90,12 @@ export default function Logs() {
   return (
     <div>
       {ipModal && <IPModal ip={ipModal} onClose={() => setIpModal(null)} />}
+      {loadError && (
+        <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', color: '#9a3412', padding: 12, borderRadius: 8, marginBottom: 16, fontSize: 13 }}>
+          Backend logs could not be loaded: {loadError.message}
+        </div>
+      )}
+      {loadingLogs && <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 12 }}>Loading live activity logs...</div>}
       {detailLog && (
         <div className="modal-overlay" onClick={() => setDetailLog(null)}>
           <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: 560 }}>
@@ -93,7 +104,7 @@ export default function Logs() {
               <button onClick={() => setDetailLog(null)} style={{ border: 'none', background: 'transparent', fontSize: 20, cursor: 'pointer', color: '#6b7280' }}>×</button>
             </div>
             <pre style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 6, padding: 12, fontSize: 12, overflow: 'auto', maxHeight: 300 }}>
-              {JSON.stringify(JSON.parse(detailLog.actionDetails.replace(/\.\.\./g, '"..."').replace(/"..."/g, '"(truncated)"') || '{}'), null, 2)}
+              {typeof detailLog.actionDetails === 'string' ? detailLog.actionDetails : JSON.stringify(detailLog.actionDetails || {}, null, 2)}
             </pre>
           </div>
         </div>
@@ -129,7 +140,7 @@ export default function Logs() {
             <input className="form-input" type="date" value={filters.dateTo} onChange={e => setFilters(f => ({ ...f, dateTo: e.target.value }))} />
           </div>
           <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-            <button className="btn-secondary btn-sm" onClick={() => { setFilters({ admin: 'all', search: '', dateFrom: '2026-04-13', dateTo: '2026-05-13', actionTypes: ACTION_TYPES.slice(), targetTypes: TARGET_TYPES.slice() }); setPage(1) }}>
+            <button className="btn-secondary btn-sm" onClick={() => { setFilters({ admin: 'all', search: '', dateFrom: '', dateTo: '', actionTypes: ACTION_TYPES.slice(), targetTypes: TARGET_TYPES.slice() }); setPage(1) }}>
               <i className="fa fa-redo" /> {t.reset}
             </button>
           </div>
@@ -204,7 +215,7 @@ export default function Logs() {
                       }}
                       title="Click to view full details"
                     >
-                      {log.actionDetails.slice(0, 40)}...
+                      {(typeof log.actionDetails === 'string' ? log.actionDetails : JSON.stringify(log.actionDetails || {})).slice(0, 40)}...
                     </button>
                   </td>
                   <td>
@@ -222,7 +233,7 @@ export default function Logs() {
                       </div>
                     ) : '-'}
                   </td>
-                  <td style={{ fontSize: 12, whiteSpace: 'nowrap', color: '#374151' }}>{log.time}</td>
+                  <td style={{ fontSize: 12, whiteSpace: 'nowrap', color: '#374151' }}>{log.timestamp || log.time}</td>
                 </tr>
               ))}
             </tbody>

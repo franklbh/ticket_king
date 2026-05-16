@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import Response
 
 from app.schemas.admin import WalkInOrderCreate
@@ -38,8 +38,12 @@ async def list_orders(filters: dict = Depends(_order_filters)) -> dict:
 
 
 @router.get("/export")
-async def export_orders(filters: dict = Depends(_order_filters)) -> Response:
-    csv_body = await admin_data_service.export_orders_csv(filters)
+async def export_orders(
+    request: Request,
+    filters: dict = Depends(_order_filters),
+    actor: dict = Depends(require_admin),
+) -> Response:
+    csv_body = await admin_data_service.export_orders_csv(filters, actor, _client_ip(request))
     return Response(
         content="\ufeff" + csv_body,
         media_type="text/csv; charset=utf-8",
@@ -48,5 +52,16 @@ async def export_orders(filters: dict = Depends(_order_filters)) -> Response:
 
 
 @router.post("/walk-in", status_code=201)
-async def create_walk_in_order(payload: WalkInOrderCreate) -> dict:
-    return await admin_data_service.create_walk_in_order(payload)
+async def create_walk_in_order(
+    payload: WalkInOrderCreate,
+    request: Request,
+    actor: dict = Depends(require_admin),
+) -> dict:
+    return await admin_data_service.create_walk_in_order(payload, actor, _client_ip(request))
+
+
+def _client_ip(request: Request) -> str | None:
+    forwarded_for = request.headers.get("x-forwarded-for")
+    if forwarded_for:
+        return forwarded_for.split(",", 1)[0].strip()
+    return request.client.host if request.client else None

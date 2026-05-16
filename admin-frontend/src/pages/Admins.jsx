@@ -1,7 +1,8 @@
 import { useState, useMemo } from 'react'
 import { useLang } from '../context/AuthContext'
 import { useT } from '../i18n/translations'
-import { ADMINS_DATA } from '../data/mockData'
+import { getUsers } from '../api/adminApi'
+import { useAdminQuery } from '../hooks/useAdminApi'
 
 const ROLES = ['SuperAdmin', 'SDirector', 'Director', 'Operator', 'Front']
 const ROLE_COLORS = { SuperAdmin: 'badge-red', SDirector: 'badge-purple', Director: 'badge-blue', Operator: 'badge-teal', Front: 'badge-orange' }
@@ -61,7 +62,6 @@ function AdminModal({ admin, onClose, onSave, t }) {
 }
 
 function IPModal({ ip, onClose, t }) {
-  const info = { location: 'Surrey, British Columbia, Canada', isp: 'TELUS Communications', ua: 'macOS · Chrome 147' }
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-box" style={{ maxWidth: 360 }} onClick={e => e.stopPropagation()}>
@@ -71,12 +71,6 @@ function IPModal({ ip, onClose, t }) {
         </div>
         <div style={{ fontSize: 13, lineHeight: 1.8 }}>
           <div><strong>IP Address:</strong> {ip}</div>
-          <div><strong>Location:</strong> {info?.location}</div>
-          <div><strong>ISP:</strong> {info?.isp}</div>
-          <div style={{ marginTop: 8 }}><strong>User Agent:</strong></div>
-          <div style={{ color: '#6b7280', display: 'flex', alignItems: 'center', gap: 6 }}>
-            <i className="fa fa-desktop" /> <i className="fa fa-globe" /> {info?.ua}
-          </div>
         </div>
       </div>
     </div>
@@ -86,14 +80,19 @@ function IPModal({ ip, onClose, t }) {
 export default function Admins() {
   const { lang } = useLang()
   const t = useT(lang)
-  const [admins, setAdmins] = useState(ADMINS_DATA)
+  const { data: loadedAdmins, error: loadError, loading: loadingAdmins, setData: setLoadedAdmins } = useAdminQuery(
+    () => getUsers(),
+    [],
+    { initialData: [] }
+  )
+  const admins = loadedAdmins || []
   const [filters, setFilters] = useState({ role: 'all', status: 'all' })
   const [modal, setModal] = useState(null)
   const [ipModal, setIpModal] = useState(null)
 
   const filtered = useMemo(() => {
     return admins.filter(a => {
-      if (filters.role !== 'all' && a.role !== filters.role) return false
+      if (filters.role !== 'all' && (a.staffRole || a.role) !== filters.role) return false
       if (filters.status !== 'all' && a.status !== filters.status) return false
       return true
     })
@@ -101,21 +100,27 @@ export default function Admins() {
 
   function handleSave(form) {
     if (modal === 'create') {
-      setAdmins(prev => [...prev, { ...form, id: prev.length + 1, lastLogin: null, lastLoginRelative: '-', ip: null, canDisable: true }])
+      setLoadedAdmins(prev => [...(prev || []), { ...form, id: (prev || []).length + 1, lastLogin: null, lastLoginRelative: '-', ip: null, canDisable: true }])
     } else {
-      setAdmins(prev => prev.map(a => a.id === modal.id ? { ...a, ...form } : a))
+      setLoadedAdmins(prev => (prev || []).map(a => a.id === modal.id ? { ...a, ...form } : a))
     }
     setModal(null)
   }
 
   function toggleAdminStatus(id) {
-    setAdmins(prev => prev.map(a => a.id === id ? { ...a, status: a.status === 'active' ? 'inactive' : 'active' } : a))
+    setLoadedAdmins(prev => (prev || []).map(a => a.id === id ? { ...a, status: a.status === 'active' ? 'inactive' : 'active' } : a))
   }
 
   return (
     <div>
       {modal && <AdminModal admin={modal === 'create' ? null : modal} onClose={() => setModal(null)} onSave={handleSave} t={t} />}
       {ipModal && <IPModal ip={ipModal} onClose={() => setIpModal(null)} t={t} />}
+      {loadError && (
+        <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', color: '#9a3412', padding: 12, borderRadius: 8, marginBottom: 16, fontSize: 13 }}>
+          Backend admin users could not be loaded: {loadError.message}
+        </div>
+      )}
+      {loadingAdmins && <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 12 }}>Loading live admin users...</div>}
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         <div>
@@ -175,22 +180,22 @@ export default function Admins() {
               ) : filtered.map(a => (
                 <tr key={a.id}>
                   <td style={{ fontWeight: 600, color: '#6b7280' }}>{a.id}</td>
-                  <td style={{ fontWeight: 600, fontSize: 14 }}>{a.username}</td>
+                  <td style={{ fontWeight: 600, fontSize: 14 }}>{a.username || a.name || a.email || '-'}</td>
                   <td style={{ fontSize: 13, color: '#6b7280' }}>{a.email || '-'}</td>
                   <td>
-                    <span className={`badge ${ROLE_COLORS[a.role] || 'badge-gray'}`}>{a.role}</span>
+                    <span className={`badge ${ROLE_COLORS[a.staffRole || a.role] || 'badge-gray'}`}>{a.staffRole || a.role}</span>
                   </td>
                   <td style={{ fontSize: 13, color: '#6b7280' }}>{a.department || '-'}</td>
                   <td style={{ fontSize: 13, color: '#6b7280' }}>{a.position || '-'}</td>
                   <td>
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}>
                       <div>
-                        <div style={{ fontSize: 13 }}>{a.lastLoginRelative}</div>
-                        {a.ip && <div style={{ fontSize: 11, color: '#9ca3af', fontFamily: 'monospace' }}>{a.ip}</div>}
+                        <div style={{ fontSize: 13 }}>{a.lastLoginRelative || a.lastLoginAt || '-'}</div>
+                        {(a.ip || a.lastLoginIp) && <div style={{ fontSize: 11, color: '#9ca3af', fontFamily: 'monospace' }}>{a.ip || a.lastLoginIp}</div>}
                       </div>
-                      {a.ip && (
+                      {(a.ip || a.lastLoginIp) && (
                         <button
-                          onClick={() => setIpModal(a.ip)}
+                          onClick={() => setIpModal(a.ip || a.lastLoginIp)}
                           style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 3, padding: '2px 6px', fontSize: 11, cursor: 'pointer' }}
                         >
                           <i className="fa fa-search" />

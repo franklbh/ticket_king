@@ -1,17 +1,26 @@
 import json
 
-import stripe as stripe_lib
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from app.core.config import settings
 
+try:
+    import stripe as stripe_lib
+except ModuleNotFoundError:
+    stripe_lib = None
+
 router = APIRouter(prefix="/stripe", tags=["stripe"])
 
 
 def _stripe():
+    if stripe_lib is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Stripe package is not installed. Run: python3 -m pip install -r backend/requirements.txt",
+        )
     if not settings.stripe_secret_key:
-        raise RuntimeError("Stripe secret key not configured — set STRIPE_SECRET_KEY")
+        raise HTTPException(status_code=503, detail="Stripe secret key not configured. Set STRIPE_SECRET_KEY.")
     stripe_lib.api_key = settings.stripe_secret_key
     return stripe_lib
 
@@ -40,6 +49,11 @@ async def create_payment_intent(req: PaymentIntentRequest):
 
 @router.post("/webhook")
 async def stripe_webhook(request: Request):
+    if stripe_lib is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Stripe package is not installed. Run: python3 -m pip install -r backend/requirements.txt",
+        )
     payload = await request.body()
     sig_header = request.headers.get("stripe-signature", "")
 

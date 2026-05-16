@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import Response
 
 from app.schemas.admin import TicketStatusUpdate
@@ -40,8 +40,12 @@ async def list_tickets(filters: dict = Depends(_ticket_filters)) -> dict:
 
 
 @router.get("/export")
-async def export_tickets(filters: dict = Depends(_ticket_filters)) -> Response:
-    csv_body = await admin_data_service.export_tickets_csv(filters)
+async def export_tickets(
+    request: Request,
+    filters: dict = Depends(_ticket_filters),
+    actor: dict = Depends(require_admin),
+) -> Response:
+    csv_body = await admin_data_service.export_tickets_csv(filters, actor, _client_ip(request))
     return Response(
         content="\ufeff" + csv_body,
         media_type="text/csv; charset=utf-8",
@@ -50,5 +54,17 @@ async def export_tickets(filters: dict = Depends(_ticket_filters)) -> Response:
 
 
 @router.patch("/{ticket_id}/status")
-async def update_ticket_status(ticket_id: str, payload: TicketStatusUpdate) -> dict:
-    return await admin_data_service.update_ticket_status(ticket_id, payload)
+async def update_ticket_status(
+    ticket_id: str,
+    payload: TicketStatusUpdate,
+    request: Request,
+    actor: dict = Depends(require_admin),
+) -> dict:
+    return await admin_data_service.update_ticket_status(ticket_id, payload, actor, _client_ip(request))
+
+
+def _client_ip(request: Request) -> str | None:
+    forwarded_for = request.headers.get("x-forwarded-for")
+    if forwarded_for:
+        return forwarded_for.split(",", 1)[0].strip()
+    return request.client.host if request.client else None

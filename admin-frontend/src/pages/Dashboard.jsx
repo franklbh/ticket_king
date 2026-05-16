@@ -7,210 +7,26 @@ import {
 import { useLang } from '../context/AuthContext'
 import { useT } from '../i18n/translations'
 import { useAuth } from '../context/AuthContext'
-import { DASHBOARD_STATS, SALES_TREND_90, SLOTS_DATA, TICKET_DISTRIBUTION, TICKETS_DATA } from '../data/mockData'
+import { getDashboard } from '../api/adminApi'
+import { useAdminQuery } from '../hooks/useAdminApi'
+import {
+  CustomTooltip,
+  PopularSlotsChart,
+  QuickActionCard,
+  StatCard,
+  SummaryCard,
+} from '../components/DashboardWidgets'
 
-const RANGE_DAYS = { last7Days: 7, last14Days: 14, last30Days: 30, last90Days: 90 }
+const RANGE_TO_API = { last7Days: '7d', last14Days: '14d', last30Days: '30d', last90Days: '90d', allTime: 'all' }
 
 const RANGE_OPTIONS = ['last7Days', 'last14Days', 'last30Days', 'last90Days', 'allTime']
 
-function buildDistribution(totalTickets) {
-  const baseTotal = TICKET_DISTRIBUTION.reduce((sum, item) => sum + item.value, 0)
-  if (!totalTickets || !baseTotal) {
-    return TICKET_DISTRIBUTION.map(item => ({ ...item, value: 0, percent: 0 }))
-  }
-
-  const exact = TICKET_DISTRIBUTION.map(item => ({
-    ...item,
-    exactValue: (item.value / baseTotal) * totalTickets,
-  }))
-  let allocated = 0
-  const rows = exact.map(item => {
-    const value = Math.floor(item.exactValue)
-    allocated += value
-    return { ...item, value }
-  })
-  ;[...rows]
-    .sort((a, b) => (b.exactValue - b.value) - (a.exactValue - a.value))
-    .slice(0, totalTickets - allocated)
-    .forEach(item => {
-      const row = rows.find(r => r.name === item.name)
-      if (row) row.value += 1
-    })
-
-  return rows.map(({ exactValue, ...item }) => ({
-    ...item,
-    percent: totalTickets ? Math.round((item.value / totalTickets) * 100) : 0,
-  }))
-}
-
-const SLOT_TICKET_BREAKDOWN = (() => {
-  const map = {}
-  TICKETS_DATA.forEach(t => {
-    const key = `${t.slotDate} ${t.slotStart}:00`
-    if (!map[key]) map[key] = {}
-    map[key][t.ticketType] = (map[key][t.ticketType] || 0) + 1
-  })
-  return map
-})()
-
-function buildPopularSlots() {
-  return SLOTS_DATA
-    .map(slot => ({
-      slot: `${slot.date} ${slot.startTime}:00`,
-      sold: slot.websiteSeats + slot.inStoreSeats,
-      total: slot.totalSeats,
-    }))
-    .filter(slot => slot.sold > 0)
-    .sort((a, b) => a.slot.localeCompare(b.slot))
-    .slice(0, 10)
-}
-
-function StatCard({ icon, iconBg, title, value, sub }) {
-  return (
-    <div className="stat-card" style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-      <div style={{ width: 52, height: 52, borderRadius: 12, background: iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>
-        {icon}
-      </div>
-      <div>
-        <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 4 }}>{title}</div>
-        <div style={{ fontSize: 26, fontWeight: 700, color: '#111827' }}>{value}</div>
-        {sub && <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>{sub}</div>}
-      </div>
-    </div>
-  )
-}
-
-function SummaryCard({ label, value, color }) {
-  return (
-    <div className="stat-card">
-      <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 6 }}>{label}</div>
-      <div style={{ fontSize: 28, fontWeight: 700, color }}>{value}</div>
-    </div>
-  )
-}
-
-function QuickActionCard({ icon, label, onClick }) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        flex: 1, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: '24px 16px',
-        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, cursor: 'pointer',
-        transition: 'box-shadow 0.15s, border-color 0.15s', minWidth: 140,
-      }}
-      onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)'; e.currentTarget.style.borderColor = '#6366f1' }}
-      onMouseLeave={e => { e.currentTarget.style.boxShadow = ''; e.currentTarget.style.borderColor = '#e5e7eb' }}
-    >
-      <i className={`fa ${icon}`} style={{ fontSize: 28, color: '#6366f1' }} />
-      <span style={{ fontSize: 14, fontWeight: 500, color: '#374151' }}>{label}</span>
-    </button>
-  )
-}
-
-const CustomTooltip = ({ active, payload, label }) => {
-  if (!active || !payload?.length) return null
-  return (
-    <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 6, padding: '10px 14px', fontSize: 13, boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
-      <div style={{ fontWeight: 600, marginBottom: 6 }}>{label}</div>
-      {payload.map(p => (
-        <div key={p.dataKey} style={{ color: p.color }}>
-          {p.name}: {p.dataKey === 'revenue' ? `$${p.value}` : p.value}
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function formatSlot(slot) {
-  const [date, time] = slot.split(' ')
-  return { date, time: time.slice(0, 5) }
-}
-
-function PopularSlotsChart({ data }) {
-  const [hoveredIdx, setHoveredIdx] = useState(null)
-  if (!data.length) return <div style={{ color: '#9ca3af', textAlign: 'center', padding: 24 }}>No data</div>
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      {data.map((s, i) => {
-        const barPct = (s.sold / s.total) * 100
-        const { date, time } = formatSlot(s.slot)
-        const breakdown = Object.entries(SLOT_TICKET_BREAKDOWN[s.slot] || {})
-        return (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 14, position: 'relative' }}
-            onMouseEnter={() => setHoveredIdx(i)}
-            onMouseLeave={() => setHoveredIdx(null)}
-          >
-            {/* Label */}
-            <div style={{ width: 96, flexShrink: 0, textAlign: 'right', lineHeight: 1.25 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>{date}</div>
-              <div style={{ fontSize: 11, color: '#9ca3af' }}>{time}</div>
-            </div>
-
-            {/* Progress bar track */}
-            <div style={{ flex: 1, height: 28, background: '#f3f4f6', borderRadius: 6, overflow: 'hidden' }}>
-              <div style={{
-                height: '100%',
-                width: barPct > 0 ? `max(${barPct}%, 72px)` : 0,
-                background: 'linear-gradient(90deg, #818cf8, #a5b4fc)',
-                borderRadius: 6,
-                display: 'flex', alignItems: 'center',
-                transition: 'width 0.5s ease',
-              }}>
-                <span style={{ color: '#fff', fontSize: 11, fontWeight: 700, paddingLeft: 10, whiteSpace: 'nowrap' }}>
-                  {s.sold} / {s.total}
-                </span>
-              </div>
-            </div>
-
-            {/* Hover tooltip */}
-            {hoveredIdx === i && breakdown.length > 0 && (
-              <div style={{
-                position: 'absolute', left: 110, bottom: 'calc(100% + 10px)',
-                background: '#fff', borderRadius: 10, zIndex: 10,
-                whiteSpace: 'nowrap', pointerEvents: 'none',
-                boxShadow: '0 8px 24px rgba(0,0,0,0.15)', border: '1px solid #e5e7eb',
-                minWidth: 220,
-              }}>
-                {/* Header */}
-                <div style={{ padding: '8px 14px', borderBottom: '1px solid #f3f4f6', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <i className="fa fa-ticket" style={{ color: '#6366f1', fontSize: 11 }} />
-                  <span style={{ fontSize: 12, fontWeight: 700, color: '#111827' }}>Slot Breakdown</span>
-                  <span style={{ marginLeft: 'auto', fontSize: 11, color: '#9ca3af' }}>{date} {time}</span>
-                </div>
-                {/* Rows */}
-                <div style={{ padding: '8px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {breakdown.map(([type, count]) => (
-                    <div key={type} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#818cf8', flexShrink: 0 }} />
-                      <span style={{ fontSize: 12, color: '#374151', flex: 1 }}>
-                        <span style={{ color: '#9ca3af', marginRight: 4 }}>Ticket Type:</span>{type}
-                      </span>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: '#6366f1', background: '#eef2ff', borderRadius: 4, padding: '1px 7px' }}>
-                        × {count}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-                {/* Footer total */}
-                <div style={{ padding: '6px 14px', borderTop: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: 11, color: '#9ca3af' }}>Total Sold</span>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: '#111827' }}>{s.sold} / {s.total} seats</span>
-                </div>
-                {/* Arrow */}
-                <div style={{
-                  position: 'absolute', bottom: -5, left: 20,
-                  width: 9, height: 9, background: '#fff',
-                  border: '1px solid #e5e7eb', borderTop: 'none', borderLeft: 'none',
-                  transform: 'rotate(45deg)',
-                }} />
-              </div>
-            )}
-          </div>
-        )
-      })}
-    </div>
-  )
+const EMPTY_DASHBOARD = {
+  stats: { todayRevenue: 0, todayOrders: 0, todayTickets: 0, pendingOrders: 0, activeSlots: 0 },
+  summary: { totalRevenue: 0, totalOrders: 0, totalTickets: 0 },
+  salesTrend: [],
+  ticketDistribution: [],
+  popularSlots: [],
 }
 
 export default function Dashboard() {
@@ -219,18 +35,19 @@ export default function Dashboard() {
   const t = useT(lang)
   const navigate = useNavigate()
   const [range, setRange] = useState('last7Days')
+  const { data: dashboard, error, loading } = useAdminQuery(
+    () => getDashboard(RANGE_TO_API[range]),
+    [range],
+    { initialData: EMPTY_DASHBOARD }
+  )
 
-  const stats = DASHBOARD_STATS
-  const popularSlots = buildPopularSlots()
-
-  const trend = RANGE_DAYS[range]
-    ? SALES_TREND_90.slice(-RANGE_DAYS[range])
-    : SALES_TREND_90
-
-  const totalRevenue = trend.reduce((s, d) => s + d.revenue, 0)
-  const totalOrders  = trend.reduce((s, d) => s + (d.orders || 0), 0)
-  const totalTickets = trend.reduce((s, d) => s + d.tickets, 0)
-  const distribution = buildDistribution(totalTickets)
+  const stats = dashboard?.stats || EMPTY_DASHBOARD.stats
+  const trend = dashboard?.salesTrend || []
+  const popularSlots = dashboard?.popularSlots || []
+  const distribution = dashboard?.ticketDistribution || []
+  const totalRevenue = dashboard?.summary?.totalRevenue || 0
+  const totalOrders  = dashboard?.summary?.totalOrders || 0
+  const totalTickets = dashboard?.summary?.totalTickets || 0
 
   return (
     <div>
@@ -242,6 +59,12 @@ export default function Dashboard() {
         </h1>
         <div style={{ fontSize: 14, color: '#6b7280' }}>{t.welcomeBack}, {admin?.username}!</div>
       </div>
+      {error && (
+        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b', padding: 12, borderRadius: 8, marginBottom: 16, fontSize: 13 }}>
+          Backend data could not be loaded: {error.message}
+        </div>
+      )}
+      {loading && <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 12 }}>Loading live dashboard data...</div>}
 
       {/* Top stat cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>

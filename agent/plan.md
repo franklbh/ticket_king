@@ -795,3 +795,336 @@ The system should also allow customers to:
 - receive valid tickets
 - arrive and check in with a QR code
 
+## 12. Admin Panel Build Plan From Current Schema
+
+This section records the current admin-panel target based on the Supabase tables available on 2026-05-15:
+
+- `orders`
+- `slots`
+- `tickets`
+- `users`
+
+The current admin access rule is:
+
+- only users whose `public.users.role` is `owner` or `administrator` can call admin endpoints
+- the UI may say `admin`, but the database role value should remain `administrator` because the current `users.role` check constraint allows `customer`, `owner`, and `administrator`
+- customer users must use the customer-facing backend only
+
+### 12.1 Dashboard
+
+Target:
+
+- KPI cards: Today's Revenue, Today's Tickets, Pending Orders, Active Slots
+- Statistics & Analysis section
+- time ranges: 7d, 14d, 30d, 90d, All Time
+- total revenue, total orders, total tickets
+- sales trend chart
+- ticket type distribution chart
+- popular slots chart
+
+Current feasibility:
+
+- Can be completed with `orders`, `tickets`, and `slots`
+- Revenue comes from `orders.total_amount`
+- ticket totals come from `tickets`
+- pending orders come from normalized `orders.order_status`
+- active slots come from `slots.status`
+
+### 12.2 Orders Management
+
+Target columns:
+
+- Order ID
+- User Info
+- Email Status
+- Slot Info
+- Ticket Count
+- Amount
+- Coupon
+- Remarks
+- Status
+
+Target filters:
+
+- Order ID
+- user info: name, phone, email
+- order date range
+- slot date range
+- status: Completed, Paid, Pending, Cancelled, Refunded, Expired Unpaid, User Cancelled
+- CSV export
+
+Current feasibility:
+
+- Can mostly be completed with `orders` and `tickets`
+- Email status is not stored in the current schema; add `order_email_events` or derive "not sent" until email delivery is built
+- Refund state can be represented in `orders.order_status`, but real refund operations need `payment_transactions`
+
+### 12.3 Tickets Management
+
+Target columns:
+
+- row number
+- verification code and QR payload
+- order ID
+- remarks
+- ticket type
+- slot info
+- status
+- verified at
+- order created at
+- actions
+
+Target filters:
+
+- verification code
+- order ID
+- ticket status
+- slot date range
+- verified date range
+- ticket type
+
+Current feasibility:
+
+- Can be completed with `tickets`
+- each ticket already has `verification_code`, `qr_payload`, and `ticket_status`
+- manual status flips can use `tickets.ticket_status`, `tickets.checked_in_at`, and `tickets.checked_in_by`
+
+### 12.4 Create Order Walk-In Flow
+
+Target steps:
+
+1. Select slot: date within the next 90 days, then time slot
+2. Select tickets: Regular, Child, Senior, Family Bundle, Group, VIP
+3. Customer info: name, email, phone
+4. Payment method and summary: Cash, Credit Card, WeChat Pay, Alipay, Other
+
+Target toggle:
+
+- unchecked `Mark order as used immediately`: order status `Paid`, tickets `Unused`, send ticket email
+- checked `Mark order as used immediately`: order status `Completed`, tickets `Used`, no email
+
+Current feasibility:
+
+- Backend record creation can be completed with `orders`, `tickets`, and `slots`
+- ticket-type lookup requires a `ticket_types` table
+- actual ticket-email sending still needs an email provider and an email-event table
+- production release should add a transactional capacity check before insert to prevent walk-in overselling during concurrent staff use
+
+### 12.5 Scanner Check-In
+
+Target:
+
+- standalone scanner page
+- camera-based QR scanning
+- scan flips ticket from `Unused` to `Used`
+- action is logged
+- recent scans from last 20 minutes
+- HTTPS and camera permission required in production
+
+Current feasibility:
+
+- Backend check-in can be completed with `tickets`
+- audit trail requires `audit_logs`
+- camera scanning is a frontend/browser task; backend only needs `POST /scanner/check-in`
+
+### 12.6 Admin Management
+
+Target columns:
+
+- ID
+- Username
+- Email
+- Role
+- Department
+- Position
+- Last Login with IP
+- Status
+- Actions: Edit, Disable
+
+Target roles:
+
+- Super Admin
+- SDirector
+- Director
+- Operator
+
+Current feasibility:
+
+- Existing `public.users.role` only supports coarse access: `owner`, `administrator`, `customer`
+- The current schema can gate admin access, but it cannot store department, position, status, last login, or fine-grained permissions
+- Add `admin_profiles` for display/profile fields
+- Add either server-side permission mapping by profile role or expand the database role model later
+- Creating new admin users should happen through Supabase Auth first, then the admin backend can promote the matching `public.users` row
+
+Recommended role mapping for first release:
+
+- `owner`: Super Admin level
+- `administrator`: operational admin access
+- `admin_profiles.staff_role`: UI/business role such as SDirector, Director, Operator
+
+### 12.7 Activity Logs
+
+Target columns:
+
+- ID
+- Admin
+- Action Type: Login, Create, Update, Export, Check In, Delete
+- Target Type: Order, Ticket, User, Slot, etc.
+- Target ID
+- Action Details JSON
+- Login Info IP
+- Timestamp
+
+Current feasibility:
+
+- Requires new `audit_logs` table
+- Backend should write logs for walk-in order creation, ticket status flips, scanner check-ins, exports, login, and admin-management actions
+
+### 12.8 Additional Supabase Tables
+
+Run these statements in Supabase SQL Editor before enabling the full admin backend. Adjust names only if `.env` is changed to point at different table names.
+
+```sql
+create extension if not exists pgcrypto;
+
+create table if not exists public.ticket_types (
+  id uuid primary key default gen_random_uuid(),
+  name text not null unique,
+  price_type text not null default 'fixed',
+  price numeric not null default 0,
+  price_adjustment numeric not null default 0,
+  weekdays text[] not null default array['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],
+  valid_from date,
+  valid_to date,
+  time_start time without time zone,
+  time_end time without time zone,
+  add_on jsonb not null default '{}'::jsonb,
+  remarks text,
+  status text not null default 'active',
+  display_order integer not null default 0,
+  created_at timestamp with time zone not null default now(),
+  updated_at timestamp with time zone not null default now()
+);
+
+insert into public.ticket_types (name, price_type, price, display_order)
+values
+  ('Regular', 'fixed', 37.95, 10),
+  ('Child', 'fixed', 27.95, 20),
+  ('Senior', 'fixed', 27.95, 30),
+  ('Family Bundle', 'fixed', 119.95, 40),
+  ('Group', 'fixed', 32.95, 50),
+  ('VIP', 'fixed', 59.95, 60)
+on conflict (name) do nothing;
+
+create table if not exists public.admin_profiles (
+  id uuid primary key references public.users(id) on delete cascade,
+  name text,
+  username text unique,
+  role text not null default 'administrator',
+  staff_role text not null default 'Operator',
+  department text,
+  position text,
+  status text not null default 'active',
+  last_login_at timestamp with time zone,
+  last_login_ip text,
+  created_at timestamp with time zone not null default now(),
+  updated_at timestamp with time zone not null default now()
+);
+
+create table if not exists public.audit_logs (
+  id uuid primary key default gen_random_uuid(),
+  admin_id uuid references public.users(id) on delete set null,
+  admin_email text,
+  admin_name text,
+  action_type text not null,
+  target_type text not null,
+  target_id text,
+  action_details jsonb not null default '{}'::jsonb,
+  login_info text,
+  created_at timestamp with time zone not null default now()
+);
+
+create index if not exists audit_logs_admin_id_idx on public.audit_logs(admin_id);
+create index if not exists audit_logs_action_type_idx on public.audit_logs(action_type);
+create index if not exists audit_logs_target_idx on public.audit_logs(target_type, target_id);
+create index if not exists audit_logs_created_at_idx on public.audit_logs(created_at desc);
+
+create table if not exists public.payment_transactions (
+  id uuid primary key default gen_random_uuid(),
+  order_id uuid not null references public.orders(id) on delete cascade,
+  provider text not null,
+  provider_reference text,
+  payment_method text,
+  amount numeric not null,
+  currency text not null default 'CAD',
+  status text not null,
+  raw_payload jsonb not null default '{}'::jsonb,
+  created_at timestamp with time zone not null default now(),
+  updated_at timestamp with time zone not null default now()
+);
+
+create index if not exists payment_transactions_order_id_idx on public.payment_transactions(order_id);
+create unique index if not exists payment_transactions_provider_ref_idx
+  on public.payment_transactions(provider, provider_reference)
+  where provider_reference is not null;
+
+create table if not exists public.inventory_holds (
+  id uuid primary key default gen_random_uuid(),
+  order_id uuid references public.orders(id) on delete cascade,
+  slot_id uuid not null references public.slots(id) on delete cascade,
+  held_quantity integer not null check (held_quantity > 0),
+  status text not null default 'active',
+  expires_at timestamp with time zone not null,
+  created_at timestamp with time zone not null default now(),
+  updated_at timestamp with time zone not null default now()
+);
+
+create index if not exists inventory_holds_slot_status_idx on public.inventory_holds(slot_id, status);
+create index if not exists inventory_holds_expires_at_idx on public.inventory_holds(expires_at);
+
+create table if not exists public.order_email_events (
+  id uuid primary key default gen_random_uuid(),
+  order_id uuid not null references public.orders(id) on delete cascade,
+  email text not null,
+  event_type text not null,
+  status text not null,
+  provider_reference text,
+  error_message text,
+  created_at timestamp with time zone not null default now()
+);
+
+create index if not exists order_email_events_order_id_idx on public.order_email_events(order_id);
+```
+
+### 12.9 Current Frontend Status
+
+The current `admin-frontend` already has page shells for:
+
+- Dashboard
+- Orders
+- Tickets
+- Create Order
+- Scanner
+- Admins
+- Logs
+- Slots
+- Ticket Types
+- Coupons
+- Marketing
+
+What can be completed quickly from the current frontend:
+
+- replace mock dashboard data with `GET /api/v1/dashboard`
+- replace mock order and ticket tables with `GET /api/v1/orders` and `GET /api/v1/tickets`
+- wire CSV buttons to `GET /api/v1/orders/export` and `GET /api/v1/tickets/export`
+- wire walk-in creation to `POST /api/v1/orders/walk-in`
+- wire ticket status action buttons to `PATCH /api/v1/tickets/{ticket_id}/status`
+- wire logs page to `GET /api/v1/logs`
+
+What still needs frontend/backend integration work:
+
+- replace mock admin login with Supabase Auth session handling
+- attach `Authorization: Bearer <supabase_access_token>` to admin API calls
+- hide admin UI if `GET /api/v1/users/me` returns 401 or 403
+- wire camera scanning to `POST /api/v1/scanner/check-in`
+- build email delivery and resend status instead of showing mock email history

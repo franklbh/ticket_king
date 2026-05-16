@@ -1,7 +1,9 @@
 import { useState, useMemo } from 'react'
 import { useLang } from '../context/AuthContext'
 import { useT } from '../i18n/translations'
-import { TICKET_TYPES_DATA, EVENTS } from '../data/mockData'
+import { EVENTS } from '../data/staticCatalog'
+import { getTicketTypes } from '../api/adminApi'
+import { useAdminQuery } from '../hooks/useAdminApi'
 
 const ALL_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
@@ -263,7 +265,12 @@ function PriceCell({ price, color, bg, border, editing, editValue, onStart, onCh
 export default function TicketTypes() {
   const { lang } = useLang()
   const t = useT(lang)
-  const [types, setTypes] = useState(TICKET_TYPES_DATA)
+  const { data: loadedTypes, error: loadError, loading: loadingTypes, setData: setLoadedTypes } = useAdminQuery(
+    () => getTicketTypes(false),
+    [],
+    { initialData: [] }
+  )
+  const types = loadedTypes || []
   const [filters, setFilters] = useState({ search: '', status: 'all' })
   const [modal, setModal] = useState(null)
   const [editingCell, setEditingCell] = useState(null) // { name, tier }
@@ -297,17 +304,18 @@ export default function TicketTypes() {
 
   function handleSave(form) {
     if (modal === 'create') {
-      setTypes(prev => [...prev, { ...form, id: Date.now() }])
+      setLoadedTypes(prev => [...(prev || []), { ...form, id: Date.now() }])
     } else {
-      setTypes(prev => prev.map(tp => tp.id === modal.id ? { ...tp, ...form } : tp))
+      setLoadedTypes(prev => (prev || []).map(tp => tp.id === modal.id ? { ...tp, ...form } : tp))
     }
     setModal(null)
   }
 
   function toggleStatus(name) {
-    setTypes(prev => {
-      const anyEnabled = prev.filter(tp => tp.name === name).some(r => r.status === 'enabled')
-      return prev.map(tp => tp.name === name ? { ...tp, status: anyEnabled ? 'disabled' : 'enabled' } : tp)
+    setLoadedTypes(prev => {
+      const rows = prev || []
+      const anyEnabled = rows.filter(tp => tp.name === name).some(r => r.status === 'enabled')
+      return rows.map(tp => tp.name === name ? { ...tp, status: anyEnabled ? 'disabled' : 'enabled' } : tp)
     })
   }
 
@@ -321,7 +329,7 @@ export default function TicketTypes() {
     const newPrice = parseFloat(editValue)
     if (!isNaN(newPrice) && newPrice >= 0) {
       const isOffPeak = editingCell.tier === 'off-peak'
-      setTypes(prev => prev.map(tp => {
+      setLoadedTypes(prev => (prev || []).map(tp => {
         if (tp.name !== editingCell.name) return tp
         const remarks = tp.remarks?.toLowerCase() ?? ''
         const match = isOffPeak
@@ -336,6 +344,12 @@ export default function TicketTypes() {
   return (
     <div>
       {modal && <TypeModal type={modal === 'create' ? null : modal} onClose={() => setModal(null)} onSave={handleSave} />}
+      {loadError && (
+        <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', color: '#9a3412', padding: 12, borderRadius: 8, marginBottom: 16, fontSize: 13 }}>
+          Backend ticket types could not be loaded: {loadError.message}
+        </div>
+      )}
+      {loadingTypes && <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 12 }}>Loading live ticket types...</div>}
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         <div>

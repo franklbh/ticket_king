@@ -9,7 +9,7 @@ router = APIRouter(prefix="/users", tags=["users"])
 
 
 @router.get("/me")
-async def me(user: dict = Depends(current_user)) -> dict:
+async def me(user: dict = Depends(require_admin)) -> dict:
     return public_user(user)
 
 

@@ -2,11 +2,11 @@ import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useLang } from '../context/AuthContext'
 import { useT } from '../i18n/translations'
-import { TICKETS_DATA } from '../data/mockData'
+import { exportTickets, getTickets, updateTicketStatus } from '../api/adminApi'
+import { useAdminMutation, useAdminQuery } from '../hooks/useAdminApi'
 
-const TICKET_TYPES_FILTER = ['Regular', 'Child (7-15)', 'Senior (65+)', 'Family Bundle (max. 2 adults)', 'Group Ticket (min. 6 people)', 'VIP', 'Early Bird']
 const PAGE_SIZE = 10
-const TODAY = '2026-05-14'
+const TODAY = new Date().toISOString().slice(0, 10)
 const THEME = {
   primary: '#6366f1',
   primaryDark: '#4f46e5',
@@ -120,7 +120,18 @@ export default function Tickets() {
     types: [],
   })
   const [page, setPage] = useState(1)
-  const [tickets, setTickets] = useState(TICKETS_DATA)
+  const { data: ticketsData, error: loadError, loading: loadingTickets, setData: setTicketsData } = useAdminQuery(
+    () => getTickets({ page: 1, pageSize: 200 }),
+    [],
+    { initialData: { items: [], total: 0 } }
+  )
+  const { mutate: updateStatusMutation } = useAdminMutation(updateTicketStatus)
+  const { mutate: exportTicketsMutation, loading: exporting } = useAdminMutation(exportTickets)
+  const tickets = ticketsData?.items || []
+  const ticketTypeOptions = useMemo(
+    () => Array.from(new Set(tickets.map(ticket => ticket.ticketType).filter(Boolean))).sort(),
+    [tickets]
+  )
   const [qrTicket, setQrTicket] = useState(null)
   const [showExportConfirm, setShowExportConfirm] = useState(false)
 
@@ -132,22 +143,30 @@ export default function Tickets() {
     setPage(1)
   }
 
-  function toggleStatus(id) {
-    setTickets(prev => prev.map(t =>
-      t.id === id ? { ...t, status: t.status === 'used' ? 'not_used' : 'used', verifiedAt: t.status === 'used' ? null : new Date().toISOString().slice(0, 19).replace('T', ' ') } : t
-    ))
+  async function toggleStatus(id) {
+    const ticket = tickets.find(t => t.id === id)
+    const nextStatus = ticket?.status === 'used' ? 'not_used' : 'used'
+    const updated = await updateStatusMutation(id, nextStatus)
+    setTicketsData(prev => ({
+      ...prev,
+      items: (prev?.items || []).map(t => t.id === id ? updated : t),
+    }))
   }
 
-  function voidTicket(id) {
-    setTickets(prev => prev.map(t =>
-      t.id === id ? { ...t, status: 'voided', verifiedAt: null } : t
-    ))
+  async function voidTicket(id) {
+    const updated = await updateStatusMutation(id, 'voided')
+    setTicketsData(prev => ({
+      ...prev,
+      items: (prev?.items || []).map(t => t.id === id ? updated : t),
+    }))
   }
 
-  function unvoidTicket(id) {
-    setTickets(prev => prev.map(t =>
-      t.id === id ? { ...t, status: 'not_used', verifiedAt: null } : t
-    ))
+  async function unvoidTicket(id) {
+    const updated = await updateStatusMutation(id, 'not_used')
+    setTicketsData(prev => ({
+      ...prev,
+      items: (prev?.items || []).map(t => t.id === id ? updated : t),
+    }))
   }
 
   const filtered = useMemo(() => {
@@ -181,34 +200,17 @@ export default function Tickets() {
     setPage(1)
   }
 
-  function exportCSV() {
-    const headers = ['Verification Code', 'Order ID', 'Customer', 'Email', 'Payment Method', 'Remarks', 'Ticket Type', 'Slot Date', 'Slot Time', 'Status', 'Verified At', 'Created At']
-    const rows = filtered.map(tk => [
-      tk.code,
-      tk.orderId,
-      tk.orderUser || '',
-      tk.orderEmail || '',
-      tk.orderPayment || '',
-      tk.remarks || '',
-      tk.ticketType,
-      tk.slotDate,
-      `${tk.slotStart}-${tk.slotEnd}`,
-      statusMeta[tk.status]?.label || tk.status,
-      tk.verifiedAt || '',
-      tk.createdAt || '',
-    ])
-    const csv = [headers, ...rows]
-      .map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
-      .join('\n')
-    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `tickets_${new Date().toISOString().slice(0, 10)}.csv`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
+  async function exportCSV() {
+    await exportTicketsMutation({
+      code: filters.code,
+      orderId: filters.orderId,
+      status: filters.status,
+      slotDateFrom: filters.slotDateFrom,
+      slotDateTo: filters.slotDateTo,
+      verifiedFrom: filters.verifiedFrom,
+      verifiedTo: filters.verifiedTo,
+      ticketType: filters.types,
+    })
     setShowExportConfirm(false)
   }
 
@@ -253,6 +255,12 @@ export default function Tickets() {
   return (
     <div>
       {qrTicket && <QRModal code={qrTicket} onClose={() => setQrTicket(null)} />}
+      {loadError && (
+        <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', color: '#9a3412', padding: 12, borderRadius: 8, marginBottom: 16, fontSize: 13 }}>
+          Backend tickets could not be loaded: {loadError.message}
+        </div>
+      )}
+      {loadingTickets && <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 12 }}>Loading live tickets...</div>}
       {showExportConfirm && (
         <ExportConfirmDialog
           title="Confirm Action"
@@ -271,7 +279,7 @@ export default function Tickets() {
           </h1>
           <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>{t.manageTickets}</p>
         </div>
-        <button className="btn-secondary btn-sm" onClick={() => setShowExportConfirm(true)}>
+        <button className="btn-secondary btn-sm" onClick={() => setShowExportConfirm(true)} disabled={exporting}>
           <i className="fa fa-file-export" /> {t.exportCSV}
         </button>
       </div>
@@ -335,7 +343,7 @@ export default function Tickets() {
       <div className="filter-card" style={{ padding: '12px 16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 13, fontWeight: 500, color: '#374151' }}>{t.ticketType}:</span>
-          {TICKET_TYPES_FILTER.map(type => (
+          {ticketTypeOptions.map(type => (
             <label key={type} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, cursor: 'pointer', fontSize: 13, background: THEME.primarySoft, border: `1px solid ${THEME.primaryBorder}`, borderRadius: 8, padding: '8px 10px', maxWidth: '100%' }}>
               <input type="checkbox" checked={filters.types.includes(type)} onChange={() => toggleType(type)} style={{ width: 14, height: 14 }} />
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0, whiteSpace: 'nowrap', color: THEME.primaryText, fontWeight: 600 }}>

@@ -35,15 +35,25 @@ class TicketStatusUpdate(BaseModel):
     status: str
 
 
+class TicketCheckInRequest(BaseModel):
+    code: str = Field(min_length=1)
+
+
 class AdminAccountCreate(BaseModel):
+    user_id: str | None = None
     name: str
     email: str
+    password: str | None = Field(default=None, min_length=8)
+    department: str | None = None
+    position: str | None = None
     role: Literal["administrator"] = "administrator"
 
 
 class OwnerBootstrapCreate(BaseModel):
+    user_id: str | None = None
     name: str
     email: str
+    password: str | None = Field(default=None, min_length=8)
 
 
 class UserRoleUpdate(BaseModel):

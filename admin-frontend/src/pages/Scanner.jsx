@@ -2,17 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import jsQR from 'jsqr'
 import { useLang } from '../context/AuthContext'
 import { useT } from '../i18n/translations'
-import { TICKETS_DATA } from '../data/mockData'
-
-
-const TICKET_MAP = Object.fromEntries(TICKETS_DATA.map(t => [t.code, t]))
-
-function lookupTicket(rawValue) {
-  const code = rawValue.replace(/\D/g, '')
-  if (TICKET_MAP[code]) return { ...TICKET_MAP[code] }
-  const key = Object.keys(TICKET_MAP).find(k => code.includes(k) || k.includes(code))
-  return key ? { ...TICKET_MAP[key] } : null
-}
+import { checkInTicket, getRecentScans } from '../api/adminApi'
+import { useAdminMutation, useAdminQuery } from '../hooks/useAdminApi'
 
 function playBeep(valid) {
   try {
@@ -125,6 +116,20 @@ export default function Scanner() {
   const [result, setResult]       = useState(null)
   const [scans, setScans]         = useState([])
   const [stats, setStats]         = useState({ valid: 0, invalid: 0 })
+  const { data: recentScans = [] } = useAdminQuery(() => getRecentScans(20), [], { initialData: [] })
+  const { mutate: checkInMutation } = useAdminMutation(checkInTicket)
+
+  useEffect(() => {
+    if (!recentScans.length) return
+    setScans(recentScans.map(ticket => ({
+      id: ticket.id || ticket.code,
+      code: ticket.code,
+      time: ticket.verifiedAt?.slice(11, 19) || '',
+      valid: true,
+      name: ticket.orderUser || null,
+      type: ticket.ticketType || null,
+    })))
+  }, [recentScans])
 
   // Auto-dismiss result after 3s
   useEffect(() => {
@@ -133,22 +138,27 @@ export default function Scanner() {
     return () => clearTimeout(id)
   }, [result])
 
-  function processTicket(rawValue) {
+  async function processTicket(rawValue) {
     const code = rawValue.replace(/\D/g, '') || rawValue.trim()
     const now = Date.now()
     if (code === lastCodeRef.current && now - lastCodeTimeRef.current < 3000) return
     lastCodeRef.current = code
     lastCodeTimeRef.current = now
 
-    const ticket = lookupTicket(rawValue)
     let r
-    if (!ticket) {
+    try {
+      const response = await checkInMutation(rawValue.trim())
+      const ticket = response.ticket
+      if (response.result === 'checked_in') {
+        r = { ...ticket, valid: true, validMsg: t.ticketValid, code: ticket.code }
+        usedSessionRef.current.add(ticket.code)
+      } else if (response.result === 'already_used') {
+        r = { ...ticket, valid: false, message: t.alreadyUsed, code: ticket.code }
+      } else {
+        r = { ...ticket, valid: false, message: response.result || t.ticketNotFound, code: ticket?.code || code }
+      }
+    } catch {
       r = { valid: false, message: t.ticketNotFound, code }
-    } else if (ticket.status === 'used' || usedSessionRef.current.has(ticket.code)) {
-      r = { ...ticket, valid: false, message: t.alreadyUsed, code: ticket.code }
-    } else {
-      r = { ...ticket, valid: true, validMsg: t.ticketValid, code: ticket.code }
-      usedSessionRef.current.add(ticket.code)
     }
 
     playBeep(r.valid)

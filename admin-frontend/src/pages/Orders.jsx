@@ -2,17 +2,22 @@ import { useState, useMemo, useEffect, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useLang } from '../context/AuthContext'
 import { useT } from '../i18n/translations'
-import { ORDERS_DATA, TICKETS_DATA, TICKET_TYPES_DATA, SLOTS_DATA } from '../data/mockData'
+import { exportOrders, getOrders, getSlots } from '../api/adminApi'
+import { useAdminMutation, useAdminQuery } from '../hooks/useAdminApi'
 
 const STATUS_LIST = ['paid', 'completed', 'refunded', 'cancelled']
 const STATUS_BADGE = { paid: 'badge-blue', completed: 'badge-green', refunded: 'badge-red', cancelled: 'badge-gray' }
 const STATUS_T = { paid: 'paid', completed: 'completed', refunded: 'refunded', cancelled: 'cancelled' }
-const SLOT_BASE = 37.95
-const TODAY = '2026-05-14'
+const TODAY = new Date().toISOString().slice(0, 10)
 const PAGE_SIZE = 10
-const CREATED_ORDERS_KEY = 'tk_created_orders'
 
 // ── data helpers ─────────────────────────────────────────────────────────────
+
+function addDays(date, days) {
+  const next = new Date(`${date}T12:00:00`)
+  next.setDate(next.getDate() + days)
+  return next.toISOString().slice(0, 10)
+}
 
 function splitName(name = '') {
   const parts = name.trim().split(/\s+/)
@@ -30,35 +35,17 @@ function formatDateShort(dateStr) {
   return `${d.getMonth() + 1}/${d.getDate()} (${dateWeekday(dateStr)})`
 }
 
-function getOrderConstraints(orderId) {
-  const tickets = TICKETS_DATA.filter(t => t.orderId === orderId)
-  const typeNames = [...new Set(tickets.map(t => t.ticketType))]
-  const types = typeNames.map(n => TICKET_TYPES_DATA.find(tt => tt.name === n)).filter(Boolean)
-  if (!types.length) return { weekdays: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'], timeStart: null, timeEnd: null }
-  const allDays = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']
-  const weekdays = allDays.filter(d => types.every(tt => tt.weekdays.includes(d)))
-  const starts = types.map(tt => tt.timeStart).filter(Boolean)
-  const ends = types.map(tt => tt.timeEnd).filter(Boolean)
-  return {
-    weekdays,
-    timeStart: starts.length ? starts.sort().at(-1) : null,
-    timeEnd: ends.length ? ends.sort()[0] : null,
-  }
+function getOrderConstraints() {
+  return { weekdays: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'], timeStart: null, timeEnd: null }
 }
 
-function getTicketItems(orderId) {
-  const grouped = {}
-  TICKETS_DATA.filter(t => t.orderId === orderId).forEach(t => {
-    if (!grouped[t.ticketType]) {
-      const tt = TICKET_TYPES_DATA.find(x => x.name === t.ticketType)
-      let price = SLOT_BASE
-      if (tt?.priceType === 'fixed') price = tt.price
-      else if (tt?.priceAdj) price = SLOT_BASE + tt.priceAdj
-      grouped[t.ticketType] = { type: t.ticketType, count: 0, price }
-    }
-    grouped[t.ticketType].count++
-  })
-  return Object.values(grouped)
+function getTicketItems(order) {
+  const details = Array.isArray(order.ticketDetails) ? order.ticketDetails : []
+  return details.map(item => ({
+    type: item.ticket_type || item.ticketType || item.name || 'Ticket',
+    count: Number(item.quantity || item.count || 0),
+    price: Number(item.unit_price || item.price || 0),
+  })).filter(item => item.count > 0)
 }
 
 function getAmountBreakdown(order) {
@@ -71,29 +58,20 @@ function getAmountBreakdown(order) {
   }
 }
 
-function getAvailableDates(orderId) {
-  const { weekdays } = getOrderConstraints(orderId)
-  return [...new Set(SLOTS_DATA.filter(s => s.date >= TODAY && s.status === 'active').map(s => s.date))]
+function getAvailableDates(slots) {
+  const { weekdays } = getOrderConstraints()
+  return [...new Set(slots.filter(s => s.date >= TODAY && s.status === 'active').map(s => s.date))]
     .sort()
     .filter(d => weekdays.includes(dateWeekday(d)))
 }
 
-function getAvailableTimes(orderId, date) {
+function getAvailableTimes(slots, date) {
   if (!date) return []
-  const { timeStart, timeEnd } = getOrderConstraints(orderId)
-  return SLOTS_DATA
+  const { timeStart, timeEnd } = getOrderConstraints()
+  return slots
     .filter(s => s.date === date && s.status === 'active')
     .filter(s => (!timeStart || s.startTime >= timeStart) && (!timeEnd || s.startTime < timeEnd))
     .sort((a, b) => a.startTime.localeCompare(b.startTime))
-}
-
-function getStoredOrders() {
-  try {
-    const stored = JSON.parse(localStorage.getItem(CREATED_ORDERS_KEY) || '[]')
-    return Array.isArray(stored) ? stored : []
-  } catch {
-    return []
-  }
 }
 
 // ── ui atoms ──────────────────────────────────────────────────────────────────
@@ -237,7 +215,7 @@ function EmailHistoryContent({ order, t }) {
 }
 
 function TicketDetailContent({ order, t }) {
-  const items = getTicketItems(order.id)
+  const items = getTicketItems(order)
   if (!items.length) {
     return (
       <div>
@@ -361,11 +339,17 @@ export default function Orders() {
   const linkedSlotDate = searchParams.get('slotDate') || ''
   const linkedSlotStart = searchParams.get('slotStart') || ''
 
-  const [orders, setOrders] = useState(() => {
-    const stored = getStoredOrders()
-    const storedIds = new Set(stored.map(o => o.id))
-    return [...stored, ...ORDERS_DATA.filter(o => !storedIds.has(o.id))]
-  })
+  const { data: ordersData, error: loadError, loading: loadingOrders, setData: setOrdersData } = useAdminQuery(
+    () => getOrders({ page: 1, pageSize: 200 }),
+    [],
+    { initialData: { items: [], total: 0 } }
+  )
+  const { data: slots = [] } = useAdminQuery(
+    () => getSlots({ dateFrom: TODAY, dateTo: addDays(TODAY, 180) }),
+    [],
+    { initialData: [] }
+  )
+  const { mutate: exportOrdersMutation, loading: exporting } = useAdminMutation(exportOrders)
   const [filters, setFilters] = useState({
     orderId: searchParams.get('orderId') || '', userInfo: '',
     couponCode: searchParams.get('couponCode') || '',
@@ -381,6 +365,7 @@ export default function Orders() {
   const [slotPick, setSlotPick] = useState({ date: null, slot: null, resend: true })
   const [copiedId, setCopiedId] = useState(null)
   const [showExportConfirm, setShowExportConfirm] = useState(false)
+  const orders = ordersData?.items || []
 
   function openPopover(type, orderId, e) {
     e.stopPropagation()
@@ -401,22 +386,22 @@ export default function Orders() {
   function saveUser() {
     if (!modal) return
     const name = [editForm.firstName, editForm.lastName].filter(Boolean).join(' ')
-    setOrders(prev => prev.map(o => o.id === modal.order.id
+    setOrdersData(prev => ({ ...prev, items: (prev?.items || []).map(o => o.id === modal.order.id
       ? { ...o, user: { ...o.user, name, phone: editForm.phone || null, email: editForm.email || null } }
-      : o))
+      : o) }))
     setModal(null)
   }
 
   function saveSlot() {
     if (!slotPick.slot) return
-    setOrders(prev => prev.map(o => o.id === modal.order.id
+    setOrdersData(prev => ({ ...prev, items: (prev?.items || []).map(o => o.id === modal.order.id
       ? { ...o, slot: { date: slotPick.date, startTime: slotPick.slot.startTime, endTime: slotPick.slot.endTime } }
-      : o))
+      : o) }))
     setModal(null)
   }
 
   function updateStatus(orderId, status) {
-    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status } : o))
+    setOrdersData(prev => ({ ...prev, items: (prev?.items || []).map(o => o.id === orderId ? { ...o, status } : o) }))
   }
 
   function copyIp(orderId, ip) {
@@ -425,28 +410,16 @@ export default function Orders() {
     setTimeout(() => setCopiedId(null), 2000)
   }
 
-  function exportCSV() {
-    const headers = ['Order ID', 'Name', 'Email', 'Phone', 'Email Status', 'Slot Date', 'Slot Time', 'Ticket Total', 'Amount', 'Coupon Discount', 'Coupon Code', 'Remarks', 'Status', 'Payment Method', 'Created At', 'Created By', 'IP']
-    const rows = filtered.map(o => [
-      o.id, o.user.name, o.user.email || '', o.user.phone || '',
-      o.emailStatus, o.slot.date, `${o.slot.startTime}-${o.slot.endTime}`,
-      o.ticketCount.total, o.amount.toFixed(2),
-      o.couponDiscount !== 0 ? o.couponDiscount.toFixed(2) : '',
-      o.couponCode || '', o.remarks || '',
-      o.status, o.paymentMethod, o.createdAt, o.createdBy, o.ip || '',
-    ])
-    const csv = [headers, ...rows]
-      .map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
-      .join('\n')
-    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `orders_${new Date().toISOString().slice(0, 10)}.csv`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
+  async function exportCSV() {
+    await exportOrdersMutation({
+      orderId: filters.orderId,
+      userInfo: filters.userInfo,
+      orderDateFrom: filters.orderDateFrom,
+      orderDateTo: filters.orderDateTo,
+      slotDateFrom: filters.slotDateFrom,
+      slotDateTo: filters.slotDateTo,
+      status: filters.statuses,
+    })
     setShowExportConfirm(false)
   }
 
@@ -506,6 +479,12 @@ export default function Orders() {
         />
       )}
       {/* Header */}
+      {loadError && (
+        <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', color: '#9a3412', padding: 12, borderRadius: 8, marginBottom: 16, fontSize: 13 }}>
+          Backend orders could not be loaded: {loadError.message}
+        </div>
+      )}
+      {loadingOrders && <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 12 }}>Loading live orders...</div>}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, color: '#111827', marginBottom: 4 }}>
@@ -514,7 +493,7 @@ export default function Orders() {
           </h1>
           <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>{t.manageOrders}</p>
         </div>
-        <button className="btn-secondary btn-sm" onClick={() => setShowExportConfirm(true)}>
+        <button className="btn-secondary btn-sm" onClick={() => setShowExportConfirm(true)} disabled={exporting}>
           <i className="fa fa-file-export" /> {t.exportCSV}
         </button>
       </div>
@@ -768,9 +747,9 @@ export default function Orders() {
       {/* Change Slot Modal */}
       {modal?.type === 'changeSlot' && (() => {
         const order = modal.order
-        const constraints = getOrderConstraints(order.id)
-        const availDates = getAvailableDates(order.id)
-        const availTimes = getAvailableTimes(order.id, slotPick.date)
+        const constraints = getOrderConstraints(order)
+        const availDates = getAvailableDates(slots)
+        const availTimes = getAvailableTimes(slots, slotPick.date)
         return (
           <Modal title={<><i className="fa fa-exchange-alt" />{t.changeOrderSlot}</>} onClose={() => setModal(null)} width={640}>
             {/* Constraints box */}
