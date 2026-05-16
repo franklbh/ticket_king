@@ -8,6 +8,8 @@ import { badge, currency } from '../utils/format'
 function BookingPage({
   alphapayLoading,
   applyCoupon,
+  availableSlots,
+  availableSlotsLoading,
   bookingExperience,
   bookingExperiences,
   bookingRef,
@@ -93,6 +95,8 @@ function BookingPage({
       {step === 'time' && (
         <TimeStep
           canProceedTime={canProceedTime}
+          availableSlots={availableSlots}
+          availableSlotsLoading={availableSlotsLoading}
           experience={bookingExperience}
           selectedDate={selectedDate}
           selectedTime={selectedTime}
@@ -312,25 +316,52 @@ function DateStep({
   )
 }
 
-function TimeStep({ canProceedTime, experience, selectedDate, selectedTime, setSelectedTime, setStep, t }) {
+function TimeStep({ availableSlots = [], availableSlotsLoading = false, canProceedTime, experience, selectedDate, selectedTime, setSelectedTime, setStep, t }) {
+  const backendSlots = availableSlots.map((slot) => {
+    const time = slot.label || [slot.startTime, slot.endTime].filter(Boolean).join('-')
+    const peak = selectedDate ? isDateTimePeak(selectedDate.date, time) : false
+    const prices = experience ? (peak ? experience.peakPrices : experience.offPeakPrices) : {}
+    return {
+      id: slot.id,
+      eventId: slot.eventId,
+      time,
+      label: slot.label || time,
+      price: slot.price ?? prices.adult ?? 0,
+      availableSeats: slot.availableSeats,
+      peak,
+      slotId: slot.id,
+    }
+  })
+  const legacySlots = ALL_TIME_SLOTS.map((time) => {
+    const peak = selectedDate ? isDateTimePeak(selectedDate.date, time) : false
+    const prices = experience ? (peak ? experience.peakPrices : experience.offPeakPrices) : {}
+    return {
+      id: time,
+      time,
+      label: time,
+      price: prices.adult ?? 0,
+      availableSeats: null,
+      peak,
+    }
+  })
+  const slots = availableSlotsLoading ? [] : (backendSlots.length ? backendSlots : legacySlots)
+
   return (
     <div className="panel">
       <div className="panel-title"><div className="title-accent" /><h3>{t('selectTime')}</h3></div>
       <div className="time-hint">{t('timeHint')}</div>
       <div className="slot-grid">
-        {ALL_TIME_SLOTS.map((time) => {
-          const peak = selectedDate ? isDateTimePeak(selectedDate.date, time) : false
-          const prices = experience ? (peak ? experience.peakPrices : experience.offPeakPrices) : {}
-          const slotPrice = prices.adult ?? 0
+        {slots.map((slot) => {
           return (
             <button
-              key={time}
-              className={`slot ${selectedTime?.time === time ? 'selected' : ''} ${peak ? 'peak' : ''}`}
-              onClick={() => setSelectedTime({ time, price: slotPrice })}
+              key={slot.id}
+              className={`slot ${selectedTime?.time === slot.time ? 'selected' : ''} ${slot.peak ? 'peak' : ''}`}
+              onClick={() => setSelectedTime(slot)}
               type="button"
             >
-              <span className="slot-time">{time}</span>
-              <span className="slot-price">{currency(slotPrice)}</span>
+              <span className="slot-time">{slot.time}</span>
+              <span className="slot-price">{currency(slot.price)}</span>
+              {slot.availableSeats !== null && <span className="slot-price">{slot.availableSeats} left</span>}
             </button>
           )
         })}
