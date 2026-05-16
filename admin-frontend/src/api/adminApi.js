@@ -80,8 +80,16 @@ export function getDashboard(range) {
   return apiRequest(withQuery('/dashboard', { range }))
 }
 
+export function getHealth() {
+  return apiRequest('/health')
+}
+
 export function getOrders(filters = {}) {
   return apiRequest(withQuery('/orders', filters))
+}
+
+export function getOrder(orderId) {
+  return apiRequest(`/orders/${encodeURIComponent(orderId)}`)
 }
 
 export function exportOrders(filters = {}) {
@@ -92,8 +100,33 @@ export function createWalkInOrder(payload) {
   return apiRequest('/orders/walk-in', { method: 'POST', body: payload })
 }
 
+export function updateOrderStatus(orderId, status) {
+  return apiRequest(`/orders/${encodeURIComponent(orderId)}/status`, {
+    method: 'PATCH',
+    body: { status },
+  })
+}
+
+export function updateOrderCustomer(orderId, payload) {
+  return apiRequest(`/orders/${encodeURIComponent(orderId)}/customer`, {
+    method: 'PATCH',
+    body: payload,
+  })
+}
+
+export function updateOrderSlot(orderId, slotId) {
+  return apiRequest(`/orders/${encodeURIComponent(orderId)}/slot`, {
+    method: 'PATCH',
+    body: { slotId },
+  })
+}
+
 export function getTickets(filters = {}) {
   return apiRequest(withQuery('/tickets', filters))
+}
+
+export function getTicket(ticketId) {
+  return apiRequest(`/tickets/${encodeURIComponent(ticketId)}`)
 }
 
 export function exportTickets(filters = {}) {
@@ -133,6 +166,14 @@ export function getRecentScans(minutes = 20) {
 
 export function getEvents() {
   return apiRequest('/events')
+}
+
+export function createEvent(payload) {
+  return apiRequest('/events', { method: 'POST', body: payload })
+}
+
+export function updateEvent(eventId, payload) {
+  return apiRequest(`/events/${encodeURIComponent(eventId)}`, { method: 'PATCH', body: payload })
 }
 
 export function createSlot(payload) {

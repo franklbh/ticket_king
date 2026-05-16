@@ -6,7 +6,7 @@ from typing import Any
 from fastapi import HTTPException, status
 
 from app.core.config import settings
-from app.schemas.admin import SlotUpsert, TicketTypeUpsert
+from app.schemas.admin import EventUpsert, SlotUpsert, TicketTypeUpsert
 from app.schemas.admin.mappers import to_model, to_models
 from app.schemas.admin.responses import EventRead, SlotRead, TicketTypeRead
 from app.services.admin.audit import write_audit_log
@@ -22,6 +22,38 @@ class CatalogService:
         events = [normalize_event(row) for row in rows]
         events.sort(key=lambda row: row.get("id") or 0)
         return to_models(EventRead, events)
+
+    async def create_event(self, payload: EventUpsert, actor: dict[str, Any]) -> EventRead:
+        now = utc_now_iso_seconds()
+        row = {
+            "name": payload.name,
+            "slug": payload.slug or payload.name.lower().strip().replace(" ", "-"),
+            "status": payload.status,
+            "created_at": now,
+            "updated_at": now,
+        }
+        inserted = await admin_repository.insert(settings.admin_events_table, row)
+        event_id = str(inserted[0].get("id"))
+        await write_audit_log(actor, "Create", "Event", event_id, {"name": payload.name}, None)
+        return to_model(EventRead, normalize_event(inserted[0]))
+
+    async def update_event(self, event_id: int, payload: EventUpsert, actor: dict[str, Any]) -> EventRead:
+        values = {
+            "name": payload.name,
+            "slug": payload.slug or payload.name.lower().strip().replace(" ", "-"),
+            "status": payload.status,
+            "updated_at": utc_now_iso_seconds(),
+        }
+        rows = await admin_repository.update(
+            settings.admin_events_table,
+            match_column="id",
+            match_value=event_id,
+            values=values,
+        )
+        if not rows:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found.")
+        await write_audit_log(actor, "Update", "Event", str(event_id), {"name": payload.name}, None)
+        return to_model(EventRead, normalize_event(rows[0]))
 
     async def list_slots(self, date_from: str | None, date_to: str | None) -> list[SlotRead]:
         rows = await admin_repository.select(settings.admin_slots_table)

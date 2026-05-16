@@ -1,5 +1,10 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import Box from '@mui/material/Box'
+import Stack from '@mui/material/Stack'
+import ToggleButton from '@mui/material/ToggleButton'
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup'
+import Typography from '@mui/material/Typography'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   Cell, PieChart, Pie,
@@ -7,7 +12,7 @@ import {
 import { useLang } from '../context/AuthContext'
 import { useT } from '../i18n/translations'
 import { useAuth } from '../context/AuthContext'
-import { useDashboardQuery } from '../hooks/queries'
+import { useDashboardQuery } from '../hooks/dashboard'
 import {
   CustomTooltip,
   PopularSlotsChart,
@@ -66,74 +71,71 @@ export default function Dashboard() {
         </AdminAlert>
       )}
       {/* Top stat cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
-        <StatCard
-          icon={<i className="fa fa-dollar-sign" style={{ color: '#f59e0b' }} />}
-          iconBg="#fef3c7"
-          title={t.todayRevenue}
-          value={`$${stats.todayRevenue.toFixed(2)}`}
-          sub={`${stats.todayOrders} ${t.orders4}`}
-        />
-        <StatCard
-          icon={<i className="fa fa-ticket" style={{ color: '#10b981' }} />}
-          iconBg="#d1fae5"
-          title={t.todayTickets}
-          value={stats.todayTickets}
-          sub={t.tickets}
-        />
-        <StatCard
-          icon={<i className="fa fa-clock" style={{ color: '#f59e0b' }} />}
-          iconBg="#fef3c7"
-          title={t.pending}
-          value={stats.pendingOrders}
-          sub={`${t.pendingStatus} ${t.orders4}`}
-        />
-        <StatCard
-          icon={<i className="fa fa-calendar-check" style={{ color: '#6366f1' }} />}
-          iconBg="#ede9fe"
-          title={t.activeSlots}
-          value={stats.activeSlots.toLocaleString()}
-          sub={t.inProgress}
-        />
-      </div>
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: {
+            xs: '1fr',
+            sm: 'repeat(2, minmax(0, 1fr))',
+            lg: 'repeat(4, minmax(0, 1fr))',
+          },
+          gap: 2,
+          mb: 3,
+          width: '100%',
+        }}
+      >
+        {[
+          { icon: <i className="fa fa-dollar-sign" style={{ color: '#f59e0b' }} />, bg: '#fef3c7', title: t.todayRevenue, value: `$${stats.todayRevenue.toFixed(2)}`, sub: `${stats.todayOrders} ${t.orders4}` },
+          { icon: <i className="fa fa-ticket" style={{ color: '#10b981' }} />, bg: '#d1fae5', title: t.todayTickets, value: stats.todayTickets, sub: t.tickets },
+          { icon: <i className="fa fa-clock" style={{ color: '#f59e0b' }} />, bg: '#fef3c7', title: t.pending, value: stats.pendingOrders, sub: `${t.pendingStatus} ${t.orders4}` },
+          { icon: <i className="fa fa-calendar-check" style={{ color: '#6366f1' }} />, bg: '#ede9fe', title: t.activeSlots, value: stats.activeSlots.toLocaleString(), sub: t.inProgress },
+        ].map(item => (
+          <StatCard key={item.title} icon={item.icon} iconBg={item.bg} title={item.title} value={item.value} sub={item.sub} />
+        ))}
+      </Box>
 
       {/* Stats & Analysis */}
       <AdminCard className="mb-6">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-          <h2 style={{ fontSize: 16, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, color: '#111827' }}>
+        <Stack direction={{ xs: 'column', lg: 'row' }} alignItems={{ xs: 'stretch', lg: 'center' }} justifyContent="space-between" spacing={2} sx={{ mb: 2.5 }}>
+          <Typography variant="h6" fontWeight={800} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <i className="fa fa-chart-bar" style={{ color: '#6366f1' }} />
             {t.statisticsAnalysis}
-          </h2>
-          <div style={{ display: 'flex', gap: 6 }}>
+          </Typography>
+          <ToggleButtonGroup
+            exclusive
+            size="small"
+            value={range}
+            onChange={(_, value) => value && setRange(value)}
+            sx={{ flexWrap: 'wrap', gap: 0.75, '& .MuiToggleButtonGroup-grouped': { border: '1px solid #e5e7eb !important', borderRadius: '8px !important', fontWeight: 700 } }}
+          >
             {RANGE_OPTIONS.map(r => (
-              <button
-                key={r}
-                onClick={() => setRange(r)}
-                style={{
-                  padding: '5px 12px', borderRadius: 6, border: '1px solid #e5e7eb', cursor: 'pointer',
-                  background: range === r ? '#6366f1' : '#fff',
-                  color: range === r ? '#fff' : '#374151',
-                  fontSize: 13, fontWeight: range === r ? 600 : 400,
-                }}
-              >
+              <ToggleButton key={r} value={r} sx={{ textTransform: 'none', px: 1.5, py: 0.6, fontSize: 13 }}>
                 {t[r]}
-              </button>
+              </ToggleButton>
             ))}
-          </div>
-        </div>
+          </ToggleButtonGroup>
+        </Stack>
 
         {/* Summary row */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 24 }}>
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: '1fr', md: 'repeat(3, minmax(0, 1fr))' },
+            gap: 2,
+            mb: 3,
+            width: '100%',
+          }}
+        >
           <SummaryCard label={t.totalRevenue} value={`$${totalRevenue.toLocaleString('en-CA', { minimumFractionDigits: 2 })}`} color="#6366f1" />
           <SummaryCard label={t.totalOrders} value={totalOrders} color="#10b981" />
           <SummaryCard label={t.totalTickets} value={totalTickets} color="#6366f1" />
-        </div>
+        </Box>
 
         {/* Charts row */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 24 }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', xl: '1fr 320px' }, gap: 3 }}>
           {/* Sales trend */}
-          <div>
-            <div style={{ fontWeight: 600, marginBottom: 12, fontSize: 14 }}>{t.salesTrend}</div>
+          <Box>
+            <Typography variant="subtitle2" fontWeight={800} sx={{ mb: 1.5 }}>{t.salesTrend}</Typography>
             <ResponsiveContainer width="100%" height={300}>
               <LineChart data={trend} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
@@ -146,11 +148,11 @@ export default function Dashboard() {
                 <Line yAxisId="right" type="monotone" dataKey="tickets" name="Ticket Count" stroke="#10b981" strokeWidth={2} dot={{ r: 3 }} fill="#d1fae5" />
               </LineChart>
             </ResponsiveContainer>
-          </div>
+          </Box>
 
           {/* Ticket distribution */}
-          <div>
-            <div style={{ fontWeight: 600, marginBottom: 12, fontSize: 14 }}>{t.ticketDistribution}</div>
+          <Box>
+            <Typography variant="subtitle2" fontWeight={800} sx={{ mb: 1.5 }}>{t.ticketDistribution}</Typography>
             <ResponsiveContainer width="100%" height={200}>
               <PieChart>
                 <Pie
@@ -169,18 +171,18 @@ export default function Dashboard() {
                 <Tooltip formatter={(value, name, props) => [`${value} tickets (${props.payload.percent}%)`, name]} />
               </PieChart>
             </ResponsiveContainer>
-            <div style={{ marginTop: 8 }}>
+            <Box sx={{ mt: 1 }}>
               {distribution.map((d, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, fontSize: 12 }}>
+                <Box key={i} sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.5, fontSize: 12 }}>
                   <div style={{ width: 10, height: 10, borderRadius: 2, background: d.color, flexShrink: 0 }} />
                   <span style={{ color: '#6b7280' }}>{d.name}</span>
                   <span style={{ marginLeft: 'auto', fontWeight: 600 }}>{d.value}</span>
                   <span style={{ width: 42, textAlign: 'right', color: '#6b7280', fontWeight: 600 }}>{d.percent}%</span>
-                </div>
+                </Box>
               ))}
-            </div>
-          </div>
-        </div>
+            </Box>
+          </Box>
+        </Box>
       </AdminCard>
 
       {/* Popular Slots */}
@@ -207,12 +209,12 @@ export default function Dashboard() {
           <i className="fa fa-bolt" style={{ color: '#6366f1' }} />
           {t.quickActions}
         </div>
-        <div style={{ display: 'flex', gap: 16 }}>
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
           <QuickActionCard icon="fa-shopping-cart" label={t.ordersManagement} onClick={() => navigate('/orders')} />
           <QuickActionCard icon="fa-ticket" label={t.ticketsManagement} onClick={() => navigate('/tickets')} />
           <QuickActionCard icon="fa-calendar" label={t.slotsManagement} onClick={() => navigate('/slots')} />
           <QuickActionCard icon="fa-qrcode" label={t.scanVerify} onClick={() => window.open('/scanner', '_blank')} />
-        </div>
+        </Stack>
       </AdminCard>
     </div>
   )

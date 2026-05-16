@@ -35,6 +35,22 @@ class TicketStatusUpdate(BaseModel):
     status: str
 
 
+class OrderStatusUpdate(BaseModel):
+    status: str
+
+
+class OrderCustomerUpdate(BaseModel):
+    name: str | None = None
+    email: str | None = None
+    phone: str | None = None
+
+
+class OrderSlotUpdate(BaseModel):
+    slot_id: int | str = Field(alias="slotId")
+
+    model_config = {"populate_by_name": True}
+
+
 class TicketCheckInRequest(BaseModel):
     code: str = Field(min_length=1)
 
@@ -100,6 +116,12 @@ class TicketTypeUpsert(BaseModel):
     status: str = "enabled"
 
     model_config = {"populate_by_name": True}
+
+
+class EventUpsert(BaseModel):
+    name: str
+    slug: str | None = None
+    status: str = "active"
 
 
 class CouponUpsert(BaseModel):

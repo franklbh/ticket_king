@@ -13,13 +13,11 @@ from app.schemas.admin.mappers import paginate, to_model, to_models
 from app.schemas.admin.responses import CheckInResponse, TicketPage, TicketRead
 from app.services.admin.audit import write_audit_log
 from app.services.admin.enrichment import (
-    load_enriched_tickets,
     merge_ticket_order,
     orders_by_id,
     slots_by_id,
     users_by_id,
 )
-from app.services.admin.filters import filter_tickets
 from app.services.admin.normalizers import (
     db_ticket_status,
     normalize_ticket,
@@ -31,10 +29,22 @@ from app.utils.datetime import utc_now, utc_now_iso_seconds
 
 class TicketService:
     async def list_tickets(self, filters: dict[str, Any]) -> TicketPage:
-        tickets = await load_enriched_tickets()
-        tickets = filter_tickets(tickets, filters)
-        tickets.sort(key=lambda row: row.get("createdAt") or "", reverse=True)
-        return paginate(TicketRead, tickets, page=filters.get("page", 1), page_size=filters.get("page_size", 25))
+        rows, total = await admin_repository.list_tickets(filters)
+        tickets = [normalize_ticket(row) for row in rows]
+        return paginate(
+            TicketRead,
+            tickets,
+            page=filters.get("page", 1),
+            page_size=filters.get("page_size", 25),
+            total=total,
+            already_paginated=True,
+        )
+
+    async def get_ticket(self, ticket_id: str) -> TicketRead:
+        row = await admin_repository.get_ticket(ticket_id)
+        if not row:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found.")
+        return to_model(TicketRead, normalize_ticket(row))
 
     async def export_tickets_csv(
         self,

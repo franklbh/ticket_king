@@ -2,7 +2,7 @@ from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, Query
 
-from app.schemas.admin import SlotUpsert, TicketTypeUpsert
+from app.schemas.admin import EventUpsert, SlotUpsert, TicketTypeUpsert
 from app.schemas.admin.responses import EventRead, SlotRead, TicketTypeRead
 from app.services.admin.catalog_service import catalog_service
 from app.services.admin.security import require_admin
@@ -13,6 +13,23 @@ router = APIRouter(tags=["catalog"], dependencies=[Depends(require_admin)])
 @router.get("/events", response_model=list[EventRead])
 async def list_events() -> list[EventRead]:
     return await catalog_service.list_events()
+
+
+@router.post("/events", status_code=201, response_model=EventRead)
+async def create_event(
+    payload: EventUpsert,
+    actor: dict = Depends(require_admin),
+) -> EventRead:
+    return await catalog_service.create_event(payload, actor)
+
+
+@router.patch("/events/{event_id}", response_model=EventRead)
+async def update_event(
+    event_id: int,
+    payload: EventUpsert,
+    actor: dict = Depends(require_admin),
+) -> EventRead:
+    return await catalog_service.update_event(event_id, payload, actor)
 
 
 @router.get("/slots", response_model=list[SlotRead])

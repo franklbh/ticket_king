@@ -4,9 +4,10 @@ import asyncio
 from datetime import date
 from threading import Lock
 from typing import Any
+from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import MetaData, String, Table, case, cast, func, insert, select, update
+from sqlalchemy import MetaData, String, Table, and_, case, cast, func, insert, or_, select, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -53,6 +54,26 @@ class AdminRepository:
 
     async def dashboard(self, *, start_date: date | None, days: int | None) -> dict[str, Any]:
         return await asyncio.to_thread(self._dashboard_sync, start_date, days)
+
+    async def list_orders(self, filters: dict[str, Any]) -> tuple[list[dict[str, Any]], int]:
+        return await asyncio.to_thread(self._list_orders_sync, filters)
+
+    async def get_order(self, order_id: str) -> dict[str, Any] | None:
+        rows, _ = await asyncio.to_thread(
+            self._list_orders_sync,
+            {"order_id_exact": order_id, "page": 1, "page_size": 1},
+        )
+        return rows[0] if rows else None
+
+    async def list_tickets(self, filters: dict[str, Any]) -> tuple[list[dict[str, Any]], int]:
+        return await asyncio.to_thread(self._list_tickets_sync, filters)
+
+    async def get_ticket(self, ticket_id: str) -> dict[str, Any] | None:
+        rows, _ = await asyncio.to_thread(
+            self._list_tickets_sync,
+            {"ticket_id_exact": ticket_id, "page": 1, "page_size": 1},
+        )
+        return rows[0] if rows else None
 
     async def insert(self, table_name: str, rows: dict[str, Any] | list[dict[str, Any]]) -> list[dict[str, Any]]:
         payload = rows if isinstance(rows, list) else [rows]
@@ -206,6 +227,177 @@ class AdminRepository:
                 "popular": [dict(row) for row in popular],
             }
 
+    def _list_orders_sync(self, filters: dict[str, Any]) -> tuple[list[dict[str, Any]], int]:
+        page = max(int(filters.get("page") or 1), 1)
+        page_size = min(max(int(filters.get("page_size") or 25), 1), 200)
+        with self._session() as db:
+            orders = self._table(db, settings.admin_orders_table)
+            tickets = self._table(db, settings.admin_tickets_table)
+            slots = self._table(db, settings.admin_slots_table)
+            users = self._table(db, settings.admin_users_table)
+
+            order_id = cast(orders.c.id, String)
+            order_created_date = func.date(orders.c.created_at)
+            order_status = func.lower(cast(orders.c.order_status, String))
+            slot_date = func.date(slots.c.business_date)
+            slot_start = cast(slots.c.start_time, String)
+            ticket_status = func.lower(cast(tickets.c[settings.admin_ticket_status_column], String))
+
+            ticket_counts = (
+                select(
+                    tickets.c.order_id.label("count_order_id"),
+                    func.count(tickets.c.id).label("ticket_total"),
+                    func.count(case((ticket_status == "used", 1))).label("completed_tickets"),
+                )
+                .group_by(tickets.c.order_id)
+                .subquery()
+            )
+
+            conditions = []
+            if filters.get("order_id_exact"):
+                conditions.append(order_id == str(filters["order_id_exact"]))
+            elif filters.get("order_id"):
+                conditions.append(order_id.ilike(f"%{filters['order_id']}%"))
+            if filters.get("user_info"):
+                needle = f"%{str(filters['user_info']).lower()}%"
+                conditions.append(or_(
+                    func.lower(cast(orders.c.guest_name, String)).like(needle),
+                    func.lower(cast(orders.c.guest_email, String)).like(needle),
+                    func.lower(cast(orders.c.guest_phone, String)).like(needle),
+                    func.lower(cast(users.c.name, String)).like(needle),
+                    func.lower(cast(users.c.email, String)).like(needle),
+                ))
+            if filters.get("coupon_code"):
+                conditions.append(func.lower(cast(orders.c.coupon_code, String)) == str(filters["coupon_code"]).lower())
+            if filters.get("status"):
+                statuses = [item.strip().lower() for item in str(filters["status"]).split(",") if item.strip()]
+                conditions.append(order_status.in_(statuses))
+            if filters.get("order_date_from"):
+                conditions.append(order_created_date >= filters["order_date_from"])
+            if filters.get("order_date_to"):
+                conditions.append(order_created_date <= filters["order_date_to"])
+            if filters.get("slot_date_from"):
+                conditions.append(slot_date >= filters["slot_date_from"])
+            if filters.get("slot_date_to"):
+                conditions.append(slot_date <= filters["slot_date_to"])
+            if filters.get("slot_start"):
+                conditions.append(slot_start.like(f"{filters['slot_start']}%"))
+
+            from_clause = (
+                orders.outerjoin(slots, orders.c.slot_id == slots.c.id)
+                .outerjoin(users, orders.c.customer_id == users.c.id)
+                .outerjoin(ticket_counts, orders.c.id == ticket_counts.c.count_order_id)
+            )
+            base = select(
+                orders,
+                slots.c.business_date.label("slot_date"),
+                slots.c.start_time.label("slot_start_time"),
+                slots.c.end_time.label("slot_end_time"),
+                slots.c.slot_time_label.label("slot_time"),
+                users.c.name.label("customer_name"),
+                users.c.email.label("customer_email"),
+                ticket_counts.c.ticket_total,
+                ticket_counts.c.completed_tickets,
+                (
+                    func.coalesce(ticket_counts.c.ticket_total, 0)
+                    - func.coalesce(ticket_counts.c.completed_tickets, 0)
+                ).label("not_used_tickets"),
+            ).select_from(from_clause)
+            count_stmt = select(func.count()).select_from(from_clause)
+            if conditions:
+                base = base.where(and_(*conditions))
+                count_stmt = count_stmt.where(and_(*conditions))
+            total = int(db.scalar(count_stmt) or 0)
+            rows = (
+                db.execute(
+                    base.order_by(orders.c.created_at.desc())
+                    .limit(page_size)
+                    .offset((page - 1) * page_size)
+                )
+                .mappings()
+                .all()
+            )
+            return [dict(row) for row in rows], total
+
+    def _list_tickets_sync(self, filters: dict[str, Any]) -> tuple[list[dict[str, Any]], int]:
+        page = max(int(filters.get("page") or 1), 1)
+        page_size = min(max(int(filters.get("page_size") or 25), 1), 200)
+        with self._session() as db:
+            tickets = self._table(db, settings.admin_tickets_table)
+            orders = self._table(db, settings.admin_orders_table)
+            slots = self._table(db, settings.admin_slots_table)
+            users = self._table(db, settings.admin_users_table)
+
+            ticket_id = cast(tickets.c[settings.admin_ticket_id_column], String)
+            order_id = cast(tickets.c.order_id, String)
+            ticket_code = cast(tickets.c.verification_code, String)
+            ticket_status = func.lower(cast(tickets.c[settings.admin_ticket_status_column], String))
+            slot_date = func.date(slots.c.business_date)
+            checked_date = func.date(tickets.c.checked_in_at)
+
+            conditions = []
+            if filters.get("ticket_id_exact"):
+                conditions.append(ticket_id == str(filters["ticket_id_exact"]))
+            if filters.get("code"):
+                needle = f"%{filters['code']}%"
+                conditions.append(or_(ticket_code.ilike(needle), cast(tickets.c.qr_payload, String).ilike(needle)))
+            if filters.get("order_id"):
+                conditions.append(order_id.ilike(f"%{filters['order_id']}%"))
+            if filters.get("status") and filters["status"] != "all":
+                requested_status = str(filters["status"]).lower()
+                db_status = {"not_used": "unused", "used": "used", "voided": "voided"}.get(
+                    requested_status,
+                    requested_status.replace("_", " "),
+                )
+                conditions.append(ticket_status == db_status)
+            if filters.get("slot_date_from"):
+                conditions.append(slot_date >= filters["slot_date_from"])
+            if filters.get("slot_date_to"):
+                conditions.append(slot_date <= filters["slot_date_to"])
+            if filters.get("verified_from"):
+                conditions.append(checked_date >= filters["verified_from"])
+            if filters.get("verified_to"):
+                conditions.append(checked_date <= filters["verified_to"])
+            if filters.get("ticket_type"):
+                types = [item.strip() for item in str(filters["ticket_type"]).split(",") if item.strip()]
+                conditions.append(tickets.c.ticket_type.in_(types))
+
+            from_clause = (
+                tickets.outerjoin(orders, tickets.c.order_id == orders.c.id)
+                .outerjoin(slots, orders.c.slot_id == slots.c.id)
+                .outerjoin(users, orders.c.customer_id == users.c.id)
+            )
+            base = select(
+                tickets,
+                orders.c.payment_method.label("order_payment"),
+                orders.c.created_at.label("order_created_at"),
+                orders.c.remarks.label("remarks"),
+                orders.c.guest_name.label("guest_name"),
+                orders.c.guest_email.label("guest_email"),
+                orders.c.guest_phone.label("guest_phone"),
+                users.c.name.label("customer_name"),
+                users.c.email.label("customer_email"),
+                slots.c.business_date.label("slot_date"),
+                slots.c.start_time.label("slot_start_time"),
+                slots.c.end_time.label("slot_end_time"),
+                slots.c.slot_time_label.label("slot_time"),
+            ).select_from(from_clause)
+            count_stmt = select(func.count()).select_from(from_clause)
+            if conditions:
+                base = base.where(and_(*conditions))
+                count_stmt = count_stmt.where(and_(*conditions))
+            total = int(db.scalar(count_stmt) or 0)
+            rows = (
+                db.execute(
+                    base.order_by(tickets.c.created_at.desc())
+                    .limit(page_size)
+                    .offset((page - 1) * page_size)
+                )
+                .mappings()
+                .all()
+            )
+            return [dict(row) for row in rows], total
+
     def _insert_sync(self, table_name: str, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if not rows:
             return []
@@ -228,6 +420,7 @@ class AdminRepository:
             table = self._table(db, table_name)
             if match_column not in table.c:
                 raise HTTPException(status_code=400, detail=f"Invalid SQL column: {match_column}")
+            match_value = self._coerce_column_value(table, match_column, match_value)
             statement = (
                 update(table)
                 .where(table.c[match_column] == match_value)
@@ -267,6 +460,15 @@ class AdminRepository:
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail=self._db_error_detail("reflect", table_name, exc),
             ) from exc
+
+    @staticmethod
+    def _coerce_column_value(table: Table, column: str, value: Any) -> Any:
+        try:
+            if table.c[column].type.python_type is UUID and not isinstance(value, UUID):
+                return UUID(str(value))
+        except (AttributeError, NotImplementedError, TypeError, ValueError):
+            return value
+        return value
 
     @staticmethod
     def _db_error_detail(action: str, table_name: str, exc: Exception) -> str:

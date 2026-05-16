@@ -6,13 +6,14 @@ import secrets
 import uuid
 from typing import Any
 
+from fastapi import HTTPException, status
+
 from app.core.config import settings
-from app.schemas.admin import WalkInOrderCreate
+from app.schemas.admin import OrderCustomerUpdate, OrderSlotUpdate, OrderStatusUpdate, WalkInOrderCreate
 from app.schemas.admin.mappers import paginate, to_model, to_models
 from app.schemas.admin.responses import OrderPage, OrderRead, TicketRead, WalkInOrderResponse
 from app.services.admin.audit import write_audit_log
-from app.services.admin.enrichment import index_by_id, slots_by_id, ticket_counts
-from app.services.admin.filters import filter_orders
+from app.services.admin.enrichment import slots_by_id
 from app.services.admin.normalizers import (
     db_order_status,
     db_ticket_status,
@@ -25,29 +26,87 @@ from app.utils.datetime import utc_now, utc_now_iso_seconds
 
 class OrderService:
     async def list_orders(self, filters: dict[str, Any]) -> OrderPage:
-        table_rows = await admin_repository.select_many([
-            settings.admin_tickets_table,
+        rows, total = await admin_repository.list_orders(filters)
+        orders = [normalize_order(row) for row in rows]
+        return paginate(
+            OrderRead,
+            orders,
+            page=filters.get("page", 1),
+            page_size=filters.get("page_size", 25),
+            total=total,
+            already_paginated=True,
+        )
+
+    async def get_order(self, order_id: str) -> OrderRead:
+        row = await admin_repository.get_order(order_id)
+        if not row:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found.")
+        return to_model(OrderRead, normalize_order(row))
+
+    async def update_order_status(
+        self,
+        order_id: str,
+        payload: OrderStatusUpdate,
+        actor: dict[str, Any],
+        client_ip: str | None = None,
+    ) -> OrderRead:
+        rows = await admin_repository.update(
             settings.admin_orders_table,
-            settings.admin_slots_table,
-            settings.admin_users_table,
-        ])
-        ticket_rows = table_rows[settings.admin_tickets_table]
-        rows = table_rows[settings.admin_orders_table]
-        slots = index_by_id(table_rows[settings.admin_slots_table])
-        users = index_by_id(table_rows[settings.admin_users_table])
-        counts = ticket_counts([normalize_ticket(row) for row in ticket_rows])
-        orders = [
-            normalize_order(
-                row,
-                counts,
-                slot=slots.get(str(row.get("slot_id") or "")),
-                customer=users.get(str(row.get("customer_id") or "")),
-            )
-            for row in rows
-        ]
-        orders = filter_orders(orders, filters)
-        orders.sort(key=lambda row: row.get("createdAt") or "", reverse=True)
-        return paginate(OrderRead, orders, page=filters.get("page", 1), page_size=filters.get("page_size", 25))
+            match_column="id",
+            match_value=order_id,
+            values={"order_status": db_order_status(payload.status), "updated_at": utc_now_iso_seconds()},
+        )
+        if not rows:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found.")
+        await write_audit_log(actor, "Update", "Order", order_id, {"status": payload.status}, client_ip)
+        return await self.get_order(order_id)
+
+    async def update_order_customer(
+        self,
+        order_id: str,
+        payload: OrderCustomerUpdate,
+        actor: dict[str, Any],
+        client_ip: str | None = None,
+    ) -> OrderRead:
+        values = {
+            "guest_name": payload.name,
+            "guest_email": payload.email,
+            "guest_phone": payload.phone,
+            "updated_at": utc_now_iso_seconds(),
+        }
+        rows = await admin_repository.update(
+            settings.admin_orders_table,
+            match_column="id",
+            match_value=order_id,
+            values=values,
+        )
+        if not rows:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found.")
+        await write_audit_log(actor, "Update", "Order", order_id, {"customer": payload.model_dump()}, client_ip)
+        return await self.get_order(order_id)
+
+    async def update_order_slot(
+        self,
+        order_id: str,
+        payload: OrderSlotUpdate,
+        actor: dict[str, Any],
+        client_ip: str | None = None,
+    ) -> OrderRead:
+        slot_id = str(payload.slot_id)
+        try:
+            slot_value: Any = uuid.UUID(slot_id)
+        except ValueError:
+            slot_value = slot_id
+        rows = await admin_repository.update(
+            settings.admin_orders_table,
+            match_column="id",
+            match_value=order_id,
+            values={"slot_id": slot_value, "updated_at": utc_now_iso_seconds()},
+        )
+        if not rows:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found.")
+        await write_audit_log(actor, "Update", "Order", order_id, {"slot_id": slot_id}, client_ip)
+        return await self.get_order(order_id)
 
     async def export_orders_csv(
         self,

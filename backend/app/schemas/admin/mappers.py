@@ -46,14 +46,19 @@ def paginate(
     *,
     page: int,
     page_size: int,
+    total: int | None = None,
+    already_paginated: bool = False,
 ) -> PaginatedResponse[T]:
     page = max(page, 1)
     page_size = max(min(page_size, 200), 1)
-    start = (page - 1) * page_size
-    slice_items = items[start : start + page_size]
+    if already_paginated:
+        slice_items = items
+    else:
+        start = (page - 1) * page_size
+        slice_items = items[start : start + page_size]
     return PaginatedResponse[T](
         items=to_models(model, slice_items),
-        total=len(items),
+        total=len(items) if total is None else total,
         page=page,
         page_size=page_size,
     )

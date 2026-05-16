@@ -43,9 +43,13 @@ Needed next:
 
 | Status | Method | Path | Purpose | Query / Body |
 | --- | --- | --- | --- | --- |
-| Complete | `GET` | `/orders` | Paginated order list | `page`, `pageSize`, `orderId`, `userInfo`, `orderDateFrom`, `orderDateTo`, `slotDateFrom`, `slotDateTo`, `status` |
+| Complete | `GET` | `/orders` | SQL-filtered paginated order list | `page`, `pageSize`, `orderId`, `userInfo`, `couponCode`, `orderDateFrom`, `orderDateTo`, `slotDateFrom`, `slotDateTo`, `slotStart`, `status` |
 | Complete | `GET` | `/orders/export` | CSV export | Same filters as `/orders` |
 | Complete | `POST` | `/orders/walk-in` | Create in-store/walk-in order and tickets | `WalkInOrderCreate` |
+| Complete | `GET` | `/orders/{order_id}` | Read one order | Path `order_id` |
+| Complete | `PATCH` | `/orders/{order_id}/status` | Update order status | `{ "status": string }` |
+| Complete | `PATCH` | `/orders/{order_id}/customer` | Update guest/customer fields on an order | `{ "name": string, "email": string, "phone": string }` |
+| Complete | `PATCH` | `/orders/{order_id}/slot` | Move order to another slot | `{ "slotId": string }` |
 
 Implemented request body for walk-in:
 
@@ -56,13 +60,10 @@ Implemented request body for walk-in:
 
 Missing / partial:
 
-- Missing `GET /orders/{order_id}` for detail view.
-- Missing `PATCH /orders/{order_id}` for customer/remarks/admin edits.
-- Missing `PATCH /orders/{order_id}/status` for refund/cancel/complete transitions.
-- Missing `PATCH /orders/{order_id}/slot` for changing slot and updating linked tickets.
 - Missing `POST /orders/{order_id}/resend-email`.
 - Missing coupon application/removal endpoint.
-- Partial: list/export currently enriches from multiple tables in service code; it works, but high-volume filtering should move more work into SQL.
+- Partial: slot changes update the order slot reference; if tickets later store denormalized slot data, add a linked ticket update step.
+- Partial: customer update targets order guest fields. If an order belongs to a registered `users` row, decide whether admin edits should also update the user profile.
 
 ## Tickets
 
@@ -70,11 +71,11 @@ Missing / partial:
 | --- | --- | --- | --- | --- |
 | Complete | `GET` | `/tickets` | Paginated ticket list | `page`, `pageSize`, `code`, `orderId`, `status`, `slotDateFrom`, `slotDateTo`, `verifiedFrom`, `verifiedTo`, `ticketType` |
 | Complete | `GET` | `/tickets/export` | CSV export | Same filters as `/tickets` |
+| Complete | `GET` | `/tickets/{ticket_id}` | Read one ticket | Path `ticket_id` |
 | Complete | `PATCH` | `/tickets/{ticket_id}/status` | Mark ticket `used`, `not_used`, or `voided` | `{ "status": string }` |
 
 Missing / partial:
 
-- Missing `GET /tickets/{ticket_id}`.
 - Missing batch status update endpoint.
 - Missing ticket regenerate/reissue endpoint.
 - Missing QR payload refresh endpoint.
@@ -100,11 +101,11 @@ Missing / partial:
 | Status | Method | Path | Purpose |
 | --- | --- | --- | --- |
 | Complete | `GET` | `/events` | List events |
+| Complete | `POST` | `/events` | Create event |
+| Complete | `PATCH` | `/events/{event_id}` | Update event |
 
 Missing:
 
-- Missing `POST /events`.
-- Missing `PATCH /events/{event_id}`.
 - Missing `DELETE /events/{event_id}` or deactivate endpoint.
 
 ### Slots
@@ -208,9 +209,10 @@ Missing / partial:
 Current `admin-frontend/src/api/adminApi.js` expects these backend functions:
 
 - Dashboard: `GET /dashboard`
-- Orders: `GET /orders`, `GET /orders/export`, `POST /orders/walk-in`
-- Tickets: `GET /tickets`, `GET /tickets/export`, `PATCH /tickets/{ticket_id}/status`
-- Catalog: `GET /events`, `GET /slots`, `POST /slots`, `PATCH /slots/{slot_id}`, `GET /ticket-types`, `POST /ticket-types`, `PATCH /ticket-types/{type_id}`
+- Health: `GET /health`
+- Orders: `GET /orders`, `GET /orders/{order_id}`, `GET /orders/export`, `POST /orders/walk-in`, `PATCH /orders/{order_id}/status`, `PATCH /orders/{order_id}/customer`, `PATCH /orders/{order_id}/slot`
+- Tickets: `GET /tickets`, `GET /tickets/{ticket_id}`, `GET /tickets/export`, `PATCH /tickets/{ticket_id}/status`
+- Catalog: `GET /events`, `POST /events`, `PATCH /events/{event_id}`, `GET /slots`, `POST /slots`, `PATCH /slots/{slot_id}`, `GET /ticket-types`, `POST /ticket-types`, `PATCH /ticket-types/{type_id}`
 - Coupons: `GET /coupons`, `POST /coupons`, `PATCH /coupons/{coupon_id}`
 - Marketing: `GET /marketing/settings`, `PUT /marketing/settings`, `GET /marketing/records`
 - Scanner: `POST /scanner/check-in`, `GET /scanner/recent`

@@ -152,6 +152,8 @@ def normalize_order(
         start_time = pick(row, "slot_start_time", "start_time", default=start_time)
         end_time = pick(row, "slot_end_time", "end_time", default=end_time)
         slot_date = to_date_string(pick(row, "slot_date", "date"))
+    start_time = str(start_time)[:5] if start_time else None
+    end_time = str(end_time)[:5] if end_time else None
     counts = (ticket_counts or {}).get(order_id) or (ticket_counts or {}).get(order_pk, {})
     total = as_int(pick(row, "ticket_total", "ticket_count", "total_tickets"), counts.get("total", 0))
     used = as_int(pick(row, "completed_tickets", "used_tickets"), counts.get("used", 0))
@@ -199,6 +201,8 @@ def normalize_ticket(
         start_time = pick(row, "slot_start_time", "start_time", default=start_time)
         end_time = pick(row, "slot_end_time", "end_time", default=end_time)
         slot_date = to_date_string(pick(row, "slot_date", "date"))
+    start_time = str(start_time)[:5] if start_time else None
+    end_time = str(end_time)[:5] if end_time else None
     status = normalize_ticket_status(pick(row, "ticket_status", "status"))
     customer_info = customer_from_row(row, customer)
 

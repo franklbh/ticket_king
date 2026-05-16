@@ -55,6 +55,11 @@ async def export_tickets(
     )
 
 
+@router.get("/{ticket_id}", response_model=TicketRead)
+async def get_ticket(ticket_id: str) -> TicketRead:
+    return await ticket_service.get_ticket(ticket_id)
+
+
 @router.patch("/{ticket_id}/status", response_model=TicketRead)
 async def update_ticket_status(
     ticket_id: str,

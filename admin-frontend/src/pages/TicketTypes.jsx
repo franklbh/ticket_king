@@ -4,7 +4,8 @@ import { useT } from '../i18n/translations'
 import { createTicketType, updateTicketType } from '../api/adminApi'
 import { AdminAlert, EmptyTableRow, FilterCard, PageHeader, TableShell } from '../components/AdminUI'
 import LoadingIndicator from '../components/LoadingIndicator'
-import { adminQueryKeys, useEventsQuery, useTicketTypesQuery } from '../hooks/queries'
+import { adminQueryKeys } from '../hooks/queries'
+import { useEventsQuery, useTicketTypesQuery } from '../hooks/catalog'
 import { useAdminMutation } from '../hooks/useAdminApi'
 
 function ticketTypePayload(form) {

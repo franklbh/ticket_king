@@ -14,6 +14,7 @@ export function useAdminQuery(loader, deps = [], options = {}) {
     placeholderData: options.initialData,
     staleTime: options.staleTime ?? 0,
     refetchOnWindowFocus: options.refetchOnWindowFocus ?? false,
+    enabled: options.enabled ?? true,
   })
 
   useEffect(() => {
