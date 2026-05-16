@@ -399,6 +399,33 @@ function App() {
   ]
   const currentStepIndex = bookingSteps.findIndex((item) => item.id === step)
 
+  const buildCheckoutOrder = () => {
+    if (!selectedTime?.slotId || !selectedDate) return undefined
+    return {
+      customer: {
+        name: [contact.first, contact.last].filter(Boolean).join(' '),
+        email: contact.email,
+        phone: contact.phone,
+      },
+      items: localizedTicketTypes
+        .filter((ticket) => counts[ticket.id] > 0)
+        .map((ticket) => ({
+          eventId: selectedTime.eventId,
+          slotId: selectedTime.slotId,
+          ticketTypeId: null,
+          eventName: bookingExperience.title,
+          slotDate: isoDate(selectedDate.date),
+          slotTime: selectedTime.label || selectedTime.time,
+          ticketType: ticket.label,
+          quantity: counts[ticket.id],
+          unitPrice: ticket.price,
+        })),
+      paymentFee: totals.processingFee,
+      gst: totals.tax,
+      totalAmount: totals.grand,
+    }
+  }
+
   const startStripeCheckout = () => {
     if (paymentExpired) return
     setShowStripeCheckout(true)
@@ -410,29 +437,7 @@ function App() {
       setAlphapayLoading(true)
       const backendBase = import.meta.env.VITE_BACKEND_BASE || 'http://localhost:8000'
       const totalCents = Math.round(totals.grand * 100)
-      const order = selectedTime?.slotId ? {
-        customer: {
-          name: [contact.first, contact.last].filter(Boolean).join(' '),
-          email: contact.email,
-          phone: contact.phone,
-        },
-        items: localizedTicketTypes
-          .filter((ticket) => counts[ticket.id] > 0)
-          .map((ticket) => ({
-            eventId: selectedTime.eventId,
-            slotId: selectedTime.slotId,
-            ticketTypeId: null,
-            eventName: bookingExperience.title,
-            slotDate: isoDate(selectedDate.date),
-            slotTime: selectedTime.label || selectedTime.time,
-            ticketType: ticket.label,
-            quantity: counts[ticket.id],
-            unitPrice: ticket.price,
-          })),
-        paymentFee: totals.processingFee,
-        gst: totals.tax,
-        totalAmount: totals.grand,
-      } : undefined
+      const order = buildCheckoutOrder()
       const payload = {
         method,
         amount: totalCents,
@@ -668,6 +673,7 @@ function App() {
             date: selectedDate ? fullDateDisplay(selectedDate.date) : null,
             time: selectedTime?.time || null,
             email: contact.email,
+            checkoutOrder: buildCheckoutOrder(),
           }}
           onClose={() => setShowStripeCheckout(false)}
           onSuccess={() => { setShowStripeCheckout(false); backToMain(); }}
