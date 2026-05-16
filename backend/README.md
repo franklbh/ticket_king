@@ -28,7 +28,11 @@ Required backend env:
 
 ```sh
 SUPABASE_URL=https://your-project-ref.supabase.co
+SUPABASE_PUBLISHABLE_KEY=your-supabase-publishable-or-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key
 ```
+
+`SUPABASE_SERVICE_ROLE_KEY` lets an owner create confirmed admin Auth users directly from the admin panel. Without it, the backend falls back to Supabase public signup, which may require email confirmation depending on your Supabase Auth settings.
 
 ## Admin API
 
