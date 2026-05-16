@@ -131,6 +131,61 @@ export function getRecentScans(minutes = 20) {
   return apiRequest(withQuery('/scanner/recent', { minutes }))
 }
 
+export function getEvents() {
+  return apiRequest('/events')
+}
+
+export function createSlot(payload) {
+  return apiRequest('/slots', { method: 'POST', body: payload })
+}
+
+export function updateSlot(slotId, payload) {
+  return apiRequest(`/slots/${encodeURIComponent(slotId)}`, { method: 'PATCH', body: payload })
+}
+
+export function createTicketType(payload) {
+  return apiRequest('/ticket-types', { method: 'POST', body: payload })
+}
+
+export function updateTicketType(typeId, payload) {
+  return apiRequest(`/ticket-types/${encodeURIComponent(typeId)}`, { method: 'PATCH', body: payload })
+}
+
+export function getCoupons(params = {}) {
+  return apiRequest(withQuery('/coupons', params))
+}
+
+export function createCoupon(payload) {
+  return apiRequest('/coupons', { method: 'POST', body: payload })
+}
+
+export function updateCoupon(couponId, payload) {
+  return apiRequest(`/coupons/${encodeURIComponent(couponId)}`, { method: 'PATCH', body: payload })
+}
+
+export function getMarketingSettings() {
+  return apiRequest('/marketing/settings')
+}
+
+export function updateMarketingSettings(payload) {
+  return apiRequest('/marketing/settings', { method: 'PUT', body: payload })
+}
+
+export function getMarketingRecords(params = {}) {
+  return apiRequest(withQuery('/marketing/records', params))
+}
+
+export function updateStaffProfile(userId, payload) {
+  return apiRequest(`/users/${encodeURIComponent(userId)}/staff-profile`, {
+    method: 'PATCH',
+    body: payload,
+  })
+}
+
+export function createAdminAccount(payload) {
+  return apiRequest('/users/admins', { method: 'POST', body: payload })
+}
+
 async function downloadCsv(path, filename) {
   const blob = await apiRequest(path)
   const url = URL.createObjectURL(blob)

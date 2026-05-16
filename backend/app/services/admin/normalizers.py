@@ -227,7 +227,7 @@ def normalize_slot(row: dict[str, Any]) -> dict[str, Any]:
     start_time = pick(row, "start_time", "slot_start_time", default=start_time)
     end_time = pick(row, "end_time", "slot_end_time", default=end_time)
     return {
-        "id": pick(row, "id", "slot_id"),
+        "id": str(pick(row, "id", "slot_id")) if pick(row, "id", "slot_id") is not None else None,
         "event": pick(row, "event", "event_id", default=1),
         "date": to_date_string(pick(row, "date", "slot_date", "business_date")),
         "startTime": str(start_time)[:5] if start_time else None,
@@ -242,7 +242,7 @@ def normalize_slot(row: dict[str, Any]) -> dict[str, Any]:
 
 def normalize_ticket_type(row: dict[str, Any]) -> dict[str, Any]:
     return {
-        "id": pick(row, "id", "ticket_type_id"),
+        "id": str(pick(row, "id", "ticket_type_id")) if pick(row, "id", "ticket_type_id") is not None else None,
         "name": pick(row, "name", "ticket_type", default="Regular"),
         "event": pick(row, "event", "event_id", default=1),
         "priceType": pick(row, "price_type", default="fixed" if pick(row, "price") else "daily"),
@@ -279,3 +279,61 @@ def none_or_float(value: Any) -> float | None:
     if value in (None, ""):
         return None
     return as_float(value)
+
+
+def normalize_event(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": pick(row, "id"),
+        "name": pick(row, "name"),
+        "slug": pick(row, "slug"),
+        "status": pick(row, "status", default="active"),
+    }
+
+
+def normalize_coupon(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": pick(row, "id"),
+        "code": pick(row, "code"),
+        "source": pick(row, "source", default="manual"),
+        "discountType": pick(row, "discount_type"),
+        "discountValue": as_float(pick(row, "discount_value")),
+        "minPurchase": as_float(pick(row, "min_purchase")),
+        "maxUses": row.get("max_uses"),
+        "usedCount": as_int(pick(row, "used_count")),
+        "totalAmount": as_float(pick(row, "total_amount")),
+        "validFrom": to_date_string(pick(row, "valid_from")),
+        "validTo": to_date_string(pick(row, "valid_to")),
+        "remarks": pick(row, "remarks"),
+        "status": pick(row, "status", default="active"),
+        "createdAt": to_datetime_string(pick(row, "created_at")),
+        "updatedAt": to_datetime_string(pick(row, "updated_at")),
+    }
+
+
+def normalize_marketing_settings(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "enabled": bool(row.get("enabled")),
+        "sendDelay": as_int(pick(row, "send_delay_minutes"), 45),
+        "couponValidity": as_int(pick(row, "coupon_validity_days"), 30),
+        "discountType": pick(row, "discount_type", default="percent"),
+        "discountValue": as_float(pick(row, "discount_value"), 5),
+        "minPurchase": as_float(pick(row, "min_purchase")),
+        "maxUses": as_int(pick(row, "max_uses"), 9999),
+        "referralEnabled": bool(row.get("referral_enabled")),
+        "referralReward": as_float(pick(row, "referral_reward"), 5),
+        "updatedAt": to_datetime_string(pick(row, "updated_at")),
+    }
+
+
+def normalize_marketing_record(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": pick(row, "id"),
+        "recipientName": pick(row, "recipient_name"),
+        "recipientEmail": pick(row, "recipient_email"),
+        "couponCode": pick(row, "coupon_code"),
+        "orderId": pick(row, "order_id"),
+        "status": pick(row, "status", default="pending"),
+        "couponUsed": bool(row.get("coupon_used")),
+        "sentAt": to_datetime_string(pick(row, "sent_at")),
+        "createdAt": to_datetime_string(pick(row, "created_at")),
+    }

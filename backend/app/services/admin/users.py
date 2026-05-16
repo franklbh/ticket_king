@@ -7,7 +7,7 @@ from fastapi import HTTPException, status
 
 from app.core.config import settings
 from app.services.admin.repository import admin_repository
-from app.schemas.admin import AdminAccountCreate, OwnerBootstrapCreate, UserRoleUpdate
+from app.schemas.admin import AdminAccountCreate, OwnerBootstrapCreate, StaffProfileUpdate, UserRoleUpdate
 from app.services.admin.security import ADMINISTRATOR, ALL_ROLES, OWNER, normalize_role, now_utc, public_user
 
 
@@ -77,6 +77,20 @@ class UserService:
             role=OWNER,
         )
         return {"user": public_user(inserted[0])}
+
+    async def update_staff_profile(
+        self,
+        user_id: str,
+        payload: StaffProfileUpdate,
+        actor: dict[str, Any],
+    ) -> dict[str, Any]:
+        values = payload.model_dump(exclude_unset=True)
+        if not values:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No profile fields provided.")
+        updated = await self._update_user(user_id=user_id, values=values)
+        if not updated:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+        return public_user(updated[0])
 
     async def update_role(self, user_id: str, payload: UserRoleUpdate, actor: dict[str, Any]) -> dict[str, Any]:
         role = normalize_role(payload.role)

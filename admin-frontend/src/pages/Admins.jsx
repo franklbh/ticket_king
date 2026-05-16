@@ -1,7 +1,9 @@
 import { useState, useMemo } from 'react'
 import { useLang } from '../context/AuthContext'
 import { useT } from '../i18n/translations'
-import { useUsersQuery } from '../hooks/queries'
+import { createAdminAccount, updateStaffProfile } from '../api/adminApi'
+import { adminQueryKeys, useUsersQuery } from '../hooks/queries'
+import { useAdminMutation } from '../hooks/useAdminApi'
 import LoadingIndicator from '../components/LoadingIndicator'
 import { AdminAlert, EmptyTableRow, FilterCard, PageHeader, TableShell } from '../components/AdminUI'
 
@@ -81,11 +83,31 @@ function IPModal({ ip, onClose, t }) {
 export default function Admins() {
   const { lang } = useLang()
   const t = useT(lang)
-  const { data: loadedAdmins, error: loadError, loading: loadingAdmins, setData: setLoadedAdmins } = useUsersQuery(
+  const { data: loadedAdmins, error: loadError, loading: loadingAdmins, reload } = useUsersQuery(
     {},
     { initialData: [] }
   )
   const admins = loadedAdmins || []
+
+  const saveAdmin = useAdminMutation(
+    async (form, existing) => {
+      if (existing?.id) {
+        return updateStaffProfile(existing.id, {
+          staffRole: form.role,
+          department: form.department || null,
+          position: form.position || null,
+          status: form.status || 'active',
+        })
+      }
+      return createAdminAccount({
+        name: form.username || form.name,
+        email: form.email,
+        department: form.department || null,
+        position: form.position || null,
+      })
+    },
+    { invalidateQueries: adminQueryKeys.users, successMessage: 'Admin saved.' }
+  )
   const [filters, setFilters] = useState({ role: 'all', status: 'all' })
   const [modal, setModal] = useState(null)
   const [ipModal, setIpModal] = useState(null)
@@ -98,17 +120,22 @@ export default function Admins() {
     })
   }, [admins, filters])
 
-  function handleSave(form) {
-    if (modal === 'create') {
-      setLoadedAdmins(prev => [...(prev || []), { ...form, id: (prev || []).length + 1, lastLogin: null, lastLoginRelative: '-', ip: null, canDisable: true }])
-    } else {
-      setLoadedAdmins(prev => (prev || []).map(a => a.id === modal.id ? { ...a, ...form } : a))
-    }
+  async function handleSave(form) {
+    const existing = modal === 'create' ? null : modal
+    await saveAdmin.mutate(form, existing)
     setModal(null)
+    reload()
   }
 
-  function toggleAdminStatus(id) {
-    setLoadedAdmins(prev => (prev || []).map(a => a.id === id ? { ...a, status: a.status === 'active' ? 'inactive' : 'active' } : a))
+  async function toggleAdminStatus(admin) {
+    const nextStatus = admin.status === 'active' ? 'inactive' : 'active'
+    await updateStaffProfile(admin.id, {
+      staffRole: admin.staffRole || admin.role,
+      department: admin.department || null,
+      position: admin.position || null,
+      status: nextStatus,
+    })
+    reload()
   }
 
   if (loadingAdmins) {
@@ -216,7 +243,7 @@ export default function Admins() {
                       </button>
                       {a.canDisable && (
                         <button
-                          onClick={() => toggleAdminStatus(a.id)}
+                          onClick={() => toggleAdminStatus(a)}
                           className="btn-sm"
                           style={{
                             background: a.status === 'active' ? '#f59e0b' : '#10b981',

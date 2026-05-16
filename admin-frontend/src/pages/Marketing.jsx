@@ -1,8 +1,12 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { updateMarketingSettings } from '../api/adminApi'
+import { AdminCard, AdminPagination, EmptyTableRow, PageHeader, TableShell } from '../components/AdminUI'
+import LoadingIndicator from '../components/LoadingIndicator'
 import { useLang } from '../context/AuthContext'
 import { useT } from '../i18n/translations'
-import { AdminCard, EmptyTableRow, PageHeader, TableShell } from '../components/AdminUI'
+import { adminQueryKeys, useMarketingRecordsQuery, useMarketingSettingsQuery } from '../hooks/queries'
+import { useAdminMutation } from '../hooks/useAdminApi'
 
 const PAGE_SIZE = 10
 const DEFAULT_MARKETING_SETTINGS = {
@@ -48,13 +52,31 @@ export default function Marketing() {
   const { lang } = useLang()
   const t = useT(lang)
   const navigate = useNavigate()
-  const [settings, setSettings] = useState(DEFAULT_MARKETING_SETTINGS)
-  const [records] = useState([])
   const [page, setPage] = useState(1)
   const [saved, setSaved] = useState(false)
 
+  const { data: loadedSettings, loading: loadingSettings } = useMarketingSettingsQuery({
+    initialData: DEFAULT_MARKETING_SETTINGS,
+  })
+  const [settings, setSettings] = useState(DEFAULT_MARKETING_SETTINGS)
+
+  useEffect(() => {
+    if (loadedSettings) setSettings(loadedSettings)
+  }, [loadedSettings])
+
+  const { data: recordsData, loading: loadingRecords } = useMarketingRecordsQuery(
+    { page, pageSize: PAGE_SIZE },
+    { initialData: { items: [], total: 0, page: 1, pageSize: PAGE_SIZE } }
+  )
+  const records = recordsData?.items || []
+
+  const saveSettings = useAdminMutation(
+    payload => updateMarketingSettings(payload),
+    { invalidateQueries: adminQueryKeys.marketingSettings, successMessage: 'Marketing settings saved.' }
+  )
+
   const stats = {
-    total: records.length,
+    total: recordsData?.total ?? records.length,
     pending: records.filter(record => record.status === 'pending').length,
     cancelled: records.filter(record => record.status === 'cancelled').length,
     sent: records.filter(record => record.status === 'sent').length,
@@ -63,13 +85,17 @@ export default function Marketing() {
     todaySent: records.filter(record => (record.sentAt || '').startsWith(new Date().toISOString().slice(0, 10))).length,
   }
 
-  function saveSettings() {
+  async function handleSaveSettings() {
+    await saveSettings.mutate(settings)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
 
-  const pages = Math.max(1, Math.ceil(records.length / PAGE_SIZE))
-  const paged = records.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  if (loadingSettings && !loadedSettings) {
+    return <LoadingIndicator label="Loading marketing settings..." />
+  }
+
+  const paged = records
 
   const discountPreview = settings.discountType === 'percent'
     ? `${settings.discountValue}% OFF`
@@ -233,7 +259,7 @@ export default function Marketing() {
         </div>
 
         <div style={{ marginTop: 20 }}>
-          <button className="btn-primary" onClick={saveSettings} style={{ gap: 6 }}>
+          <button className="btn-primary" onClick={handleSaveSettings} style={{ gap: 6 }}>
             {saved ? <><i className="fa fa-check" /> Saved!</> : <><i className="fa fa-save" /> {t.saveSettings}</>}
           </button>
         </div>
@@ -307,13 +333,12 @@ export default function Marketing() {
             </tbody>
           </table>
         </div>
-        <div className="pagination">
-          <button className="page-btn" disabled={page === 1} onClick={() => setPage(p => p - 1)}>‹</button>
-          {Array.from({ length: Math.min(pages, 5) }, (_, i) => (
-            <button key={i + 1} className={`page-btn ${i + 1 === page ? 'active' : ''}`} onClick={() => setPage(i + 1)}>{i + 1}</button>
-          ))}
-          <button className="page-btn" disabled={page === pages} onClick={() => setPage(p => p + 1)}>›</button>
-        </div>
+        <AdminPagination
+          page={page}
+          total={recordsData?.total ?? 0}
+          pageSize={PAGE_SIZE}
+          onPage={setPage}
+        />
       </TableShell>
     </div>
   )

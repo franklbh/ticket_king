@@ -38,8 +38,13 @@ class Settings(BaseSettings):
     admin_tickets_table: str = "tickets"
     admin_slots_table: str = "slots"
     admin_ticket_types_table: str = "ticket_types"
+    admin_events_table: str = "events"
+    admin_coupons_table: str = "coupons"
+    admin_marketing_settings_table: str = "marketing_settings"
+    admin_marketing_records_table: str = "marketing_records"
     admin_audit_logs_table: str = "audit_logs"
     admin_users_table: str = "users"
+    admin_default_timezone: str = "America/Vancouver"
     admin_bootstrap_token: str | None = None
 
     admin_order_id_column: str = "id"

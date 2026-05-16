@@ -2,10 +2,11 @@ import { useState, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useLang } from '../context/AuthContext'
 import { useT } from '../i18n/translations'
-import { EVENTS } from '../data/staticCatalog'
-import { useSlotsQuery } from '../hooks/queries'
+import { createSlot, updateSlot } from '../api/adminApi'
+import { AdminAlert, AdminPagination, EmptyTableRow, FilterCard, PageHeader, TableShell } from '../components/AdminUI'
 import LoadingIndicator from '../components/LoadingIndicator'
-import { AdminAlert, EmptyTableRow, FilterCard, PageHeader, TableShell } from '../components/AdminUI'
+import { adminQueryKeys, useEventsQuery, useSlotsQuery } from '../hooks/queries'
+import { useAdminMutation } from '../hooks/useAdminApi'
 import { addDays, formatDateWithDay, todayIso } from '../utils/date'
 
 const PAGE_SIZE = 15
@@ -31,9 +32,9 @@ function SeatBar({ website, inStore, total }) {
   )
 }
 
-function SlotModal({ slot, onClose, onSave }) {
+function SlotModal({ slot, events, onClose, onSave }) {
   const [form, setForm] = useState(slot || {
-    event: 1, date: '', startTime: '', endTime: '', price: 37.95, totalSeats: 20, status: 'active'
+    event: events[0]?.id || 1, date: '', startTime: '', endTime: '', price: 37.95, totalSeats: 20, status: 'active'
   })
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -46,7 +47,7 @@ function SlotModal({ slot, onClose, onSave }) {
           <div>
             <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Event</label>
             <select className="form-select" value={form.event} onChange={e => setForm(f => ({ ...f, event: Number(e.target.value) }))} style={{ width: '100%' }}>
-              {EVENTS.map(ev => <option key={ev.id} value={ev.id}>{ev.name}</option>)}
+              {events.map(ev => <option key={ev.id} value={ev.id}>{ev.name}</option>)}
             </select>
           </div>
           <div>
@@ -90,20 +91,6 @@ function SlotModal({ slot, onClose, onSave }) {
   )
 }
 
-function Pagination({ page, total, pageSize, onPage }) {
-  const pages = Math.ceil(total / pageSize)
-  if (pages <= 1) return null
-  return (
-    <div className="pagination">
-      <button className="page-btn" disabled={page === 1} onClick={() => onPage(page - 1)}>‹</button>
-      {Array.from({ length: Math.min(pages, 7) }, (_, i) => (
-        <button key={i + 1} className={`page-btn ${i + 1 === page ? 'active' : ''}`} onClick={() => onPage(i + 1)}>{i + 1}</button>
-      ))}
-      <button className="page-btn" disabled={page === pages} onClick={() => onPage(page + 1)}>›</button>
-    </div>
-  )
-}
-
 export default function Slots() {
   const { lang } = useLang()
   const t = useT(lang)
@@ -111,16 +98,39 @@ export default function Slots() {
   const [searchParams] = useSearchParams()
   const linkedDate = searchParams.get('date')
   const linkedStart = searchParams.get('start')
-  const { data: loadedSlots, error: loadError, loading: loadingSlots, setData: setLoadedSlots } = useSlotsQuery(
-    { dateFrom: linkedDate || undefined, dateTo: undefined },
-    { initialData: [] }
-  )
-  const slots = loadedSlots || []
   const [filters, setFilters] = useState({
     event: 'all',
     dateFrom: linkedDate || TODAY, dateTo: linkedDate || addDays(TODAY, 180),
     status: 'all', todayOnly: false, hideUnsold: false
   })
+
+  const slotParams = useMemo(() => ({
+    dateFrom: filters.dateFrom || linkedDate || TODAY,
+    dateTo: filters.dateTo || addDays(TODAY, 180),
+  }), [filters.dateFrom, filters.dateTo, linkedDate])
+
+  const { data: loadedSlots, error: loadError, loading: loadingSlots, reload } = useSlotsQuery(
+    slotParams,
+    { initialData: [] }
+  )
+  const { data: events = [] } = useEventsQuery({ initialData: [] })
+  const slots = loadedSlots || []
+
+  const saveSlot = useAdminMutation(
+    async (form, existing) => {
+      const payload = {
+        date: form.date,
+        startTime: form.startTime,
+        endTime: form.endTime,
+        totalSeats: form.totalSeats,
+        price: form.price,
+        status: form.status,
+      }
+      if (existing?.id) return updateSlot(existing.id, payload)
+      return createSlot(payload)
+    },
+    { invalidateQueries: adminQueryKeys.slots, successMessage: 'Slot saved.' }
+  )
   const [page, setPage] = useState(1)
   const [modal, setModal] = useState(null)
 
@@ -143,22 +153,36 @@ export default function Slots() {
     return <LoadingIndicator label="Loading live slots..." />
   }
 
-  function handleSave(form) {
-    if (modal === 'create') {
-      setLoadedSlots(prev => [...(prev || []), { ...form, id: Math.max(...(prev || []).map(s => Number(s.id) || 0), 0) + 1, websiteSeats: 0, inStoreSeats: 0 }])
-    } else {
-      setLoadedSlots(prev => (prev || []).map(s => s.id === modal.id ? { ...s, ...form } : s))
-    }
+  async function handleSave(form) {
+    const existing = modal === 'create' ? null : modal
+    await saveSlot.mutate(form, existing)
     setModal(null)
+    reload()
   }
 
-  function toggleSlotStatus(id) {
-    setLoadedSlots(prev => (prev || []).map(s => s.id === id ? { ...s, status: s.status === 'active' ? 'disabled' : 'active' } : s))
+  async function toggleSlotStatus(slot) {
+    const nextStatus = slot.status === 'active' ? 'disabled' : 'active'
+    await updateSlot(slot.id, {
+      date: slot.date,
+      startTime: slot.startTime,
+      endTime: slot.endTime,
+      totalSeats: slot.totalSeats,
+      price: slot.price,
+      status: nextStatus,
+    })
+    reload()
   }
 
   return (
     <div>
-      {modal && <SlotModal slot={modal === 'create' ? null : modal} onClose={() => setModal(null)} onSave={handleSave} />}
+      {modal && (
+        <SlotModal
+          slot={modal === 'create' ? null : modal}
+          events={events}
+          onClose={() => setModal(null)}
+          onSave={handleSave}
+        />
+      )}
       {loadError && (
         <AdminAlert tone="warning">
           Backend slots could not be loaded: {loadError.message}
@@ -187,7 +211,7 @@ export default function Slots() {
             <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>{t.event}</label>
             <select className="form-select" value={filters.event} onChange={e => setFilters(f => ({ ...f, event: e.target.value }))} style={{ width: '100%' }}>
               <option value="all">{t.allEvents}</option>
-              {EVENTS.map(ev => <option key={ev.id} value={ev.id}>{ev.name}</option>)}
+              {events.map(ev => <option key={ev.id} value={ev.id}>{ev.name}</option>)}
             </select>
           </div>
           <div>
@@ -249,7 +273,7 @@ export default function Slots() {
                   <tr key={s.id}>
                     <td style={{ fontWeight: 600, color: '#6366f1', fontFamily: 'monospace', fontSize: 13 }}>#{s.id}</td>
                     <td style={{ fontSize: 13, maxWidth: 250 }}>
-                      {EVENTS.find(e => e.id === s.event)?.name}
+                      {events.find(e => e.id === s.event)?.name}
                     </td>
                     <td style={{ whiteSpace: 'nowrap', fontSize: 13 }}>
                       <div>{s.date}</div>
@@ -296,7 +320,7 @@ export default function Slots() {
                           <i className="fa fa-edit" /> {t.edit}
                         </button>
                         <button
-                          onClick={() => toggleSlotStatus(s.id)}
+                          onClick={() => toggleSlotStatus(s)}
                           className="btn-sm"
                           style={{
                             background: s.status === 'active' ? '#f59e0b' : '#10b981',
@@ -323,7 +347,7 @@ export default function Slots() {
             </tbody>
           </table>
         </div>
-        <Pagination page={page} total={filtered.length} pageSize={PAGE_SIZE} onPage={setPage} />
+        <AdminPagination page={page} total={filtered.length} pageSize={PAGE_SIZE} onPage={setPage} />
       </TableShell>
     </div>
   )

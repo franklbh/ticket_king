@@ -1,28 +1,23 @@
 from fastapi import APIRouter, Depends, Query, Request
 
+from app.api.deps import client_ip
 from app.schemas.admin import TicketCheckInRequest
-from app.services.admin.data import admin_data_service
+from app.schemas.admin.responses import CheckInResponse, TicketRead
 from app.services.admin.security import require_admin
+from app.services.admin.ticket_service import ticket_service
 
 router = APIRouter(prefix="/scanner", tags=["scanner"], dependencies=[Depends(require_admin)])
 
 
-@router.post("/check-in")
+@router.post("/check-in", response_model=CheckInResponse)
 async def check_in_ticket(
     payload: TicketCheckInRequest,
     request: Request,
     actor: dict = Depends(require_admin),
-) -> dict:
-    return await admin_data_service.check_in_ticket(payload, actor, _client_ip(request))
+) -> CheckInResponse:
+    return await ticket_service.check_in_ticket(payload, actor, client_ip(request))
 
 
-@router.get("/recent")
-async def recent_scans(minutes: int = Query(20, ge=1, le=240)) -> list[dict]:
-    return await admin_data_service.recent_scans(minutes)
-
-
-def _client_ip(request: Request) -> str | None:
-    forwarded_for = request.headers.get("x-forwarded-for")
-    if forwarded_for:
-        return forwarded_for.split(",", 1)[0].strip()
-    return request.client.host if request.client else None
+@router.get("/recent", response_model=list[TicketRead])
+async def recent_scans(minutes: int = Query(20, ge=1, le=240)) -> list[TicketRead]:
+    return await ticket_service.recent_scans(minutes)

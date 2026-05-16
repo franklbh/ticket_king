@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 
 from app.core.config import settings
-from app.schemas.admin import AdminAccountCreate, OwnerBootstrapCreate, UserRoleUpdate
+from app.schemas.admin import AdminAccountCreate, OwnerBootstrapCreate, StaffProfileUpdate, UserRoleUpdate
 from app.services.admin.security import current_user, public_user, require_admin, require_owner
 from app.services.admin.users import user_service
 
@@ -46,3 +46,12 @@ async def update_user_role(
     actor: dict = Depends(require_owner),
 ) -> dict:
     return await user_service.update_role(user_id, payload, actor)
+
+
+@router.patch("/{user_id}/staff-profile")
+async def update_staff_profile(
+    user_id: str,
+    payload: StaffProfileUpdate,
+    actor: dict = Depends(require_admin),
+) -> dict:
+    return await user_service.update_staff_profile(user_id, payload, actor)

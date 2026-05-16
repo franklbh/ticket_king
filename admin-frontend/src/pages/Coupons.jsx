@@ -2,7 +2,11 @@ import { useState, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useLang } from '../context/AuthContext'
 import { useT } from '../i18n/translations'
-import { EmptyTableRow, FilterCard, PageHeader, TableShell } from '../components/AdminUI'
+import { createCoupon, updateCoupon } from '../api/adminApi'
+import { AdminPagination, EmptyTableRow, FilterCard, PageHeader, TableShell } from '../components/AdminUI'
+import LoadingIndicator from '../components/LoadingIndicator'
+import { adminQueryKeys, useCouponsQuery } from '../hooks/queries'
+import { useAdminMutation } from '../hooks/useAdminApi'
 
 const PAGE_SIZE = 10
 
@@ -147,29 +151,40 @@ function CouponModal({ coupon, onClose, onSave, t }) {
   )
 }
 
-function Pagination({ page, total, pageSize, onPage }) {
-  const pages = Math.ceil(total / pageSize)
-  if (pages <= 1) return null
-  return (
-    <div className="pagination">
-      <button className="page-btn" disabled={page === 1} onClick={() => onPage(page - 1)}>‹</button>
-      {Array.from({ length: Math.min(pages, 7) }, (_, i) => (
-        <button key={i + 1} className={`page-btn ${i + 1 === page ? 'active' : ''}`} onClick={() => onPage(i + 1)}>{i + 1}</button>
-      ))}
-      <button className="page-btn" disabled={page === pages} onClick={() => onPage(page + 1)}>›</button>
-    </div>
-  )
-}
-
 export default function Coupons() {
   const { lang } = useLang()
   const t = useT(lang)
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const [coupons, setCoupons] = useState([])
   const [filters, setFilters] = useState({ search: searchParams.get('search') || '', status: 'all', source: 'manual', hideUnused: false })
   const [page, setPage] = useState(1)
   const [modal, setModal] = useState(null) // null | 'create' | { coupon }
+
+  const couponParams = useMemo(() => ({
+    status: filters.status === 'all' ? undefined : filters.status,
+    source: filters.source === 'all' ? undefined : filters.source,
+  }), [filters.status, filters.source])
+
+  const { data: coupons = [], loading, reload } = useCouponsQuery(couponParams, { initialData: [] })
+  const saveCoupon = useAdminMutation(
+    async (form, existing) => {
+      const payload = {
+        code: form.code,
+        source: form.source || 'manual',
+        discountType: form.discountType,
+        discountValue: form.discountValue,
+        minPurchase: form.minPurchase ?? 0,
+        maxUses: form.maxUses,
+        validFrom: form.validFrom,
+        validTo: form.validTo,
+        remarks: form.remarks,
+        status: form.status || 'active',
+      }
+      if (existing?.id) return updateCoupon(existing.id, payload)
+      return createCoupon(payload)
+    },
+    { invalidateQueries: adminQueryKeys.coupons, successMessage: 'Coupon saved.' }
+  )
 
   const filtered = useMemo(() => {
     return coupons.filter(c => {
@@ -183,17 +198,32 @@ export default function Coupons() {
 
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
-  function handleSave(form) {
-    if (modal === 'create') {
-      setCoupons(prev => [...prev, { ...form, id: prev.length + 1, usedCount: 0, totalAmount: 0, status: 'active', createdAt: new Date().toISOString().slice(0, 19).replace('T', ' ') }])
-    } else {
-      setCoupons(prev => prev.map(c => c.id === modal.id ? { ...c, ...form } : c))
-    }
+  async function handleSave(form) {
+    const existing = modal === 'create' ? null : modal
+    await saveCoupon.mutate(form, existing)
     setModal(null)
+    reload()
   }
 
-  function toggleCouponStatus(id) {
-    setCoupons(prev => prev.map(c => c.id === id ? { ...c, status: c.status === 'active' ? 'disabled' : 'active' } : c))
+  async function toggleCouponStatus(coupon) {
+    const nextStatus = coupon.status === 'active' ? 'disabled' : 'active'
+    await updateCoupon(coupon.id, {
+      code: coupon.code,
+      source: coupon.source,
+      discountType: coupon.discountType,
+      discountValue: coupon.discountValue,
+      minPurchase: coupon.minPurchase,
+      maxUses: coupon.maxUses,
+      validFrom: coupon.validFrom,
+      validTo: coupon.validTo,
+      remarks: coupon.remarks,
+      status: nextStatus,
+    })
+    reload()
+  }
+
+  if (loading && !coupons.length) {
+    return <LoadingIndicator label="Loading coupons..." />
   }
 
   function copyCode(code) {
@@ -326,7 +356,7 @@ export default function Coupons() {
                       </button>
                       {c.status !== 'expired' && (
                         <button
-                          onClick={() => toggleCouponStatus(c.id)}
+                          onClick={() => toggleCouponStatus(c)}
                           className="btn-sm"
                           style={{ background: c.status === 'active' ? '#f59e0b' : '#10b981', color: '#fff', border: 'none', borderRadius: 4, padding: '5px 9px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 600 }}
                         >
@@ -341,7 +371,7 @@ export default function Coupons() {
             </tbody>
           </table>
         </div>
-        <Pagination page={page} total={filtered.length} pageSize={PAGE_SIZE} onPage={setPage} />
+        <AdminPagination page={page} total={filtered.length} pageSize={PAGE_SIZE} onPage={setPage} />
       </TableShell>
     </div>
   )

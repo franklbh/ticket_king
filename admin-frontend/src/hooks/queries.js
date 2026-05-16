@@ -1,6 +1,10 @@
 import {
+  getCoupons,
   getDashboard,
+  getEvents,
   getLogs,
+  getMarketingRecords,
+  getMarketingSettings,
   getOrders,
   getRecentScans,
   getSlots,
@@ -72,4 +76,46 @@ export function useRecentScansQuery(minutes = 20, options = {}) {
     [minutes],
     { queryKey: ['scanner', 'recent', minutes], ...options }
   )
+}
+
+export function useCouponsQuery(params = {}, options = {}) {
+  return useAdminQuery(
+    () => getCoupons(params),
+    [params],
+    { queryKey: ['coupons', params], ...options }
+  )
+}
+
+export function useMarketingSettingsQuery(options = {}) {
+  return useAdminQuery(
+    () => getMarketingSettings(),
+    [],
+    { queryKey: ['marketing', 'settings'], ...options }
+  )
+}
+
+export function useMarketingRecordsQuery(params = {}, options = {}) {
+  return useAdminQuery(
+    () => getMarketingRecords(params),
+    [params],
+    { queryKey: ['marketing', 'records', params], ...options }
+  )
+}
+
+export function useEventsQuery(options = {}) {
+  return useAdminQuery(
+    () => getEvents(),
+    [],
+    { queryKey: ['events'], ...options }
+  )
+}
+
+export const adminQueryKeys = {
+  coupons: ['coupons'],
+  slots: ['slots'],
+  ticketTypes: ['ticket-types'],
+  users: ['users'],
+  events: ['events'],
+  marketingSettings: ['marketing', 'settings'],
+  marketingRecords: ['marketing', 'records'],
 }

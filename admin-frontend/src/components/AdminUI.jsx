@@ -64,6 +64,31 @@ export function EmptyTableRow({ colSpan, children = 'No records found' }) {
   )
 }
 
+export function AdminPagination({ page, total, pageSize, onPage }) {
+  const pages = Math.ceil(total / pageSize)
+  if (pages <= 1) return null
+  const visible = Math.min(pages, 7)
+  return (
+    <div className="pagination">
+      <button type="button" className="page-btn" disabled={page === 1} onClick={() => onPage(page - 1)}>‹</button>
+      {Array.from({ length: visible }, (_, i) => {
+        const n = i + 1
+        return (
+          <button
+            key={n}
+            type="button"
+            className={`page-btn ${n === page ? 'active' : ''}`}
+            onClick={() => onPage(n)}
+          >
+            {n}
+          </button>
+        )
+      })}
+      <button type="button" className="page-btn" disabled={page === pages} onClick={() => onPage(page + 1)}>›</button>
+    </div>
+  )
+}
+
 export function IconButton({ icon, children, variant = 'secondary', size = 'md', className = '', ...props }) {
   const color = variant === 'primary' ? 'primary' : variant === 'danger' ? 'error' : 'inherit'
   return (

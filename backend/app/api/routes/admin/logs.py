@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, Query
 
-from app.services.admin.data import admin_data_service
+from app.schemas.admin.responses import ActivityLogPage
+from app.services.admin.activity_service import activity_service
 from app.services.admin.security import require_admin
 
 router = APIRouter(prefix="/logs", tags=["logs"], dependencies=[Depends(require_admin)])
@@ -28,6 +29,6 @@ def _log_filters(
     }
 
 
-@router.get("")
-async def list_logs(filters: dict = Depends(_log_filters)) -> dict:
-    return await admin_data_service.list_activity_logs(filters)
+@router.get("", response_model=ActivityLogPage)
+async def list_activity_logs(filters: dict = Depends(_log_filters)) -> ActivityLogPage:
+    return await activity_service.list_activity_logs(filters)

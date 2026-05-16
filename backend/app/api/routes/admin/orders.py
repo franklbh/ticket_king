@@ -1,8 +1,10 @@
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import Response
 
+from app.api.deps import client_ip
 from app.schemas.admin import WalkInOrderCreate
-from app.services.admin.data import admin_data_service
+from app.schemas.admin.responses import OrderPage, WalkInOrderResponse
+from app.services.admin.order_service import order_service
 from app.services.admin.security import require_admin
 
 router = APIRouter(prefix="/orders", tags=["orders"], dependencies=[Depends(require_admin)])
@@ -32,9 +34,9 @@ def _order_filters(
     }
 
 
-@router.get("")
-async def list_orders(filters: dict = Depends(_order_filters)) -> dict:
-    return await admin_data_service.list_orders(filters)
+@router.get("", response_model=OrderPage)
+async def list_orders(filters: dict = Depends(_order_filters)) -> OrderPage:
+    return await order_service.list_orders(filters)
 
 
 @router.get("/export")
@@ -43,7 +45,7 @@ async def export_orders(
     filters: dict = Depends(_order_filters),
     actor: dict = Depends(require_admin),
 ) -> Response:
-    csv_body = await admin_data_service.export_orders_csv(filters, actor, _client_ip(request))
+    csv_body = await order_service.export_orders_csv(filters, actor, client_ip(request))
     return Response(
         content="\ufeff" + csv_body,
         media_type="text/csv; charset=utf-8",
@@ -51,17 +53,10 @@ async def export_orders(
     )
 
 
-@router.post("/walk-in", status_code=201)
+@router.post("/walk-in", status_code=201, response_model=WalkInOrderResponse)
 async def create_walk_in_order(
     payload: WalkInOrderCreate,
     request: Request,
     actor: dict = Depends(require_admin),
-) -> dict:
-    return await admin_data_service.create_walk_in_order(payload, actor, _client_ip(request))
-
-
-def _client_ip(request: Request) -> str | None:
-    forwarded_for = request.headers.get("x-forwarded-for")
-    if forwarded_for:
-        return forwarded_for.split(",", 1)[0].strip()
-    return request.client.host if request.client else None
+) -> WalkInOrderResponse:
+    return await order_service.create_walk_in_order(payload, actor, client_ip(request))
