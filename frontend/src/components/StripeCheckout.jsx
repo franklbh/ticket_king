@@ -244,6 +244,7 @@ export default function StripeCheckout({ orderData, onClose, onSuccess }) {
         amount: Math.round(orderData.amount * 100),
         order_id: orderData.orderId,
         description: orderData.description,
+        order: orderData.checkoutOrder,
       }),
     })
       .then(r => r.json())
@@ -252,7 +253,7 @@ export default function StripeCheckout({ orderData, onClose, onSuccess }) {
         else setFetchError('Unable to initialize payment.')
       })
       .catch(() => setFetchError('Unable to connect to payment server.'))
-  }, [orderData.amount, orderData.description, orderData.orderId])
+  }, [orderData.amount, orderData.description, orderData.orderId, orderData.checkoutOrder])
 
   if (paid) {
     return <SuccessOverlay orderData={orderData} onClose={onSuccess ?? onClose} />

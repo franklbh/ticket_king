@@ -57,6 +57,23 @@ const contactIsValid = (value) => (
   isReasonablePhone(value.phone || '')
 )
 
+const BACKEND_EVENT_SLUGS = {
+  'terracotta-warriors': 'terracotta-warriors',
+  panda: 'panda-vr',
+  dragon: 'dino-vr',
+  'cyber-arena': 'game-a',
+  'space-odyssey': 'game-b',
+  'ocean-quest': 'game-c',
+}
+
+function isoDate(date) {
+  if (!date) return ''
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 // ── Main App ─────────────────────────────────────────────────────────────
 function App() {
   const [selectedLang, setSelectedLang] = useState(languages[0])
@@ -81,6 +98,8 @@ function App() {
   const [alphapayQrImage, setAlphapayQrImage] = useState(null)
   const [alphapayLoading, setAlphapayLoading] = useState(false)
   const alphapayEventSourceRef = useRef(null)
+  const [availableSlots, setAvailableSlots] = useState([])
+  const [availableSlotsLoading, setAvailableSlotsLoading] = useState(false)
   const [faqOpen, setFaqOpen] = useState(0)
   const [newsletterEmail, setNewsletterEmail] = useState('')
   const [newsletterMessage, setNewsletterMessage] = useState('')
@@ -247,6 +266,40 @@ function App() {
     const timer = setInterval(() => setTimeLeft((t) => (t <= 1 ? 0 : t - 1)), 1000)
     return () => clearInterval(timer)
   }, [step])
+
+  useEffect(() => {
+    if (!selectedDate || !bookingExperience?.id) {
+      setAvailableSlots([])
+      return undefined
+    }
+    const eventSlug = BACKEND_EVENT_SLUGS[bookingExperience.id]
+    if (!eventSlug) {
+      setAvailableSlots([])
+      return undefined
+    }
+    const controller = new AbortController()
+    const backendBase = import.meta.env.VITE_BACKEND_BASE || 'http://localhost:8000'
+    setAvailableSlotsLoading(true)
+    fetch(`${backendBase}/api/v1/events/${eventSlug}/slots?date=${isoDate(selectedDate.date)}`, {
+      signal: controller.signal,
+    })
+      .then((res) => (res.ok ? res.json() : []))
+      .then((slots) => {
+        if (!controller.signal.aborted) {
+          setAvailableSlots(Array.isArray(slots) ? slots : [])
+        }
+      })
+      .catch((err) => {
+        if (err.name !== 'AbortError') {
+          console.error(err)
+          setAvailableSlots([])
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setAvailableSlotsLoading(false)
+      })
+    return () => controller.abort()
+  }, [selectedDate, bookingExperience])
 
   useEffect(() => {
     const onScroll = () => {
@@ -618,6 +671,33 @@ function App() {
   ]
   const currentStepIndex = bookingSteps.findIndex((item) => item.id === step)
 
+  const buildCheckoutOrder = () => {
+    if (!selectedTime?.slotId || !selectedDate) return undefined
+    return {
+      customer: {
+        name: [contact.first, contact.last].filter(Boolean).join(' '),
+        email: contact.email,
+        phone: contact.phone,
+      },
+      items: localizedTicketTypes
+        .filter((ticket) => counts[ticket.id] > 0)
+        .map((ticket) => ({
+          eventId: selectedTime.eventId,
+          slotId: selectedTime.slotId,
+          ticketTypeId: null,
+          eventName: bookingExperience.title,
+          slotDate: isoDate(selectedDate.date),
+          slotTime: selectedTime.label || selectedTime.time,
+          ticketType: ticket.label,
+          quantity: counts[ticket.id],
+          unitPrice: ticket.price,
+        })),
+      paymentFee: totals.processingFee,
+      gst: totals.tax,
+      totalAmount: totals.grand,
+    }
+  }
+
   const startStripeCheckout = () => {
     if (paymentExpired) return
     setShowStripeCheckout(true)
@@ -642,9 +722,22 @@ function App() {
             ? `${checkoutTotals.numTickets} ticket${checkoutTotals.numTickets !== 1 ? 's' : ''} - WE ARE VR`
             : bookingExperience.title,
         }),
+      const totalCents = Math.round(totals.grand * 100)
+      const order = buildCheckoutOrder()
+      const payload = {
+        method,
+        amount: totalCents,
+        description: bookingExperience.title,
+        ...(order ? { order } : { payment_request_id: `order_${Date.now()}_${Math.random().toString(36).slice(2, 8)}` }),
+      }
+      const res = await fetch(`${backendBase}/api/v1/alphapay/qr`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
       })
       if (!res.ok) throw new Error('Failed to create QR')
       const data = await res.json()
+      const paymentRequestId = data.paymentRequestId || payload.payment_request_id
       setAlphapayQrImage(data.qrImage)
       setShowQr(method)
       const es = new EventSource(`${backendBase}/api/v1/alphapay/events/${paymentRequestId}`)
@@ -780,6 +873,8 @@ function App() {
             <BookingPage
               alphapayLoading={alphapayLoading}
               applyCoupon={applyCoupon}
+              availableSlots={availableSlots}
+              availableSlotsLoading={availableSlotsLoading}
               bookingExperience={bookingExperience}
               bookingExperiences={allExperiences}
               bookingRef={bookingRef}
@@ -876,6 +971,7 @@ function App() {
             date: cartCheckoutMode ? null : selectedDate ? fullDateDisplay(selectedDate.date) : null,
             time: cartCheckoutMode ? null : selectedTime?.time || null,
             email: contact.email,
+            checkoutOrder: buildCheckoutOrder(),
           }}
           onClose={() => setShowStripeCheckout(false)}
           onSuccess={() => {
