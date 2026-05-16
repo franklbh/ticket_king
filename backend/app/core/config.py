@@ -32,6 +32,7 @@ class Settings(BaseSettings):
         default=None,
         validation_alias=AliasChoices("SUPABASE_PUBLISHABLE_KEY", "SUPABASE_ANON_KEY"),
     )
+    supabase_service_role_key: str | None = None
     supabase_auth_users_table: str = "auth.users"
 
     admin_orders_table: str = "orders"

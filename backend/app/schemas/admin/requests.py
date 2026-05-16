@@ -43,10 +43,13 @@ class AdminAccountCreate(BaseModel):
     user_id: str | None = None
     name: str
     email: str
-    password: str | None = Field(default=None, min_length=8)
+    password: str = Field(min_length=8)
     department: str | None = None
     position: str | None = None
+    staff_role: str | None = Field(default=None, alias="staffRole")
     role: Literal["administrator"] = "administrator"
+
+    model_config = {"populate_by_name": True}
 
 
 class OwnerBootstrapCreate(BaseModel):

@@ -7,12 +7,16 @@ import { useAdminMutation } from '../hooks/useAdminApi'
 import LoadingIndicator from '../components/LoadingIndicator'
 import { AdminAlert, EmptyTableRow, FilterCard, PageHeader, TableShell } from '../components/AdminUI'
 
-const ROLES = ['SuperAdmin', 'SDirector', 'Director', 'Operator', 'Front']
-const ROLE_COLORS = { SuperAdmin: 'badge-red', SDirector: 'badge-purple', Director: 'badge-blue', Operator: 'badge-teal', Front: 'badge-orange' }
+const ROLE_FILTERS = ['owner', 'administrator']
+const ROLE_COLORS = { owner: 'badge-red', administrator: 'badge-blue' }
+
+function accountRole(admin) {
+  return admin?.role === 'admin' ? 'administrator' : admin?.role || 'administrator'
+}
 
 function AdminModal({ admin, onClose, onSave, t }) {
   const [form, setForm] = useState(admin || {
-    username: '', email: '', role: 'Front', department: '', position: '', status: 'active'
+    username: '', email: '', department: '', position: '', password: '', status: 'active'
   })
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -34,24 +38,29 @@ function AdminModal({ admin, onClose, onSave, t }) {
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div>
-              <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>{t.role}</label>
-              <select className="form-select" value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))} style={{ width: '100%' }}>
-                {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
-              </select>
-            </div>
-            <div>
               <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>{t.department}</label>
               <input className="form-input" value={form.department || ''} onChange={e => setForm(f => ({ ...f, department: e.target.value || null }))} placeholder="Optional" />
             </div>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div>
               <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>{t.position}</label>
               <input className="form-input" value={form.position || ''} onChange={e => setForm(f => ({ ...f, position: e.target.value || null }))} placeholder="Optional" />
             </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div>
+              <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>{t.role}</label>
+              <input className="form-input" value={accountRole(admin)} disabled />
+            </div>
             <div>
               <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>{t.password}</label>
-              <input className="form-input" type="password" placeholder={admin ? t.leaveBlankPassword : t.setPassword} />
+              <input
+                className="form-input"
+                type="password"
+                value={form.password || ''}
+                onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+                placeholder={admin ? t.leaveBlankPassword : t.setPassword}
+                autoComplete="new-password"
+              />
             </div>
           </div>
         </div>
@@ -93,7 +102,6 @@ export default function Admins() {
     async (form, existing) => {
       if (existing?.id) {
         return updateStaffProfile(existing.id, {
-          staffRole: form.role,
           department: form.department || null,
           position: form.position || null,
           status: form.status || 'active',
@@ -102,6 +110,7 @@ export default function Admins() {
       return createAdminAccount({
         name: form.username || form.name,
         email: form.email,
+        password: form.password,
         department: form.department || null,
         position: form.position || null,
       })
@@ -114,7 +123,7 @@ export default function Admins() {
 
   const filtered = useMemo(() => {
     return admins.filter(a => {
-      if (filters.role !== 'all' && (a.staffRole || a.role) !== filters.role) return false
+      if (filters.role !== 'all' && accountRole(a) !== filters.role) return false
       if (filters.status !== 'all' && a.status !== filters.status) return false
       return true
     })
@@ -130,7 +139,6 @@ export default function Admins() {
   async function toggleAdminStatus(admin) {
     const nextStatus = admin.status === 'active' ? 'inactive' : 'active'
     await updateStaffProfile(admin.id, {
-      staffRole: admin.staffRole || admin.role,
       department: admin.department || null,
       position: admin.position || null,
       status: nextStatus,
@@ -167,7 +175,7 @@ export default function Admins() {
             <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>{t.role}</label>
             <select className="form-select" value={filters.role} onChange={e => setFilters(f => ({ ...f, role: e.target.value }))}>
               <option value="all">{t.allRoles}</option>
-              {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+              {ROLE_FILTERS.map(r => <option key={r} value={r}>{r}</option>)}
             </select>
           </div>
           <div>
@@ -210,7 +218,7 @@ export default function Admins() {
                   <td style={{ fontWeight: 600, fontSize: 14 }}>{a.username || a.name || a.email || '-'}</td>
                   <td style={{ fontSize: 13, color: '#6b7280' }}>{a.email || '-'}</td>
                   <td>
-                    <span className={`badge ${ROLE_COLORS[a.staffRole || a.role] || 'badge-gray'}`}>{a.staffRole || a.role}</span>
+                    <span className={`badge ${ROLE_COLORS[accountRole(a)] || 'badge-gray'}`}>{accountRole(a)}</span>
                   </td>
                   <td style={{ fontSize: 13, color: '#6b7280' }}>{a.department || '-'}</td>
                   <td style={{ fontSize: 13, color: '#6b7280' }}>{a.position || '-'}</td>

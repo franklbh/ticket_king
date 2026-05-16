@@ -15,6 +15,13 @@ alter table public.users
   add column if not exists last_login_ip text;
 
 alter table public.users
+  drop constraint if exists users_role_check;
+
+alter table public.users
+  add constraint users_role_check
+  check (role in ('owner', 'administrator', 'customer'));
+
+alter table public.users
   drop column if exists username;
 
 alter table public.orders

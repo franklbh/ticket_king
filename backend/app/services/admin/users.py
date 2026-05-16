@@ -4,6 +4,7 @@ import uuid
 from typing import Any
 
 from fastapi import HTTPException, status
+import httpx
 
 from app.core.config import settings
 from app.services.admin.repository import admin_repository
@@ -23,12 +24,21 @@ class UserService:
 
     async def create_admin_account(self, payload: AdminAccountCreate, actor: dict[str, Any]) -> dict[str, Any]:
         rows = await admin_repository.select(settings.admin_users_table)
-        auth_user = await self._require_auth_user_by_email(payload.email)
+        auth_user = await self._get_or_create_auth_user_by_email(payload.email, payload.password, payload.name)
         existing_user = self._find_user_by_id(rows, auth_user["id"])
+        values = {
+            "name": payload.name,
+            "email": payload.email,
+            "role": ADMINISTRATOR,
+            "staff_role": payload.staff_role,
+            "department": payload.department,
+            "position": payload.position,
+            "status": "active",
+        }
         if existing_user:
             updated = await self._update_user(
                 user_id=existing_user["id"],
-                values={"name": payload.name, "email": payload.email, "role": ADMINISTRATOR},
+                values=values,
             )
             return {
                 "user": public_user(updated[0]),
@@ -41,6 +51,10 @@ class UserService:
             name=payload.name,
             email=payload.email,
             role=ADMINISTRATOR,
+            staff_role=payload.staff_role,
+            department=payload.department,
+            position=payload.position,
+            status="active",
         )
         return {
             "user": public_user(inserted[0]),
@@ -141,6 +155,114 @@ class UserService:
             ),
         )
 
+    async def _get_or_create_auth_user_by_email(self, email: str, password: str, name: str) -> dict[str, Any]:
+        try:
+            return await self._require_auth_user_by_email(email)
+        except HTTPException as exc:
+            if exc.status_code != status.HTTP_400_BAD_REQUEST:
+                raise
+
+        created = await self._create_auth_user(email=email, password=password, name=name)
+        if created:
+            return created
+        return await self._require_auth_user_by_email(email)
+
+    async def _create_auth_user(self, *, email: str, password: str, name: str) -> dict[str, Any] | None:
+        if not settings.supabase_url:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Supabase URL is not configured.",
+            )
+
+        if settings.supabase_service_role_key:
+            return await self._create_auth_user_with_service_role(email=email, password=password, name=name)
+
+        if settings.supabase_publishable_key:
+            return await self._create_auth_user_with_signup(email=email, password=password, name=name)
+
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Supabase Auth user creation is not configured.",
+        )
+
+    async def _create_auth_user_with_service_role(self, *, email: str, password: str, name: str) -> dict[str, Any] | None:
+        response = await self._post_supabase_auth(
+            "/auth/v1/admin/users",
+            key=settings.supabase_service_role_key or "",
+            payload={
+                "email": email,
+                "password": password,
+                "email_confirm": True,
+                "app_metadata": {"role": ADMINISTRATOR},
+                "user_metadata": {"name": name},
+            },
+        )
+        return self._auth_user_from_response(response, email)
+
+    async def _create_auth_user_with_signup(self, *, email: str, password: str, name: str) -> dict[str, Any] | None:
+        response = await self._post_supabase_auth(
+            "/auth/v1/signup",
+            key=settings.supabase_publishable_key or "",
+            payload={
+                "email": email,
+                "password": password,
+                "data": {"name": name, "role": ADMINISTRATOR},
+            },
+        )
+        return self._auth_user_from_response(response, email)
+
+    async def _post_supabase_auth(self, path: str, *, key: str, payload: dict[str, Any]) -> httpx.Response:
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                response = await client.post(
+                    f"{settings.supabase_url.rstrip('/')}{path}",
+                    headers={
+                        "apikey": key,
+                        "Authorization": f"Bearer {key}",
+                        "Content-Type": "application/json",
+                    },
+                    json=payload,
+                )
+        except httpx.HTTPError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Could not create Supabase Auth user.",
+            ) from exc
+
+        if response.status_code in {200, 201}:
+            return response
+
+        detail = self._supabase_error_detail(response)
+        duplicate_markers = ("already", "registered", "exists")
+        if response.status_code in {400, 409, 422} and any(marker in detail.lower() for marker in duplicate_markers):
+            return response
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
+
+    def _auth_user_from_response(self, response: httpx.Response, email: str) -> dict[str, Any] | None:
+        if response.status_code not in {200, 201}:
+            return None
+
+        data = response.json()
+        user = data.get("user") if isinstance(data.get("user"), dict) else data
+        user_id = user.get("id")
+        if not user_id:
+            return None
+        return {"id": user_id, "email": user.get("email") or email}
+
+    @staticmethod
+    def _supabase_error_detail(response: httpx.Response) -> str:
+        try:
+            data = response.json()
+        except ValueError:
+            return response.text or "Supabase Auth user creation failed."
+        return (
+            data.get("msg")
+            or data.get("message")
+            or data.get("error_description")
+            or data.get("error")
+            or "Supabase Auth user creation failed."
+        )
+
     async def _create_user(
         self,
         *,
@@ -148,6 +270,10 @@ class UserService:
         name: str,
         email: str,
         role: str,
+        staff_role: str | None = None,
+        department: str | None = None,
+        position: str | None = None,
+        status: str = "active",
     ) -> list[dict[str, Any]]:
         now = now_utc()
         user_row = {
@@ -155,6 +281,10 @@ class UserService:
             "email": email,
             "name": name,
             "role": role,
+            "staff_role": staff_role,
+            "department": department,
+            "position": position,
+            "status": status,
             "created_at": now,
             "updated_at": now,
         }
