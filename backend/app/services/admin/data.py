@@ -71,11 +71,25 @@ class AdminDataService:
         table_rows = await admin_repository.select_many([
             settings.admin_tickets_table,
             settings.admin_orders_table,
+            settings.admin_slots_table,
+            settings.admin_users_table,
         ])
         ticket_rows = table_rows[settings.admin_tickets_table]
         rows = table_rows[settings.admin_orders_table]
-        ticket_counts = self._ticket_counts([normalize_ticket(row) for row in ticket_rows])
-        orders = [normalize_order(row, ticket_counts) for row in rows]
+        slots_by_id = self._index_by_id(table_rows[settings.admin_slots_table])
+        users_by_id = self._index_by_id(table_rows[settings.admin_users_table])
+        ticket_counts = self._ticket_counts([
+            normalize_ticket(row) for row in ticket_rows
+        ])
+        orders = [
+            normalize_order(
+                row,
+                ticket_counts,
+                slot=slots_by_id.get(str(row.get("slot_id") or "")),
+                customer=users_by_id.get(str(row.get("customer_id") or "")),
+            )
+            for row in rows
+        ]
         orders = self._filter_orders(orders, filters)
         orders.sort(key=lambda row: row.get("createdAt") or "", reverse=True)
         return self._paginate(orders, filters.get("page", 1), filters.get("page_size", 25))
@@ -274,11 +288,10 @@ class AdminDataService:
             "id": order_id,
             "order_number": order_number,
             "slot_id": str(payload.slot_id) if payload.slot_id else None,
-            "slot_date": payload.slot_date,
-            "slot_time": self._slot_time_label(payload.slot_start_time, payload.slot_end_time),
-            "customer_name": payload.customer.name or "Walk-in customer",
-            "customer_email": payload.customer.email,
-            "customer_phone": payload.customer.phone,
+            "customer_id": None,
+            "guest_name": payload.customer.name or "Walk-in customer",
+            "guest_email": payload.customer.email,
+            "guest_phone": payload.customer.phone,
             "sales_channel": "walk_in",
             "order_status": db_order_status(order_status),
             "payment_status": "Paid",
@@ -315,10 +328,8 @@ class AdminDataService:
                     "id": ticket_id,
                     "ticket_number": self._ticket_number(),
                     "order_id": order_id,
-                    "slot_id": str(payload.slot_id) if payload.slot_id else None,
+                    "ticket_type_id": item.ticket_type_id,
                     "verification_code": code,
-                    "slot_date": payload.slot_date,
-                    "slot_time": self._slot_time_label(payload.slot_start_time, payload.slot_end_time),
                     "ticket_type": item.ticket_type,
                     settings.admin_ticket_status_column: db_ticket_status("used" if payload.mark_used_immediately else "not_used"),
                     "qr_payload": f"ticket:{code}",
@@ -331,7 +342,12 @@ class AdminDataService:
                     "updated_at": now,
                 })
         inserted_tickets = await admin_repository.insert(settings.admin_tickets_table, ticket_rows) if ticket_rows else []
-        normalized_order = normalize_order(inserted_orders[0] if inserted_orders else order_row)
+        slots_by_id = await self._slots_by_id()
+        slot = slots_by_id.get(str(payload.slot_id) or "")
+        normalized_order = normalize_order(
+            inserted_orders[0] if inserted_orders else order_row,
+            slot=slot,
+        )
         await self._audit_log(
             actor,
             "Create",
@@ -414,7 +430,8 @@ class AdminDataService:
 
     async def list_activity_logs(self, filters: dict[str, Any]) -> dict[str, Any]:
         rows = await admin_repository.select(settings.admin_audit_logs_table)
-        logs = [self._normalize_activity_log(row) for row in rows]
+        users_by_id = await self._users_by_id()
+        logs = [self._normalize_activity_log(row, users_by_id) for row in rows]
         logs = self._filter_activity_logs(logs, filters)
         logs.sort(key=lambda row: row.get("timestamp") or "", reverse=True)
         return self._paginate(logs, filters.get("page", 1), filters.get("page_size", 25))
@@ -422,11 +439,31 @@ class AdminDataService:
     async def _tickets(self) -> list[dict[str, Any]]:
         rows = await admin_repository.select(settings.admin_tickets_table)
         orders = await self._orders_by_id()
-        enriched_rows = [self._merge_ticket_order(row, orders.get(str(row.get("order_id")))) for row in rows]
-        return [normalize_ticket(row) for row in enriched_rows]
+        slots_by_id = await self._slots_by_id()
+        users_by_id = await self._users_by_id()
+        tickets: list[dict[str, Any]] = []
+        for row in rows:
+            order = orders.get(str(row.get("order_id")))
+            slot = slots_by_id.get(str((order or {}).get("slot_id") or ""))
+            customer = users_by_id.get(str((order or {}).get("customer_id") or ""))
+            merged = self._merge_ticket_order(row, order)
+            tickets.append(normalize_ticket(merged, slot=slot, customer=customer))
+        return tickets
 
     async def _orders_by_id(self) -> dict[str, dict[str, Any]]:
         rows = await admin_repository.select(settings.admin_orders_table)
+        return {str(row.get("id")): row for row in rows if row.get("id") is not None}
+
+    async def _slots_by_id(self) -> dict[str, dict[str, Any]]:
+        rows = await admin_repository.select(settings.admin_slots_table)
+        return self._index_by_id(rows)
+
+    async def _users_by_id(self) -> dict[str, dict[str, Any]]:
+        rows = await admin_repository.select(settings.admin_users_table)
+        return self._index_by_id(rows)
+
+    @staticmethod
+    def _index_by_id(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
         return {str(row.get("id")): row for row in rows if row.get("id") is not None}
 
     @staticmethod
@@ -436,8 +473,6 @@ class AdminDataService:
         return {
             **order,
             **ticket,
-            "customer_name": order.get("customer_name"),
-            "customer_email": order.get("customer_email"),
             "payment_method": order.get("payment_method"),
             "remarks": ticket.get("memo") or order.get("remarks"),
             "order_created_at": order.get("created_at"),
@@ -448,10 +483,10 @@ class AdminDataService:
         orders = await self._orders_by_id()
         counts: dict[str, dict[str, int]] = defaultdict(lambda: {"online_sold": 0, "walkin_sold": 0})
         for ticket in tickets:
-            key = self._slot_key(ticket)
+            order = orders.get(str(ticket.get("order_id")))
+            key = self._slot_key(order or ticket)
             if not key:
                 continue
-            order = orders.get(str(ticket.get("order_id")))
             channel = str((order or {}).get("sales_channel") or "").lower()
             if channel in {"walk_in", "walk-in", "instore", "in_store"}:
                 counts[key]["walkin_sold"] += 1
@@ -664,8 +699,6 @@ class AdminDataService:
             settings.admin_audit_logs_table,
             {
                 "admin_id": actor.get("id"),
-                "admin_email": actor.get("email"),
-                "admin_name": actor.get("name") or actor.get("username") or actor.get("email"),
                 "action_type": action_type,
                 "target_type": target_type,
                 "target_id": target_id,
@@ -675,9 +708,17 @@ class AdminDataService:
             },
         )
 
-    @staticmethod
-    def _normalize_activity_log(row: dict[str, Any]) -> dict[str, Any]:
-        admin = pick(row, "admin_name", "admin_email", "admin_id", default="Unknown")
+    def _normalize_activity_log(
+        self,
+        row: dict[str, Any],
+        users_by_id: dict[str, dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        admin_user = (users_by_id or {}).get(str(row.get("admin_id") or ""))
+        admin = (
+            (admin_user or {}).get("name")
+            or (admin_user or {}).get("email")
+            or pick(row, "admin_name", "admin_email", "admin_id", default="Unknown")
+        )
         return {
             "id": pick(row, "id"),
             "admin": admin,

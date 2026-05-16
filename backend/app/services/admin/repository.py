@@ -169,18 +169,29 @@ class AdminRepository:
                 distribution_stmt = distribution_stmt.where(*ticket_filters)
             distribution = db.execute(distribution_stmt).mappings().all()
 
-            popular_stmt = (
-                select(
-                    tickets.c.slot_date.label("slot_date"),
-                    tickets.c.slot_time.label("slot_time"),
-                    func.count().label("sold"),
+            slot_date_col = getattr(slots.c, "business_date", None)
+            slot_time_col = getattr(slots.c, "slot_time_label", None)
+            if slot_date_col is not None and slot_time_col is not None and hasattr(orders.c, "slot_id"):
+                popular_stmt = (
+                    select(
+                        slot_date_col.label("slot_date"),
+                        slot_time_col.label("slot_time"),
+                        func.count().label("sold"),
+                    )
+                    .select_from(
+                        tickets.join(orders, tickets.c.order_id == orders.c.id).join(
+                            slots,
+                            orders.c.slot_id == slots.c.id,
+                        )
+                    )
+                    .where(slot_date_col.is_not(None))
+                    .group_by(slot_date_col, slot_time_col)
+                    .order_by(func.count().desc())
+                    .limit(10)
                 )
-                .where(tickets.c.slot_date.is_not(None))
-                .group_by(tickets.c.slot_date, tickets.c.slot_time)
-                .order_by(func.count().desc())
-                .limit(10)
-            )
-            popular = db.execute(popular_stmt).mappings().all()
+                popular = db.execute(popular_stmt).mappings().all()
+            else:
+                popular = []
 
             return {
                 "days": days,
