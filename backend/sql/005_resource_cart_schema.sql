@@ -50,6 +50,15 @@ create table if not exists public.event_resource_requirements (
 alter table public.slots
   add column if not exists event_id bigint references public.events (id) on delete set null;
 
+-- Old schema allowed only one slot at a date/start time globally.
+-- New schema allows different events at the same time, so uniqueness is per event.
+alter table public.slots
+  drop constraint if exists slots_business_date_start_time_unique;
+
+create unique index if not exists slots_event_date_start_unique
+  on public.slots (event_id, business_date, start_time)
+  where event_id is not null;
+
 -- 5. Multi-item shopping cart lines.
 -- One order can contain multiple events, slots, and ticket types.
 create table if not exists public.order_items (
