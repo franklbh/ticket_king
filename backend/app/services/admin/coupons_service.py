@@ -26,7 +26,7 @@ class CouponsService:
         return to_models(CouponRead, coupons)
 
     async def create_coupon(self, payload: CouponUpsert, actor: dict[str, Any]) -> CouponRead:
-        code = payload.code.strip().upper()
+        code = payload.code.strip()
         existing = await admin_repository.select_where(
             settings.admin_coupons_table,
             column="code",
@@ -47,7 +47,7 @@ class CouponsService:
         payload: CouponUpsert,
         actor: dict[str, Any],
     ) -> CouponRead:
-        code = payload.code.strip().upper()
+        code = payload.code.strip()
         values = {
             "code": code,
             "source": payload.source,

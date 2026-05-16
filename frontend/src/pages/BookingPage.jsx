@@ -13,26 +13,31 @@ function BookingPage({
   bookingExperience,
   bookingExperiences,
   bookingRef,
-  bookingSteps,
   calendarMonth,
   canProceedContact,
   canProceedDate,
   canProceedTickets,
   canProceedTime,
+  cartCheckoutItems = [],
+  cartCheckoutMode = false,
+  cartCheckoutTotals = null,
   changeCalendarMonth,
   changeCount,
   contact,
   contactErrors,
   contactTouched,
   counts,
+  appliedCoupon,
   couponCode,
+  couponLoading,
   couponMessage,
-  currentStepIndex,
   fullDateDisplay,
   localizedTicketTypes,
   markContactTouched,
   minutes,
   monthDisplay,
+  onAddSelectionToCart,
+  onBackToCart,
   onBookingExperienceChange,
   paymentExpired,
   rawCounts,
@@ -42,6 +47,7 @@ function BookingPage({
   selectedTime,
   setContact,
   setCounts,
+  setAppliedCoupon,
   setCouponCode,
   setCouponMessage,
   setRawCounts,
@@ -53,6 +59,7 @@ function BookingPage({
   startStripeCheckout,
   step,
   t,
+  ticketValidationErrors,
   totals,
   updateContact,
   vipQty,
@@ -64,8 +71,6 @@ function BookingPage({
       <BookingHero
         bookingExperience={bookingExperience}
         bookingExperiences={bookingExperiences}
-        bookingSteps={bookingSteps}
-        currentStepIndex={currentStepIndex}
         onBookingExperienceChange={onBookingExperienceChange}
         t={t}
       />
@@ -111,24 +116,28 @@ function BookingPage({
           changeCount={changeCount}
           counts={counts}
           localizedTicketTypes={localizedTicketTypes}
+          onAddSelectionToCart={onAddSelectionToCart}
           rawCounts={rawCounts}
           setCounts={setCounts}
           setRawCounts={setRawCounts}
           setStep={setStep}
           setVipModal={setVipModal}
           t={t}
+          ticketValidationErrors={ticketValidationErrors}
           totals={totals}
         />
       )}
       {step === 'contact' && (
         <ContactStep
           canProceedContact={canProceedContact}
+          cartCheckoutMode={cartCheckoutMode}
           contact={contact}
           contactErrors={contactErrors}
           contactTouched={contactTouched}
           markContactTouched={markContactTouched}
           setContact={setContact}
           setStep={setStep}
+          onBackToCart={onBackToCart}
           t={t}
           updateContact={updateContact}
         />
@@ -139,7 +148,12 @@ function BookingPage({
           applyCoupon={applyCoupon}
           contact={contact}
           counts={counts}
+          appliedCoupon={appliedCoupon}
+          cartCheckoutItems={cartCheckoutItems}
+          cartCheckoutMode={cartCheckoutMode}
+          cartCheckoutTotals={cartCheckoutTotals}
           couponCode={couponCode}
+          couponLoading={couponLoading}
           couponMessage={couponMessage}
           fullDateDisplay={fullDateDisplay}
           localizedTicketTypes={localizedTicketTypes}
@@ -149,6 +163,7 @@ function BookingPage({
           seconds={seconds}
           selectedDate={selectedDate}
           selectedTime={selectedTime}
+          setAppliedCoupon={setAppliedCoupon}
           setCouponCode={setCouponCode}
           setCouponMessage={setCouponMessage}
           setStep={setStep}
@@ -163,7 +178,7 @@ function BookingPage({
   )
 }
 
-function BookingHero({ bookingExperience, bookingExperiences, bookingSteps, currentStepIndex, onBookingExperienceChange, t }) {
+function BookingHero({ bookingExperience, bookingExperiences, onBookingExperienceChange, t }) {
   const [productMenuOpen, setProductMenuOpen] = useState(false)
   const projectImage = bookingExperience?.heroImg || bookingExperience?.gallery?.[0]
   return (
@@ -379,12 +394,14 @@ function TicketsStep({
   changeCount,
   counts,
   localizedTicketTypes,
+  onAddSelectionToCart,
   rawCounts,
   setCounts,
   setRawCounts,
   setStep,
   setVipModal,
   t,
+  ticketValidationErrors = {},
   totals,
 }) {
   return (
@@ -404,6 +421,12 @@ function TicketsStep({
                 )}
               </div>
               <div className="ticket-desc">{ticket.description}</div>
+              {ticketValidationErrors[ticket.id] && (
+                <div className="ticket-minimum-warning">
+                  <span aria-hidden="true">!</span>
+                  {ticketValidationErrors[ticket.id]}
+                </div>
+              )}
             </div>
             <div className="ticket-actions">
               <div className="counter">
@@ -433,6 +456,14 @@ function TicketsStep({
       </div>
       <div className="summary-row"><div>{t('totalAmount')}</div><div className="summary-val">{currency(totals.ticketTotal)}</div></div>
       <div className="tickets-actions-row">
+        <button
+          className="add-to-cart-btn checkout-add-to-cart-btn"
+          disabled={!canProceedTickets}
+          onClick={onAddSelectionToCart}
+          type="button"
+        >
+          Add to Basket
+        </button>
         <div className="actions" style={{ marginBottom: 0 }}>
           <button className="secondary" onClick={() => setStep('time')} type="button">{t('back')}</button>
           <button className="primary" disabled={!canProceedTickets} onClick={() => setVipModal(true)} type="button">{t('next')}</button>
@@ -444,12 +475,14 @@ function TicketsStep({
 
 function ContactStep({
   canProceedContact,
+  cartCheckoutMode,
   contact,
   contactErrors,
   contactTouched,
   markContactTouched,
   setContact,
   setStep,
+  onBackToCart,
   t,
   updateContact,
 }) {
@@ -473,7 +506,7 @@ function ContactStep({
           {contactTouched.email && contactErrors.email ? <small className="field-error">{contactErrors.email}</small> : <small>{t('ticketsSent')}</small>}
         </label>
         <label className={contactTouched.phone && contactErrors.phone ? 'field-invalid' : ''}>
-          <span>{t('phoneOptional')}</span>
+          <span>{t('phoneOptional')}<span className="required-mark">*</span></span>
           <input type="tel" placeholder={t('phonePlaceholder')} value={contact.phone} onBlur={() => markContactTouched('phone')} onChange={(event) => updateContact('phone', event.target.value)} autoComplete="tel" />
           {contactTouched.phone && contactErrors.phone && <small className="field-error">{contactErrors.phone}</small>}
         </label>
@@ -481,7 +514,7 @@ function ContactStep({
       </div>
       <p className="policy-copy">{t('policyCopy')}</p>
       <div className="actions">
-        <button className="secondary" onClick={() => setStep('tickets')} type="button">{t('back')}</button>
+        <button className="secondary" onClick={() => cartCheckoutMode ? onBackToCart?.() : setStep('tickets')} type="button">{t('back')}</button>
         <button className="primary" disabled={!canProceedContact} onClick={() => setStep('payment')} type="button">{t('continuePayment')}</button>
       </div>
     </div>
@@ -493,7 +526,12 @@ function PaymentStep({
   applyCoupon,
   contact,
   counts,
+  appliedCoupon,
+  cartCheckoutItems = [],
+  cartCheckoutMode = false,
+  cartCheckoutTotals = null,
   couponCode,
+  couponLoading = false,
   couponMessage,
   fullDateDisplay,
   localizedTicketTypes,
@@ -503,6 +541,7 @@ function PaymentStep({
   seconds,
   selectedDate,
   selectedTime,
+  setAppliedCoupon,
   setCouponCode,
   setCouponMessage,
   setStep,
@@ -512,6 +551,7 @@ function PaymentStep({
   totals,
   vipQty,
 }) {
+  const displayTotals = cartCheckoutMode && cartCheckoutTotals ? cartCheckoutTotals : totals
   if (paymentExpired) {
     return (
       <div className="panel payment-panel">
@@ -533,40 +573,70 @@ function PaymentStep({
       <div className="timer-banner">{t('completeWithin')} <strong>{minutes}:{seconds}</strong> {t('secureReservation')}</div>
       <div className="panel-title"><div className="title-accent" /><h3>{t('orderSummary')}</h3></div>
       <div className="order-block">
-        <div className="order-date"><div className="order-label">{selectedDate ? fullDateDisplay(selectedDate.date) : t('dateTbd')} · {selectedTime?.time}</div><div className="order-sub">{t('duration')}</div></div>
+        <div className="order-date">
+          <div className="order-label">
+            {cartCheckoutMode ? 'Shopping cart checkout' : `${selectedDate ? fullDateDisplay(selectedDate.date) : t('dateTbd')} · ${selectedTime?.time}`}
+          </div>
+          <div className="order-sub">{cartCheckoutMode ? `${displayTotals.numTickets} ticket${displayTotals.numTickets !== 1 ? 's' : ''}` : t('duration')}</div>
+        </div>
         <div className="line-items">
-          {localizedTicketTypes.map((ticket) => counts[ticket.id] > 0 && (
+          {cartCheckoutMode ? cartCheckoutItems.map((item) => (
+            <div key={item.id} className="line">
+              <div>
+                <div className="line-label">{item.show_title} - {item.ticket_type_label}</div>
+                <div className="line-price">{item.session_date} · {item.session_time} · {currency(item.unit_price)}</div>
+              </div>
+              <div className="line-qty">x{item.quantity}</div>
+            </div>
+          )) : localizedTicketTypes.map((ticket) => counts[ticket.id] > 0 && (
             <div key={ticket.id} className="line">
               <div><div className="line-label">{ticket.label}</div><div className="line-price">{currency(ticket.price)}</div></div>
               <div className="line-qty">×{counts[ticket.id]}</div>
             </div>
           ))}
-          {vipQty > 0 && <div className="line"><div><div className="line-label">{t('vipTitle')}</div><div className="line-price">{t('vipPrice')}</div></div><div className="line-qty">×{vipQty}</div></div>}
+          {!cartCheckoutMode && vipQty > 0 && <div className="line"><div><div className="line-label">{t('vipTitle')}</div><div className="line-price">{t('vipPrice')}</div></div><div className="line-qty">×{vipQty}</div></div>}
         </div>
         <div className="totals">
-          <div className="totals-row"><span>{t('subtotal')}</span><span>{currency(totals.subtotal)}</span></div>
+          <div className="totals-row"><span>{t('subtotal')}</span><span>{currency(displayTotals.subtotal)}</span></div>
+          {displayTotals.discountAmount > 0 && (
+            <div className="totals-row coupon-discount-row">
+              <span>Coupon discount ({displayTotals.couponCode || appliedCoupon?.code})</span>
+              <span>-{currency(displayTotals.discountAmount)}</span>
+            </div>
+          )}
           <div className="totals-row fees-row">
             <span className="fees-label">
               {t('feesTaxes')}
               <span className="fees-info-wrap">
                 <span className="fees-badge" aria-label="Fee breakdown">!</span>
                 <span className="fees-tooltip">
-                  <span className="fees-tooltip-row"><span>Processing fee</span><span>{currency(totals.processingFee)}</span></span>
-                  <span className="fees-tooltip-row"><span>Tax (5%)</span><span>{currency(totals.tax)}</span></span>
+                  <span className="fees-tooltip-row"><span>Processing fee</span><span>{currency(displayTotals.processingFee)}</span></span>
+                  <span className="fees-tooltip-row"><span>Tax (5%)</span><span>{currency(displayTotals.tax)}</span></span>
                 </span>
               </span>
             </span>
-            <span>{currency(totals.fees)}</span>
+            <span>{currency(displayTotals.fees)}</span>
           </div>
-          <div className="totals-row due"><span>{t('totalDue')}</span><span>{currency(totals.grand)}</span></div>
+          <div className="totals-row due"><span>{t('totalDue')}</span><span>{currency(displayTotals.grand)}</span></div>
         </div>
         <div className="warning">{t('warningNonRefund')}</div>
       </div>
       <div className="coupon-row">
-        <input type="text" placeholder={t('couponCode')} value={couponCode} onChange={(event) => { setCouponCode(event.target.value); setCouponMessage('') }} />
-        <button className="coupon-btn" onClick={applyCoupon} type="button">{t('apply')}</button>
+        <input
+          type="text"
+          placeholder={t('couponCode')}
+          value={couponCode}
+          onChange={(event) => {
+            setCouponCode(event.target.value)
+            setCouponMessage('')
+            setAppliedCoupon(null)
+          }}
+        />
+        <button className="coupon-btn" onClick={applyCoupon} disabled={couponLoading} type="button">
+          {couponLoading ? 'Checking...' : t('apply')}
+        </button>
       </div>
-      {couponMessage && <div className="coupon-message">{couponMessage}</div>}
+      {couponMessage && <div className={`coupon-message ${appliedCoupon ? 'success' : ''}`}>{couponMessage}</div>}
       <div className="contact-summary">
         <div className="contact-head"><div>{t('contactDetailsLower')}</div><button className="link-btn" onClick={() => setStep('contact')} type="button">{t('edit')}</button></div>
         <div className="contact-cols">
