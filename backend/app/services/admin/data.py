@@ -5,15 +5,15 @@ import io
 import secrets
 import uuid
 from collections import Counter, defaultdict
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from typing import Any
 
 from fastapi import HTTPException, status
 
 from app.core.config import settings
-from app.core.admin_db import supabase
+from app.services.admin.repository import admin_repository
 from app.schemas.admin import TicketCheckInRequest, TicketStatusUpdate, WalkInOrderCreate
-from app.services.normalizers import (
+from app.services.admin.normalizers import (
     as_float,
     db_order_status,
     db_ticket_status,
@@ -26,13 +26,14 @@ from app.services.normalizers import (
     pick,
     to_date_string,
 )
+from app.utils.datetime import utc_now, utc_now_iso_seconds
 
 
 class AdminDataService:
     async def health(self) -> dict[str, Any]:
         return {
             "status": "ok",
-            "databaseConfigured": supabase.configured,
+            "databaseConfigured": admin_repository.configured,
             "tables": {
                 "orders": settings.admin_orders_table,
                 "tickets": settings.admin_tickets_table,
@@ -42,39 +43,38 @@ class AdminDataService:
         }
 
     async def dashboard(self, range_key: str = "7d") -> dict[str, Any]:
-        orders, tickets, slots = await self._load_dashboard_rows()
-        today = date.today().isoformat()
-
-        today_orders = [o for o in orders if (o.get("createdAt") or "").startswith(today)]
-        today_tickets = [t for t in tickets if (t.get("createdAt") or "").startswith(today)]
-        pending_orders = [o for o in orders if o.get("status") == "pending"]
-        active_slots = [s for s in slots if s.get("status") == "active"]
-
-        trend_orders = self._filter_by_range(orders, range_key, "createdAt")
-        trend_tickets = self._filter_by_range(tickets, range_key, "createdAt")
+        days = None if range_key == "all" else {"7d": 7, "14d": 14, "30d": 30, "90d": 90}.get(range_key, 7)
+        start = None if days is None else date.today() - timedelta(days=days - 1)
+        data = await admin_repository.dashboard(start_date=start, days=days)
+        order_summary = data["order_summary"]
+        ticket_summary = data["ticket_summary"]
 
         return {
             "stats": {
-                "todayRevenue": round(sum(as_float(o.get("amount")) for o in today_orders), 2),
-                "todayOrders": len(today_orders),
-                "todayTickets": len(today_tickets),
-                "pendingOrders": len(pending_orders),
-                "activeSlots": len(active_slots),
+                "todayRevenue": round(as_float(order_summary.get("today_revenue")), 2),
+                "todayOrders": int(order_summary.get("today_orders") or 0),
+                "todayTickets": int(ticket_summary.get("today_tickets") or 0),
+                "pendingOrders": int(data.get("pending_orders") or 0),
+                "activeSlots": int(data.get("active_slots") or 0),
             },
             "summary": {
-                "totalRevenue": round(sum(as_float(o.get("amount")) for o in trend_orders), 2),
-                "totalOrders": len(trend_orders),
-                "totalTickets": len(trend_tickets),
+                "totalRevenue": round(as_float(order_summary.get("total_revenue")), 2),
+                "totalOrders": int(order_summary.get("total_orders") or 0),
+                "totalTickets": int(ticket_summary.get("total_tickets") or 0),
             },
-            "salesTrend": self._sales_trend(trend_orders, trend_tickets, range_key),
-            "ticketDistribution": self._ticket_distribution(trend_tickets),
-            "popularSlots": self._popular_slots(slots, tickets),
+            "salesTrend": self._sales_trend_from_rows(data["order_trend"], data["ticket_trend"], days),
+            "ticketDistribution": self._ticket_distribution_from_rows(data["distribution"]),
+            "popularSlots": self._popular_slots_from_rows(data["popular"]),
         }
 
     async def list_orders(self, filters: dict[str, Any]) -> dict[str, Any]:
-        tickets = await self._tickets()
-        ticket_counts = self._ticket_counts(tickets)
-        rows = await supabase.select(settings.admin_orders_table)
+        table_rows = await admin_repository.select_many([
+            settings.admin_tickets_table,
+            settings.admin_orders_table,
+        ])
+        ticket_rows = table_rows[settings.admin_tickets_table]
+        rows = table_rows[settings.admin_orders_table]
+        ticket_counts = self._ticket_counts([normalize_ticket(row) for row in ticket_rows])
         orders = [normalize_order(row, ticket_counts) for row in rows]
         orders = self._filter_orders(orders, filters)
         orders.sort(key=lambda row: row.get("createdAt") or "", reverse=True)
@@ -196,16 +196,16 @@ class AdminDataService:
         ticket_status = normalize_ticket_status(update.status)
         values = {
             settings.admin_ticket_status_column: db_ticket_status(ticket_status),
-            "updated_at": datetime.utcnow().isoformat(timespec="seconds"),
+            "updated_at": utc_now_iso_seconds(),
         }
         if ticket_status == "used":
-            values["checked_in_at"] = datetime.utcnow().isoformat(timespec="seconds")
+            values["checked_in_at"] = utc_now_iso_seconds()
             values["checked_in_by"] = actor.get("id")
         elif ticket_status in {"not_used", "voided"}:
             values["checked_in_at"] = None
             values["checked_in_by"] = None
 
-        rows = await supabase.update(
+        rows = await admin_repository.update(
             settings.admin_tickets_table,
             match_column=settings.admin_ticket_id_column,
             match_value=ticket_id,
@@ -224,7 +224,7 @@ class AdminDataService:
         return normalize_ticket(rows[0])
 
     async def list_slots(self, date_from: str | None = None, date_to: str | None = None) -> list[dict[str, Any]]:
-        rows = await supabase.select(settings.admin_slots_table)
+        rows = await admin_repository.select(settings.admin_slots_table)
         counts = await self._slot_inventory_counts()
         slots = [
             normalize_slot({**row, **self._slot_counts_for_row(row, counts)})
@@ -238,7 +238,7 @@ class AdminDataService:
         return slots
 
     async def list_ticket_types(self, enabled_only: bool = False) -> list[dict[str, Any]]:
-        rows = await supabase.select(settings.admin_ticket_types_table)
+        rows = await admin_repository.select(settings.admin_ticket_types_table)
         types = [normalize_ticket_type(row) for row in rows]
         if enabled_only:
             types = [row for row in types if row.get("status") == "enabled"]
@@ -251,7 +251,7 @@ class AdminDataService:
         actor: dict[str, Any],
         client_ip: str | None = None,
     ) -> dict[str, Any]:
-        now = datetime.utcnow().isoformat(timespec="seconds")
+        now = utc_now_iso_seconds()
         order_id = str(uuid.uuid4())
         order_number = self._order_number()
         total_amount = round(sum(item.quantity * item.unit_price for item in payload.tickets), 2)
@@ -304,7 +304,7 @@ class AdminDataService:
             "created_at": now,
             "updated_at": now,
         }
-        inserted_orders = await supabase.insert(settings.admin_orders_table, order_row)
+        inserted_orders = await admin_repository.insert(settings.admin_orders_table, order_row)
 
         ticket_rows = []
         for item in payload.tickets:
@@ -330,7 +330,7 @@ class AdminDataService:
                     "created_at": now,
                     "updated_at": now,
                 })
-        inserted_tickets = await supabase.insert(settings.admin_tickets_table, ticket_rows) if ticket_rows else []
+        inserted_tickets = await admin_repository.insert(settings.admin_tickets_table, ticket_rows) if ticket_rows else []
         normalized_order = normalize_order(inserted_orders[0] if inserted_orders else order_row)
         await self._audit_log(
             actor,
@@ -358,7 +358,7 @@ class AdminDataService:
         client_ip: str | None = None,
     ) -> dict[str, Any]:
         code = payload.code.strip()
-        rows = await supabase.select(settings.admin_tickets_table)
+        rows = await admin_repository.select(settings.admin_tickets_table)
         match = next(
             (
                 row for row in rows
@@ -377,8 +377,8 @@ class AdminDataService:
         if ticket["status"] == "voided":
             return {"result": "voided", "ticket": ticket}
 
-        now = datetime.utcnow().isoformat(timespec="seconds")
-        updated = await supabase.update(
+        now = utc_now_iso_seconds()
+        updated = await admin_repository.update(
             settings.admin_tickets_table,
             match_column=settings.admin_ticket_id_column,
             match_value=str(match.get(settings.admin_ticket_id_column) or match.get("id")),
@@ -401,8 +401,8 @@ class AdminDataService:
         return {"result": "checked_in", "ticket": normalized}
 
     async def recent_scans(self, minutes: int = 20) -> list[dict[str, Any]]:
-        cutoff = datetime.utcnow() - timedelta(minutes=minutes)
-        rows = await supabase.select(settings.admin_tickets_table)
+        cutoff = utc_now() - timedelta(minutes=minutes)
+        rows = await admin_repository.select(settings.admin_tickets_table)
         tickets = [
             normalize_ticket(row)
             for row in rows
@@ -413,31 +413,20 @@ class AdminDataService:
         return tickets[:100]
 
     async def list_activity_logs(self, filters: dict[str, Any]) -> dict[str, Any]:
-        rows = await supabase.select(settings.admin_audit_logs_table)
+        rows = await admin_repository.select(settings.admin_audit_logs_table)
         logs = [self._normalize_activity_log(row) for row in rows]
         logs = self._filter_activity_logs(logs, filters)
         logs.sort(key=lambda row: row.get("timestamp") or "", reverse=True)
         return self._paginate(logs, filters.get("page", 1), filters.get("page_size", 25))
 
-    async def _load_dashboard_rows(self) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
-        tickets = await self._tickets()
-        counts = self._ticket_counts(tickets)
-        order_rows = await supabase.select(settings.admin_orders_table)
-        slot_rows = await supabase.select(settings.admin_slots_table)
-        return (
-            [normalize_order(row, counts) for row in order_rows],
-            tickets,
-            [normalize_slot(row) for row in slot_rows],
-        )
-
     async def _tickets(self) -> list[dict[str, Any]]:
-        rows = await supabase.select(settings.admin_tickets_table)
+        rows = await admin_repository.select(settings.admin_tickets_table)
         orders = await self._orders_by_id()
         enriched_rows = [self._merge_ticket_order(row, orders.get(str(row.get("order_id")))) for row in rows]
         return [normalize_ticket(row) for row in enriched_rows]
 
     async def _orders_by_id(self) -> dict[str, dict[str, Any]]:
-        rows = await supabase.select(settings.admin_orders_table)
+        rows = await admin_repository.select(settings.admin_orders_table)
         return {str(row.get("id")): row for row in rows if row.get("id") is not None}
 
     @staticmethod
@@ -455,7 +444,7 @@ class AdminDataService:
         }
 
     async def _slot_inventory_counts(self) -> dict[str, dict[str, int]]:
-        tickets = await supabase.select(settings.admin_tickets_table)
+        tickets = await admin_repository.select(settings.admin_tickets_table)
         orders = await self._orders_by_id()
         counts: dict[str, dict[str, int]] = defaultdict(lambda: {"online_sold": 0, "walkin_sold": 0})
         for ticket in tickets:
@@ -585,79 +574,70 @@ class AdminDataService:
         }
 
     @staticmethod
-    def _filter_by_range(rows: list[dict[str, Any]], range_key: str, field: str) -> list[dict[str, Any]]:
-        if range_key == "all":
-            return rows
-        days = {"7d": 7, "14d": 14, "30d": 30, "90d": 90}.get(range_key, 7)
-        start = date.today() - timedelta(days=days - 1)
-        return [row for row in rows if (row.get(field) or "")[:10] >= start.isoformat()]
-
-    @staticmethod
-    def _sales_trend(orders: list[dict[str, Any]], tickets: list[dict[str, Any]], range_key: str) -> list[dict[str, Any]]:
-        order_revenue: dict[str, float] = defaultdict(float)
-        order_count: Counter[str] = Counter()
-        ticket_count: Counter[str] = Counter()
-        for order in orders:
-            key = (order.get("createdAt") or "")[:10]
-            if key:
-                order_revenue[key] += as_float(order.get("amount"))
-                order_count[key] += 1
-        for ticket in tickets:
-            key = (ticket.get("createdAt") or "")[:10]
-            if key:
-                ticket_count[key] += 1
-        keys = sorted(set(order_revenue) | set(order_count) | set(ticket_count))
-        if range_key != "all":
-            days = {"7d": 7, "14d": 14, "30d": 30, "90d": 90}.get(range_key, 7)
+    def _sales_trend_from_rows(
+        order_rows: list[dict[str, Any]],
+        ticket_rows: list[dict[str, Any]],
+        days: int | None,
+    ) -> list[dict[str, Any]]:
+        order_by_day = {
+            str(row.get("day"))[:10]: {
+                "revenue": as_float(row.get("revenue")),
+                "orders": int(row.get("orders") or 0),
+            }
+            for row in order_rows
+            if row.get("day") is not None
+        }
+        tickets_by_day = {
+            str(row.get("day"))[:10]: int(row.get("tickets") or 0)
+            for row in ticket_rows
+            if row.get("day") is not None
+        }
+        if days:
             start = date.today() - timedelta(days=days - 1)
             keys = [(start + timedelta(days=i)).isoformat() for i in range(days)]
+        else:
+            keys = sorted(set(order_by_day) | set(tickets_by_day))
         return [
             {
                 "date": key,
-                "revenue": round(order_revenue[key], 2),
-                "orders": order_count[key],
-                "tickets": ticket_count[key],
+                "revenue": round(order_by_day.get(key, {}).get("revenue", 0), 2),
+                "orders": order_by_day.get(key, {}).get("orders", 0),
+                "tickets": tickets_by_day.get(key, 0),
             }
             for key in keys
         ]
 
     @staticmethod
-    def _ticket_distribution(tickets: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    def _ticket_distribution_from_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         colors = ["#1e40af", "#3b82f6", "#93c5fd", "#f59e0b", "#fcd34d", "#10b981"]
-        counts = Counter(ticket.get("ticketType") or "Unknown" for ticket in tickets)
-        total = sum(counts.values()) or 1
+        total = sum(int(row.get("value") or 0) for row in rows) or 1
         return [
             {
-                "name": name,
-                "value": count,
-                "percent": round((count / total) * 100),
+                "name": row.get("name") or "Unknown",
+                "value": int(row.get("value") or 0),
+                "percent": round((int(row.get("value") or 0) / total) * 100),
                 "color": colors[index % len(colors)],
             }
-            for index, (name, count) in enumerate(counts.most_common())
+            for index, row in enumerate(rows)
         ]
 
     @staticmethod
-    def _popular_slots(slots: list[dict[str, Any]], tickets: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        ticket_counts = Counter(
-            f"{ticket.get('slotDate')} {ticket.get('slotStart')}:00"
-            for ticket in tickets
-            if ticket.get("slotDate") and ticket.get("slotStart")
-        )
-        slot_capacity = {
-            f"{slot.get('date')} {slot.get('startTime')}:00": slot.get("totalSeats") or 20
-            for slot in slots
-            if slot.get("date") and slot.get("startTime")
-        }
-        rows = [
-            {"slot": key, "sold": sold, "total": slot_capacity.get(key, max(sold, 20))}
-            for key, sold in ticket_counts.items()
-            if sold > 0
-        ]
-        return sorted(rows, key=lambda row: row["sold"], reverse=True)[:10]
+    def _popular_slots_from_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        result = []
+        for row in rows:
+            sold = int(row.get("sold") or 0)
+            slot_date = str(row.get("slot_date") or "")
+            slot_time = str(row.get("slot_time") or "")
+            result.append({
+                "slot": f"{slot_date} {slot_time}".strip(),
+                "sold": sold,
+                "total": max(sold, 20),
+            })
+        return result
 
     @staticmethod
     def _verification_code() -> str:
-        return f"{datetime.utcnow():%y%m%d}{secrets.randbelow(9000000) + 1000000}"
+        return f"{utc_now():%y%m%d}{secrets.randbelow(9000000) + 1000000}"
 
     @staticmethod
     def _slot_time_label(start: str, end: str | None) -> str:
@@ -665,11 +645,11 @@ class AdminDataService:
 
     @staticmethod
     def _order_number() -> str:
-        return f"TK{datetime.utcnow():%Y%m%d%H%M%S}{secrets.randbelow(9000) + 1000}"
+        return f"TK{utc_now():%Y%m%d%H%M%S}{secrets.randbelow(9000) + 1000}"
 
     @staticmethod
     def _ticket_number() -> str:
-        return f"T{datetime.utcnow():%Y%m%d%H%M%S}{secrets.randbelow(900000) + 100000}"
+        return f"T{utc_now():%Y%m%d%H%M%S}{secrets.randbelow(900000) + 100000}"
 
     async def _audit_log(
         self,
@@ -680,7 +660,7 @@ class AdminDataService:
         details: dict[str, Any],
         client_ip: str | None = None,
     ) -> None:
-        await supabase.insert(
+        await admin_repository.insert(
             settings.admin_audit_logs_table,
             {
                 "admin_id": actor.get("id"),
@@ -691,7 +671,7 @@ class AdminDataService:
                 "target_id": target_id,
                 "action_details": details,
                 "login_info": client_ip,
-                "created_at": datetime.utcnow().isoformat(timespec="seconds"),
+                "created_at": utc_now_iso_seconds(),
             },
         )
 

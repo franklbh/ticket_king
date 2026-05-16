@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Any
 
 from fastapi import Depends, HTTPException, status
@@ -41,7 +42,6 @@ def _get_issuer() -> str:
 def verify_supabase_token(token: str) -> SupabaseUser:
     try:
         import jwt
-        from jwt import PyJWKClient
         from jwt.exceptions import InvalidTokenError, PyJWKClientError
     except ImportError as exc:
         raise HTTPException(
@@ -50,7 +50,7 @@ def verify_supabase_token(token: str) -> SupabaseUser:
         ) from exc
 
     try:
-        signing_key = PyJWKClient(_get_jwks_url()).get_signing_key_from_jwt(token)
+        signing_key = _jwks_client().get_signing_key_from_jwt(token)
         claims = jwt.decode(
             token,
             signing_key.key,
@@ -78,6 +78,18 @@ def verify_supabase_token(token: str) -> SupabaseUser:
         role=role,
         claims=claims,
     )
+
+
+@lru_cache(maxsize=1)
+def _jwks_client():
+    try:
+        from jwt import PyJWKClient
+    except ImportError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="JWT verification dependencies are not installed.",
+        ) from exc
+    return PyJWKClient(_get_jwks_url())
 
 
 def verify_token_with_supabase(token: str) -> dict[str, Any]:

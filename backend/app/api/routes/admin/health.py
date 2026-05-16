@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.services.admin_data import admin_data_service
+from app.services.admin.data import admin_data_service
 
 router = APIRouter(tags=["health"])
 

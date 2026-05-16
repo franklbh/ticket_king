@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useLang } from '../context/AuthContext'
 import { useT } from '../i18n/translations'
-import { COUPONS_DATA } from '../data/mockData'
+import { EmptyTableRow, FilterCard, PageHeader, TableShell } from '../components/AdminUI'
 
 const PAGE_SIZE = 10
 
@@ -166,7 +166,7 @@ export default function Coupons() {
   const t = useT(lang)
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const [coupons, setCoupons] = useState(COUPONS_DATA)
+  const [coupons, setCoupons] = useState([])
   const [filters, setFilters] = useState({ search: searchParams.get('search') || '', status: 'all', source: 'manual', hideUnused: false })
   const [page, setPage] = useState(1)
   const [modal, setModal] = useState(null) // null | 'create' | { coupon }
@@ -212,21 +212,19 @@ export default function Coupons() {
         />
       )}
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, color: '#111827', marginBottom: 4 }}>
-            <i className="fa fa-tag" style={{ color: '#6366f1' }} />
-            {t.coupons}
-          </h1>
-          <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>{t.manageCoupons}</p>
-        </div>
+      <PageHeader
+        icon="fa-tag"
+        title={t.coupons}
+        subtitle={t.manageCoupons}
+        actions={
         <button className="btn-primary" onClick={() => setModal('create')}>
           {t.createCoupon}
         </button>
-      </div>
+        }
+      />
 
       {/* Filters */}
-      <div className="filter-card">
+      <FilterCard>
         <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end' }}>
           <div style={{ flex: 1 }}>
             <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>{t.search}</label>
@@ -257,10 +255,10 @@ export default function Coupons() {
             <i className="fa fa-redo" /> {t.reset}
           </button>
         </div>
-      </div>
+      </FilterCard>
 
       {/* Table */}
-      <div style={{ background: '#fff', borderRadius: 8, border: '1px solid #e5e7eb', overflow: 'hidden' }}>
+      <TableShell>
         <div className="table-container">
           <table>
             <thead>
@@ -279,7 +277,7 @@ export default function Coupons() {
             </thead>
             <tbody>
               {paged.length === 0 ? (
-                <tr><td colSpan={10} style={{ textAlign: 'center', color: '#9ca3af', padding: 32 }}>{t.noCouponsFound}</td></tr>
+                <EmptyTableRow colSpan={10}>{t.noCouponsFound}</EmptyTableRow>
               ) : paged.map(c => (
                 <tr key={c.id}>
                   <td>
@@ -344,7 +342,7 @@ export default function Coupons() {
           </table>
         </div>
         <Pagination page={page} total={filtered.length} pageSize={PAGE_SIZE} onPage={setPage} />
-      </div>
+      </TableShell>
     </div>
   )
 }

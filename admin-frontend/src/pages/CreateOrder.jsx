@@ -2,10 +2,15 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useLang } from '../context/AuthContext'
 import { useT } from '../i18n/translations'
-import { createWalkInOrder, getSlots, getTicketTypes } from '../api/adminApi'
-import { useAdminMutation, useAdminQuery } from '../hooks/useAdminApi'
+import { createWalkInOrder } from '../api/adminApi'
+import { useAdminMutation } from '../hooks/useAdminApi'
+import { useSlotsQuery, useTicketTypesQuery } from '../hooks/queries'
+import LoadingIndicator from '../components/LoadingIndicator'
+import { AdminAlert, AdminCard, PageHeader } from '../components/AdminUI'
+import { addDays, todayIso } from '../utils/date'
+import { dedupeBy } from '../utils/collections'
 
-const TODAY = new Date().toISOString().slice(0, 10)
+const TODAY = todayIso()
 const PAYMENT_METHODS = [
   { id: 'Cash', label: 'Cash', icon: 'fa-money-bill-wave' },
   { id: 'Credit Card', label: 'Credit Card', icon: 'fa-credit-card' },
@@ -14,19 +19,6 @@ const PAYMENT_METHODS = [
   { id: 'Other', label: 'Other', icon: 'fa-ellipsis-h' },
 ]
 const GST_RATE = 0.05
-
-function addDays(date, days) {
-  const next = new Date(`${date}T12:00:00`)
-  next.setDate(next.getDate() + days)
-  return next.toISOString().slice(0, 10)
-}
-
-function dedupeTicketTypes(types) {
-  return types.reduce((list, type) => {
-    if (!list.some(item => item.name === type.name)) list.push(type)
-    return list
-  }, [])
-}
 
 function StepIndicator({ step }) {
   const steps = [1, 2, 3, 4]
@@ -64,22 +56,20 @@ export default function CreateOrder() {
   const [orderComplete, setOrderComplete] = useState(false)
   const [lastOrderId, setLastOrderId] = useState(null)
   const [submitError, setSubmitError] = useState(null)
-  const { data: slots = [], error: slotsError, loading: loadingSlots } = useAdminQuery(
-    () => getSlots({ dateFrom: TODAY, dateTo: addDays(TODAY, 90) }),
-    [],
+  const { data: slots = [], error: slotsError, loading: loadingSlots } = useSlotsQuery(
+    { dateFrom: TODAY, dateTo: addDays(TODAY, 90) },
     { initialData: [] }
   )
-  const { data: ticketTypes = [], error: typesError, loading: loadingTypes } = useAdminQuery(
-    () => getTicketTypes(true),
-    [],
+  const { data: ticketTypes = [], error: typesError, loading: loadingTypes } = useTicketTypesQuery(
+    true,
     { initialData: [] }
   )
-  const { mutate: createOrderMutation, loading: creatingOrder } = useAdminMutation(createWalkInOrder)
+  const { mutate: createOrderMutation, loading: creatingOrder } = useAdminMutation(createWalkInOrder, {
+    successMessage: 'Order created.',
+  })
 
   const availableSlots = slots.filter(s => s.date === selectedDate && s.status === 'active')
-  const enabledTypes = dedupeTicketTypes(
-    ticketTypes.filter(tp => tp.status === 'enabled')
-  )
+  const enabledTypes = dedupeBy(ticketTypes.filter(tp => tp.status === 'enabled'), tp => tp.name)
 
   function handleSlotSelect(slot) {
     setSelectedSlot(slot)
@@ -193,27 +183,27 @@ export default function CreateOrder() {
     )
   }
 
+  if (loadingSlots || loadingTypes) {
+    return <LoadingIndicator label="Loading live slots and ticket types..." />
+  }
+
   return (
     <div>
-      <div style={{ marginBottom: 20 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, color: '#111827', marginBottom: 4 }}>
-          <i className="fa fa-cash-register" style={{ color: '#6366f1' }} />
-          {t.createOrderTitle}
-        </h1>
-        <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>{t.createOrderSub}</p>
-      </div>
+      <PageHeader
+        icon="fa-cash-register"
+        title={t.createOrderTitle}
+        subtitle={t.createOrderSub}
+      />
       {(slotsError || typesError || submitError) && (
-        <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', color: '#9a3412', padding: 12, borderRadius: 8, marginBottom: 16, fontSize: 13 }}>
+        <AdminAlert tone="warning">
           {submitError || `Backend catalog data could not be fully loaded: ${(slotsError || typesError)?.message}`}
-        </div>
+        </AdminAlert>
       )}
-      {(loadingSlots || loadingTypes) && <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 12 }}>Loading live slots and ticket types...</div>}
-
       <StepIndicator step={step} />
 
       {/* Step 1: Select Time Slot */}
       {step === 1 && (
-        <div className="stat-card">
+        <AdminCard>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <h2 style={{ fontSize: 16, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, color: '#6366f1' }}>
               <i className="fa fa-clock" />
@@ -291,12 +281,12 @@ export default function CreateOrder() {
               </button>
             </div>
           )}
-        </div>
+        </AdminCard>
       )}
 
       {/* Step 2: Select Tickets */}
       {step === 2 && (
-        <div className="stat-card">
+        <AdminCard>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <h2 style={{ fontSize: 16, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
               <i className="fa fa-ticket" style={{ color: '#6366f1' }} />
@@ -364,12 +354,12 @@ export default function CreateOrder() {
               {t.next} <i className="fa fa-arrow-right" />
             </button>
           </div>
-        </div>
+        </AdminCard>
       )}
 
       {/* Step 3: Customer Information */}
       {step === 3 && (
-        <div className="stat-card">
+        <AdminCard>
           <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 20 }}>
             <i className="fa fa-user" style={{ color: '#6366f1' }} /> Step 3: Customer Information (Optional)
           </h2>
@@ -407,12 +397,12 @@ export default function CreateOrder() {
               {t.next} <i className="fa fa-arrow-right" />
             </button>
           </div>
-        </div>
+        </AdminCard>
       )}
 
       {/* Step 4: Payment Method & Summary */}
       {step === 4 && (
-        <div className="stat-card">
+        <AdminCard>
           <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 20 }}>
             <i className="fa fa-credit-card" style={{ color: '#6366f1' }} /> Step 4: Payment Method & Summary
           </h2>
@@ -509,7 +499,7 @@ export default function CreateOrder() {
               <i className="fa fa-check-circle" /> Create Order & Complete Payment
             </button>
           </div>
-        </div>
+        </AdminCard>
       )}
     </div>
   )

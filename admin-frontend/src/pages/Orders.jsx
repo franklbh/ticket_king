@@ -2,37 +2,24 @@ import { useState, useMemo, useEffect, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useLang } from '../context/AuthContext'
 import { useT } from '../i18n/translations'
-import { exportOrders, getOrders, getSlots } from '../api/adminApi'
-import { useAdminMutation, useAdminQuery } from '../hooks/useAdminApi'
+import { exportOrders } from '../api/adminApi'
+import { useAdminMutation } from '../hooks/useAdminApi'
+import { useOrdersQuery, useSlotsQuery } from '../hooks/queries'
+import LoadingIndicator from '../components/LoadingIndicator'
+import { AdminAlert, EmptyTableRow, FilterCard, PageHeader, TableShell } from '../components/AdminUI'
+import { addDays, formatDateShort, todayIso, weekdayName } from '../utils/date'
 
 const STATUS_LIST = ['paid', 'completed', 'refunded', 'cancelled']
 const STATUS_BADGE = { paid: 'badge-blue', completed: 'badge-green', refunded: 'badge-red', cancelled: 'badge-gray' }
 const STATUS_T = { paid: 'paid', completed: 'completed', refunded: 'refunded', cancelled: 'cancelled' }
-const TODAY = new Date().toISOString().slice(0, 10)
+const TODAY = todayIso()
 const PAGE_SIZE = 10
-
-// ── data helpers ─────────────────────────────────────────────────────────────
-
-function addDays(date, days) {
-  const next = new Date(`${date}T12:00:00`)
-  next.setDate(next.getDate() + days)
-  return next.toISOString().slice(0, 10)
-}
 
 function splitName(name = '') {
   const parts = name.trim().split(/\s+/)
   return parts.length <= 1
     ? { firstName: name, lastName: '' }
     : { firstName: parts.slice(0, -1).join(' '), lastName: parts.at(-1) }
-}
-
-function dateWeekday(dateStr) {
-  return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][new Date(dateStr + 'T12:00:00').getDay()]
-}
-
-function formatDateShort(dateStr) {
-  const d = new Date(dateStr + 'T12:00:00')
-  return `${d.getMonth() + 1}/${d.getDate()} (${dateWeekday(dateStr)})`
 }
 
 function getOrderConstraints() {
@@ -62,7 +49,7 @@ function getAvailableDates(slots) {
   const { weekdays } = getOrderConstraints()
   return [...new Set(slots.filter(s => s.date >= TODAY && s.status === 'active').map(s => s.date))]
     .sort()
-    .filter(d => weekdays.includes(dateWeekday(d)))
+    .filter(d => weekdays.includes(weekdayName(d)))
 }
 
 function getAvailableTimes(slots, date) {
@@ -339,17 +326,17 @@ export default function Orders() {
   const linkedSlotDate = searchParams.get('slotDate') || ''
   const linkedSlotStart = searchParams.get('slotStart') || ''
 
-  const { data: ordersData, error: loadError, loading: loadingOrders, setData: setOrdersData } = useAdminQuery(
-    () => getOrders({ page: 1, pageSize: 200 }),
-    [],
+  const { data: ordersData, error: loadError, loading: loadingOrders, setData: setOrdersData } = useOrdersQuery(
+    { page: 1, pageSize: 200 },
     { initialData: { items: [], total: 0 } }
   )
-  const { data: slots = [] } = useAdminQuery(
-    () => getSlots({ dateFrom: TODAY, dateTo: addDays(TODAY, 180) }),
-    [],
+  const { data: slots = [] } = useSlotsQuery(
+    { dateFrom: TODAY, dateTo: addDays(TODAY, 180) },
     { initialData: [] }
   )
-  const { mutate: exportOrdersMutation, loading: exporting } = useAdminMutation(exportOrders)
+  const { mutate: exportOrdersMutation, loading: exporting } = useAdminMutation(exportOrders, {
+    successMessage: 'Orders exported.',
+  })
   const [filters, setFilters] = useState({
     orderId: searchParams.get('orderId') || '', userInfo: '',
     couponCode: searchParams.get('couponCode') || '',
@@ -467,6 +454,10 @@ export default function Orders() {
   const labelStyle = { fontSize: 13, fontWeight: 500, color: '#374151', display: 'block', marginBottom: 6 }
   const inlineActions = { display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'nowrap', verticalAlign: 'middle' }
 
+  if (loadingOrders) {
+    return <LoadingIndicator label="Loading live orders..." />
+  }
+
   return (
     <div onClick={() => setPopover(null)}>
       {showExportConfirm && (
@@ -480,26 +471,23 @@ export default function Orders() {
       )}
       {/* Header */}
       {loadError && (
-        <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', color: '#9a3412', padding: 12, borderRadius: 8, marginBottom: 16, fontSize: 13 }}>
+        <AdminAlert tone="warning">
           Backend orders could not be loaded: {loadError.message}
-        </div>
+        </AdminAlert>
       )}
-      {loadingOrders && <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 12 }}>Loading live orders...</div>}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, color: '#111827', marginBottom: 4 }}>
-            <i className="fa fa-shopping-cart" style={{ color: '#6366f1' }} />
-            {t.ordersManagement}
-          </h1>
-          <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>{t.manageOrders}</p>
-        </div>
+      <PageHeader
+        icon="fa-shopping-cart"
+        title={t.ordersManagement}
+        subtitle={t.manageOrders}
+        actions={
         <button className="btn-secondary btn-sm" onClick={() => setShowExportConfirm(true)} disabled={exporting}>
           <i className="fa fa-file-export" /> {t.exportCSV}
         </button>
-      </div>
+        }
+      />
 
       {/* Filters */}
-      <div className="filter-card" style={{ marginBottom: 16 }}>
+      <FilterCard>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr auto', gap: 12, marginBottom: 12 }}>
           <div>
             <label style={labelStyle}>{t.orderID}</label>
@@ -547,10 +535,10 @@ export default function Orders() {
             </label>
           ))}
         </div>
-      </div>
+      </FilterCard>
 
       {/* Table */}
-      <div style={{ background: '#fff', borderRadius: 8, border: '1px solid #e5e7eb', overflow: 'hidden' }}>
+      <TableShell>
         <div className="orders-table-container" style={{ overflowX: 'auto' }}>
           <table className="orders-table" style={{ tableLayout: 'auto', minWidth: 1420, whiteSpace: 'nowrap' }}>
             <colgroup>
@@ -583,7 +571,7 @@ export default function Orders() {
             </thead>
             <tbody>
               {paged.length === 0 ? (
-                <tr><td colSpan={11} style={{ textAlign: 'center', color: '#9ca3af', padding: 32 }}>{t.noOrdersFound}</td></tr>
+                <EmptyTableRow colSpan={11}>{t.noOrdersFound}</EmptyTableRow>
               ) : paged.map(o => (
                 <tr key={o.id} onClick={e => e.stopPropagation()}>
                   {/* Order ID */}
@@ -701,7 +689,7 @@ export default function Orders() {
           </table>
         </div>
         <Pagination page={page} total={filtered.length} pageSize={PAGE_SIZE} onPage={setPage} />
-      </div>
+      </TableShell>
 
       {/* Popover */}
       {popover && popoverOrder && (

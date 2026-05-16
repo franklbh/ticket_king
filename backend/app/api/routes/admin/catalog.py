@@ -2,8 +2,8 @@ from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, Query
 
-from app.services.admin_data import admin_data_service
-from app.services.admin_security import require_admin
+from app.services.admin.data import admin_data_service
+from app.services.admin.security import require_admin
 
 router = APIRouter(tags=["catalog"], dependencies=[Depends(require_admin)])
 

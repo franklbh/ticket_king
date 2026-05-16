@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import Response
 
 from app.schemas.admin import TicketStatusUpdate
-from app.services.admin_data import admin_data_service
-from app.services.admin_security import require_admin
+from app.services.admin.data import admin_data_service
+from app.services.admin.security import require_admin
 
 router = APIRouter(prefix="/tickets", tags=["tickets"], dependencies=[Depends(require_admin)])
 

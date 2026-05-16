@@ -1,8 +1,9 @@
 import { useState, useMemo } from 'react'
 import { useLang } from '../context/AuthContext'
 import { useT } from '../i18n/translations'
-import { getLogs } from '../api/adminApi'
-import { useAdminQuery } from '../hooks/useAdminApi'
+import { useLogsQuery } from '../hooks/queries'
+import LoadingIndicator from '../components/LoadingIndicator'
+import { AdminAlert, EmptyTableRow, FilterCard, PageHeader, TableShell } from '../components/AdminUI'
 
 const ACTION_TYPES = ['Login', 'Create', 'Update', 'Batch Update', 'Check In', 'Restock', 'Void', 'Activate', 'Deactivate', 'Export', 'Other']
 const ACTION_COLORS = {
@@ -46,9 +47,8 @@ export default function Logs() {
   const [page, setPage] = useState(1)
   const [ipModal, setIpModal] = useState(null)
   const [detailLog, setDetailLog] = useState(null)
-  const { data: logsData, error: loadError, loading: loadingLogs } = useAdminQuery(
-    () => getLogs({ page: 1, pageSize: 200 }),
-    [],
+  const { data: logsData, error: loadError, loading: loadingLogs } = useLogsQuery(
+    { page: 1, pageSize: 200 },
     { initialData: { items: [], total: 0 } }
   )
   const logs = logsData?.items || []
@@ -87,15 +87,18 @@ export default function Logs() {
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
   const pages = Math.ceil(filtered.length / PAGE_SIZE)
 
+  if (loadingLogs) {
+    return <LoadingIndicator label="Loading live activity logs..." />
+  }
+
   return (
     <div>
       {ipModal && <IPModal ip={ipModal} onClose={() => setIpModal(null)} />}
       {loadError && (
-        <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', color: '#9a3412', padding: 12, borderRadius: 8, marginBottom: 16, fontSize: 13 }}>
+        <AdminAlert tone="warning">
           Backend logs could not be loaded: {loadError.message}
-        </div>
+        </AdminAlert>
       )}
-      {loadingLogs && <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 12 }}>Loading live activity logs...</div>}
       {detailLog && (
         <div className="modal-overlay" onClick={() => setDetailLog(null)}>
           <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: 560 }}>
@@ -110,16 +113,14 @@ export default function Logs() {
         </div>
       )}
 
-      <div style={{ marginBottom: 20 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, color: '#111827', marginBottom: 4 }}>
-          <i className="fa fa-history" style={{ color: '#6366f1' }} />
-          {t.activityLogs}
-        </h1>
-        <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>View all administrator operation records</p>
-      </div>
+      <PageHeader
+        icon="fa-history"
+        title={t.activityLogs}
+        subtitle="View all administrator operation records"
+      />
 
       {/* Filters */}
-      <div className="filter-card">
+      <FilterCard>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr auto', gap: 12, marginBottom: 12 }}>
           <div>
             <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>{t.admin}</label>
@@ -169,10 +170,10 @@ export default function Logs() {
             </label>
           ))}
         </div>
-      </div>
+      </FilterCard>
 
       {/* Table */}
-      <div style={{ background: '#fff', borderRadius: 8, border: '1px solid #e5e7eb', overflow: 'hidden' }}>
+      <TableShell>
         <div className="table-container">
           <table>
             <thead>
@@ -189,7 +190,7 @@ export default function Logs() {
             </thead>
             <tbody>
               {paged.length === 0 ? (
-                <tr><td colSpan={8} style={{ textAlign: 'center', color: '#9ca3af', padding: 32 }}>No logs found</td></tr>
+                <EmptyTableRow colSpan={8}>{t.noLogsFound}</EmptyTableRow>
               ) : paged.map(log => (
                 <tr key={log.id}>
                   <td style={{ fontWeight: 600, color: '#6366f1', fontFamily: 'monospace', fontSize: 13 }}>#{log.id}</td>
@@ -248,7 +249,7 @@ export default function Logs() {
             <button className="page-btn" disabled={page === pages} onClick={() => setPage(p => p + 1)}>›</button>
           </div>
         )}
-      </div>
+      </TableShell>
     </div>
   )
 }

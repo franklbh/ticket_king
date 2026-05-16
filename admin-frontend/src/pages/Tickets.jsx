@@ -2,8 +2,11 @@ import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useLang } from '../context/AuthContext'
 import { useT } from '../i18n/translations'
-import { exportTickets, getTickets, updateTicketStatus } from '../api/adminApi'
-import { useAdminMutation, useAdminQuery } from '../hooks/useAdminApi'
+import { exportTickets, updateTicketStatus } from '../api/adminApi'
+import { useAdminMutation } from '../hooks/useAdminApi'
+import { useTicketsQuery } from '../hooks/queries'
+import LoadingIndicator from '../components/LoadingIndicator'
+import { AdminAlert, EmptyTableRow, FilterCard, PageHeader, TableShell } from '../components/AdminUI'
 
 const PAGE_SIZE = 10
 const TODAY = new Date().toISOString().slice(0, 10)
@@ -120,13 +123,16 @@ export default function Tickets() {
     types: [],
   })
   const [page, setPage] = useState(1)
-  const { data: ticketsData, error: loadError, loading: loadingTickets, setData: setTicketsData } = useAdminQuery(
-    () => getTickets({ page: 1, pageSize: 200 }),
-    [],
+  const { data: ticketsData, error: loadError, loading: loadingTickets, setData: setTicketsData } = useTicketsQuery(
+    { page: 1, pageSize: 200 },
     { initialData: { items: [], total: 0 } }
   )
-  const { mutate: updateStatusMutation } = useAdminMutation(updateTicketStatus)
-  const { mutate: exportTicketsMutation, loading: exporting } = useAdminMutation(exportTickets)
+  const { mutate: updateStatusMutation } = useAdminMutation(updateTicketStatus, {
+    successMessage: 'Ticket status updated.',
+  })
+  const { mutate: exportTicketsMutation, loading: exporting } = useAdminMutation(exportTickets, {
+    successMessage: 'Tickets exported.',
+  })
   const tickets = ticketsData?.items || []
   const ticketTypeOptions = useMemo(
     () => Array.from(new Set(tickets.map(ticket => ticket.ticketType).filter(Boolean))).sort(),
@@ -252,15 +258,18 @@ export default function Tickets() {
     voided: { label: t.voided, badge: 'badge-red' },
   }
 
+  if (loadingTickets) {
+    return <LoadingIndicator label="Loading live tickets..." />
+  }
+
   return (
     <div>
       {qrTicket && <QRModal code={qrTicket} onClose={() => setQrTicket(null)} />}
       {loadError && (
-        <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', color: '#9a3412', padding: 12, borderRadius: 8, marginBottom: 16, fontSize: 13 }}>
+        <AdminAlert tone="warning">
           Backend tickets could not be loaded: {loadError.message}
-        </div>
+        </AdminAlert>
       )}
-      {loadingTickets && <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 12 }}>Loading live tickets...</div>}
       {showExportConfirm && (
         <ExportConfirmDialog
           title="Confirm Action"
@@ -271,21 +280,19 @@ export default function Tickets() {
         />
       )}
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, color: '#111827', marginBottom: 4 }}>
-            <i className="fa fa-ticket" style={{ color: THEME.primary }} />
-            {t.ticketsManagement}
-          </h1>
-          <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>{t.manageTickets}</p>
-        </div>
+      <PageHeader
+        icon="fa-ticket"
+        title={t.ticketsManagement}
+        subtitle={t.manageTickets}
+        actions={
         <button className="btn-secondary btn-sm" onClick={() => setShowExportConfirm(true)} disabled={exporting}>
           <i className="fa fa-file-export" /> {t.exportCSV}
         </button>
-      </div>
+        }
+      />
 
       {/* Filters */}
-      <div className="filter-card">
+      <FilterCard>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr) auto', gap: 12, marginBottom: 12 }}>
           <div>
             <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>{t.verificationCode}</label>
@@ -324,10 +331,10 @@ export default function Tickets() {
             </button>
           </div>
         </div>
-      </div>
+      </FilterCard>
 
       {/* Quick filter */}
-      <div className="filter-card" style={{ padding: '12px 16px' }}>
+      <FilterCard className="py-3">
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 13, fontWeight: 500, color: '#374151' }}>{t.quickFilter}:</span>
           <button className="btn-sm" onClick={setTodaySlotFilter} style={{ background: THEME.primary, color: '#fff', border: 'none', borderRadius: 4, padding: '5px 12px', cursor: 'pointer', fontSize: 13 }}>
@@ -337,10 +344,10 @@ export default function Tickets() {
             <i className="fa fa-check-circle" /> {t.todayVerifiedTickets}
           </button>
         </div>
-      </div>
+      </FilterCard>
 
       {/* Ticket type filter */}
-      <div className="filter-card" style={{ padding: '12px 16px' }}>
+      <FilterCard className="py-3">
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 13, fontWeight: 500, color: '#374151' }}>{t.ticketType}:</span>
           {ticketTypeOptions.map(type => (
@@ -353,10 +360,10 @@ export default function Tickets() {
             </label>
           ))}
         </div>
-      </div>
+      </FilterCard>
 
       {/* Table */}
-      <div style={{ background: '#fff', borderRadius: 8, border: '1px solid #e5e7eb', overflow: 'hidden' }}>
+      <TableShell>
         <div className="table-container tickets-table-container" style={{ overflowX: 'auto' }}>
           <table className="tickets-table" style={{ tableLayout: 'auto', minWidth: 1100, whiteSpace: 'nowrap' }}>
             <colgroup>
@@ -387,7 +394,7 @@ export default function Tickets() {
             </thead>
             <tbody>
               {paged.length === 0 ? (
-                <tr><td colSpan={10} style={{ textAlign: 'center', color: '#9ca3af', padding: 32 }}>{t.noTicketsFound}</td></tr>
+                <EmptyTableRow colSpan={10}>{t.noTicketsFound}</EmptyTableRow>
               ) : paged.map((tk, idx) => (
                 <tr key={tk.id}>
                   <td style={{ color: '#9ca3af', fontSize: 13 }}>{(page - 1) * PAGE_SIZE + idx + 1}</td>
@@ -491,7 +498,7 @@ export default function Tickets() {
           </table>
         </div>
         <Pagination page={page} total={filtered.length} pageSize={PAGE_SIZE} onPage={setPage} />
-      </div>
+      </TableShell>
     </div>
   )
 }

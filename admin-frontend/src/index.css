@@ -24,6 +24,47 @@ body {
   background: #f5f5f5;
 }
 
+.loading-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 24px;
+  margin-bottom: 12px;
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.loading-indicator-page {
+  position: fixed;
+  top: 56px;
+  right: 0;
+  bottom: 0;
+  left: 216px;
+  z-index: 40;
+  display: flex;
+  width: auto;
+  min-height: 0;
+  margin: 0;
+  pointer-events: none;
+  background: rgba(248, 250, 252, 0.72);
+  backdrop-filter: blur(1px);
+}
+
+.loading-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #e0e7ff;
+  border-top-color: #6366f1;
+  border-radius: 50%;
+  animation: tk-spin 0.75s linear infinite;
+}
+
+@keyframes tk-spin {
+  to { transform: rotate(360deg); }
+}
+
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -229,7 +270,6 @@ table tr:hover {
   align-items: center;
   gap: 16px;
 }
-
 .dashboard-stat-icon {
   width: 52px;
   height: 52px;
@@ -500,3 +540,4 @@ table tr:hover {
 .page-btn:hover { background: #f9fafb; }
 .page-btn.active { background: #6366f1; color: #fff; border-color: #6366f1; }
 .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+

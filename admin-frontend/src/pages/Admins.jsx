@@ -1,8 +1,9 @@
 import { useState, useMemo } from 'react'
 import { useLang } from '../context/AuthContext'
 import { useT } from '../i18n/translations'
-import { getUsers } from '../api/adminApi'
-import { useAdminQuery } from '../hooks/useAdminApi'
+import { useUsersQuery } from '../hooks/queries'
+import LoadingIndicator from '../components/LoadingIndicator'
+import { AdminAlert, EmptyTableRow, FilterCard, PageHeader, TableShell } from '../components/AdminUI'
 
 const ROLES = ['SuperAdmin', 'SDirector', 'Director', 'Operator', 'Front']
 const ROLE_COLORS = { SuperAdmin: 'badge-red', SDirector: 'badge-purple', Director: 'badge-blue', Operator: 'badge-teal', Front: 'badge-orange' }
@@ -80,9 +81,8 @@ function IPModal({ ip, onClose, t }) {
 export default function Admins() {
   const { lang } = useLang()
   const t = useT(lang)
-  const { data: loadedAdmins, error: loadError, loading: loadingAdmins, setData: setLoadedAdmins } = useAdminQuery(
-    () => getUsers(),
-    [],
+  const { data: loadedAdmins, error: loadError, loading: loadingAdmins, setData: setLoadedAdmins } = useUsersQuery(
+    {},
     { initialData: [] }
   )
   const admins = loadedAdmins || []
@@ -111,30 +111,30 @@ export default function Admins() {
     setLoadedAdmins(prev => (prev || []).map(a => a.id === id ? { ...a, status: a.status === 'active' ? 'inactive' : 'active' } : a))
   }
 
+  if (loadingAdmins) {
+    return <LoadingIndicator label="Loading live admin users..." />
+  }
+
   return (
     <div>
       {modal && <AdminModal admin={modal === 'create' ? null : modal} onClose={() => setModal(null)} onSave={handleSave} t={t} />}
       {ipModal && <IPModal ip={ipModal} onClose={() => setIpModal(null)} t={t} />}
       {loadError && (
-        <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', color: '#9a3412', padding: 12, borderRadius: 8, marginBottom: 16, fontSize: 13 }}>
+        <AdminAlert tone="warning">
           Backend admin users could not be loaded: {loadError.message}
-        </div>
+        </AdminAlert>
       )}
-      {loadingAdmins && <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 12 }}>Loading live admin users...</div>}
-
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, color: '#111827', marginBottom: 4 }}>
-            <i className="fa fa-users" style={{ color: '#6366f1' }} />
-            {t.administratorsManagement}
-          </h1>
-          <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>{t.manageAdmins}</p>
-        </div>
+      <PageHeader
+        icon="fa-users"
+        title={t.administratorsManagement}
+        subtitle={t.manageAdmins}
+        actions={
         <button className="btn-primary" onClick={() => setModal('create')}>{t.createAdmin}</button>
-      </div>
+        }
+      />
 
       {/* Filters */}
-      <div className="filter-card">
+      <FilterCard>
         <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end' }}>
           <div>
             <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>{t.role}</label>
@@ -155,10 +155,10 @@ export default function Admins() {
             <i className="fa fa-redo" /> {t.reset}
           </button>
         </div>
-      </div>
+      </FilterCard>
 
       {/* Table */}
-      <div style={{ background: '#fff', borderRadius: 8, border: '1px solid #e5e7eb', overflow: 'hidden' }}>
+      <TableShell>
         <div className="table-container">
           <table>
             <thead>
@@ -176,7 +176,7 @@ export default function Admins() {
             </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan={9} style={{ textAlign: 'center', color: '#9ca3af', padding: 32 }}>{t.noAdminsFound}</td></tr>
+                <EmptyTableRow colSpan={9}>{t.noAdminsFound}</EmptyTableRow>
               ) : filtered.map(a => (
                 <tr key={a.id}>
                   <td style={{ fontWeight: 600, color: '#6b7280' }}>{a.id}</td>
@@ -235,7 +235,7 @@ export default function Admins() {
             </tbody>
           </table>
         </div>
-      </div>
+      </TableShell>
     </div>
   )
 }

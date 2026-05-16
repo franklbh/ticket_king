@@ -2,8 +2,9 @@ import { useState, useMemo } from 'react'
 import { useLang } from '../context/AuthContext'
 import { useT } from '../i18n/translations'
 import { EVENTS } from '../data/staticCatalog'
-import { getTicketTypes } from '../api/adminApi'
-import { useAdminQuery } from '../hooks/useAdminApi'
+import { useTicketTypesQuery } from '../hooks/queries'
+import LoadingIndicator from '../components/LoadingIndicator'
+import { AdminAlert, EmptyTableRow, FilterCard, PageHeader, TableShell } from '../components/AdminUI'
 
 const ALL_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
@@ -265,9 +266,8 @@ function PriceCell({ price, color, bg, border, editing, editValue, onStart, onCh
 export default function TicketTypes() {
   const { lang } = useLang()
   const t = useT(lang)
-  const { data: loadedTypes, error: loadError, loading: loadingTypes, setData: setLoadedTypes } = useAdminQuery(
-    () => getTicketTypes(false),
-    [],
+  const { data: loadedTypes, error: loadError, loading: loadingTypes, setData: setLoadedTypes } = useTicketTypesQuery(
+    false,
     { initialData: [] }
   )
   const types = loadedTypes || []
@@ -341,28 +341,28 @@ export default function TicketTypes() {
     setEditingCell(null)
   }
 
+  if (loadingTypes) {
+    return <LoadingIndicator label="Loading live ticket types..." />
+  }
+
   return (
     <div>
       {modal && <TypeModal type={modal === 'create' ? null : modal} onClose={() => setModal(null)} onSave={handleSave} />}
       {loadError && (
-        <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', color: '#9a3412', padding: 12, borderRadius: 8, marginBottom: 16, fontSize: 13 }}>
+        <AdminAlert tone="warning">
           Backend ticket types could not be loaded: {loadError.message}
-        </div>
+        </AdminAlert>
       )}
-      {loadingTypes && <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 12 }}>Loading live ticket types...</div>}
-
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, color: '#111827', marginBottom: 4 }}>
-            <i className="fa fa-tags" style={{ color: '#6366f1' }} />
-            {t.ticketTypesManagement}
-          </h1>
-          <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>Click any price to edit inline</p>
-        </div>
+      <PageHeader
+        icon="fa-tags"
+        title={t.ticketTypesManagement}
+        subtitle="Click any price to edit inline"
+        actions={
         <button className="btn-primary" onClick={() => setModal('create')}>
           {t.createTicketType}
         </button>
-      </div>
+        }
+      />
 
       {/* Schedule reference */}
       <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
@@ -382,7 +382,7 @@ export default function TicketTypes() {
       </div>
 
       {/* Filters */}
-      <div className="filter-card" style={{ marginBottom: 12 }}>
+      <FilterCard className="mb-3">
         <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end' }}>
           <div style={{ flex: 1 }}>
             <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>Search</label>
@@ -400,10 +400,10 @@ export default function TicketTypes() {
             <i className="fa fa-redo" /> {t.reset}
           </button>
         </div>
-      </div>
+      </FilterCard>
 
       {/* Price Matrix Table */}
-      <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e5e7eb', overflow: 'hidden' }}>
+      <TableShell>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
@@ -430,9 +430,7 @@ export default function TicketTypes() {
           </thead>
           <tbody>
             {rows.length === 0 ? (
-              <tr>
-                <td colSpan={5} style={{ padding: 40, textAlign: 'center', color: '#9ca3af', fontSize: 14 }}>No ticket types found</td>
-              </tr>
+              <EmptyTableRow colSpan={5}>{t.noTicketTypesFound}</EmptyTableRow>
             ) : rows.map((row, idx) => (
               <tr key={row.name} style={{
                 borderBottom: idx < rows.length - 1 ? '1px solid #f3f4f6' : 'none',
@@ -507,7 +505,7 @@ export default function TicketTypes() {
             ))}
           </tbody>
         </table>
-      </div>
+      </TableShell>
     </div>
   )
 }

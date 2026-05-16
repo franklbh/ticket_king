@@ -3,17 +3,13 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useLang } from '../context/AuthContext'
 import { useT } from '../i18n/translations'
 import { EVENTS } from '../data/staticCatalog'
-import { getSlots } from '../api/adminApi'
-import { useAdminQuery } from '../hooks/useAdminApi'
+import { useSlotsQuery } from '../hooks/queries'
+import LoadingIndicator from '../components/LoadingIndicator'
+import { AdminAlert, EmptyTableRow, FilterCard, PageHeader, TableShell } from '../components/AdminUI'
+import { addDays, formatDateWithDay, todayIso } from '../utils/date'
 
 const PAGE_SIZE = 15
-const TODAY = new Date().toISOString().slice(0, 10)
-
-function addDays(date, days) {
-  const next = new Date(`${date}T12:00:00`)
-  next.setDate(next.getDate() + days)
-  return next.toISOString().slice(0, 10)
-}
+const TODAY = todayIso()
 
 function SeatBar({ website, inStore, total }) {
   const sold = website + inStore
@@ -108,13 +104,6 @@ function Pagination({ page, total, pageSize, onPage }) {
   )
 }
 
-const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-
-function formatDateWithDay(dateStr) {
-  const d = new Date(dateStr + 'T00:00:00')
-  return { date: dateStr, day: DAYS[d.getDay()] }
-}
-
 export default function Slots() {
   const { lang } = useLang()
   const t = useT(lang)
@@ -122,9 +111,8 @@ export default function Slots() {
   const [searchParams] = useSearchParams()
   const linkedDate = searchParams.get('date')
   const linkedStart = searchParams.get('start')
-  const { data: loadedSlots, error: loadError, loading: loadingSlots, setData: setLoadedSlots } = useAdminQuery(
-    () => getSlots({ dateFrom: linkedDate || undefined, dateTo: undefined }),
-    [linkedDate],
+  const { data: loadedSlots, error: loadError, loading: loadingSlots, setData: setLoadedSlots } = useSlotsQuery(
+    { dateFrom: linkedDate || undefined, dateTo: undefined },
     { initialData: [] }
   )
   const slots = loadedSlots || []
@@ -151,6 +139,10 @@ export default function Slots() {
 
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
+  if (loadingSlots) {
+    return <LoadingIndicator label="Loading live slots..." />
+  }
+
   function handleSave(form) {
     if (modal === 'create') {
       setLoadedSlots(prev => [...(prev || []), { ...form, id: Math.max(...(prev || []).map(s => Number(s.id) || 0), 0) + 1, websiteSeats: 0, inStoreSeats: 0 }])
@@ -168,20 +160,15 @@ export default function Slots() {
     <div>
       {modal && <SlotModal slot={modal === 'create' ? null : modal} onClose={() => setModal(null)} onSave={handleSave} />}
       {loadError && (
-        <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', color: '#9a3412', padding: 12, borderRadius: 8, marginBottom: 16, fontSize: 13 }}>
+        <AdminAlert tone="warning">
           Backend slots could not be loaded: {loadError.message}
-        </div>
+        </AdminAlert>
       )}
-      {loadingSlots && <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 12 }}>Loading live slots...</div>}
-
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, color: '#111827', marginBottom: 4 }}>
-            <i className="fa fa-calendar" style={{ color: '#6366f1' }} />
-            {t.timeSlotsManagement}
-          </h1>
-          <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>Manage all event slots</p>
-        </div>
+      <PageHeader
+        icon="fa-calendar"
+        title={t.timeSlotsManagement}
+        subtitle="Manage all event slots"
+        actions={
         <div style={{ display: 'flex', gap: 10 }}>
           <button className="btn-secondary">
             <i className="fa fa-edit" /> {t.batchEdit}
@@ -190,10 +177,11 @@ export default function Slots() {
             {t.createSlot}
           </button>
         </div>
-      </div>
+        }
+      />
 
       {/* Filters */}
-      <div className="filter-card">
+      <FilterCard>
         <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr auto', gap: 12, marginBottom: 12 }}>
           <div>
             <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>{t.event}</label>
@@ -233,10 +221,10 @@ export default function Slots() {
             {t.hideUnsoldSlots}
           </label>
         </div>
-      </div>
+      </FilterCard>
 
       {/* Table */}
-      <div style={{ background: '#fff', borderRadius: 8, border: '1px solid #e5e7eb', overflow: 'hidden' }}>
+      <TableShell>
         <div className="table-container">
           <table>
             <thead>
@@ -253,7 +241,7 @@ export default function Slots() {
             </thead>
             <tbody>
               {paged.length === 0 ? (
-                <tr><td colSpan={8} style={{ textAlign: 'center', color: '#9ca3af', padding: 32 }}>No slots found</td></tr>
+                <EmptyTableRow colSpan={8}>{t.noSlotsFound}</EmptyTableRow>
               ) : paged.map(s => {
                 const { day } = formatDateWithDay(s.date)
                 const sold = s.websiteSeats + s.inStoreSeats
@@ -336,7 +324,7 @@ export default function Slots() {
           </table>
         </div>
         <Pagination page={page} total={filtered.length} pageSize={PAGE_SIZE} onPage={setPage} />
-      </div>
+      </TableShell>
     </div>
   )
 }

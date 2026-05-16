@@ -1,5 +1,9 @@
 const DEFAULT_ADMIN_API_URL = 'http://localhost:8000/api/v1/admin'
-const API_BASE_URL = (import.meta.env.VITE_ADMIN_API_URL || DEFAULT_ADMIN_API_URL).replace(/\/$/, '')
+const backendBase = (import.meta.env.VITE_BACKEND_BASE || import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
+const API_BASE_URL = (
+  import.meta.env.VITE_ADMIN_API_URL ||
+  (backendBase ? `${backendBase}/api/v1/admin` : DEFAULT_ADMIN_API_URL)
+).replace(/\/$/, '')
 
 export class AdminApiError extends Error {
   constructor(message, status, payload) {
@@ -24,10 +28,8 @@ function session() {
 function authHeaders() {
   const admin = session()
   const token = admin?.accessToken
-  const devUserId = admin?.devUserId
   const headers = {}
   if (token) headers.Authorization = `Bearer ${token}`
-  if (!token && devUserId) headers['X-User-Id'] = devUserId
   return headers
 }
 

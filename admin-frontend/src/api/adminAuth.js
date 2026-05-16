@@ -1,4 +1,5 @@
-const backendBase = import.meta.env.VITE_BACKEND_BASE || import.meta.env.VITE_API_URL || 'http://localhost:8000'
+const backendBase = (import.meta.env.VITE_BACKEND_BASE || import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/$/, '')
+const adminApiBase = (import.meta.env.VITE_ADMIN_API_URL || `${backendBase}/api/v1/admin`).replace(/\/$/, '')
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabasePublishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY
 
@@ -34,7 +35,7 @@ export async function loginAdminWithPassword(email, password) {
     throw new Error('Supabase did not return an access token.')
   }
 
-  const adminResponse = await fetch(`${backendBase.replace(/\/$/, '')}/api/v1/admin/users/me`, {
+  const adminResponse = await fetch(`${adminApiBase}/users/me`, {
     headers: {
       Authorization: `Bearer ${accessToken}`,
     },

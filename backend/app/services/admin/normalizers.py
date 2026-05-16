@@ -4,12 +4,7 @@ from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
-
-def pick(row: dict[str, Any], *keys: str, default: Any = None) -> Any:
-    for key in keys:
-        if key in row and row[key] not in (None, ""):
-            return row[key]
-    return default
+from app.utils.records import pick
 
 
 def as_float(value: Any, default: float = 0.0) -> float:

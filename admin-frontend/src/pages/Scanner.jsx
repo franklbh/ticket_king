@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import jsQR from 'jsqr'
 import { useLang } from '../context/AuthContext'
 import { useT } from '../i18n/translations'
-import { checkInTicket, getRecentScans } from '../api/adminApi'
-import { useAdminMutation, useAdminQuery } from '../hooks/useAdminApi'
+import { checkInTicket } from '../api/adminApi'
+import { useAdminMutation } from '../hooks/useAdminApi'
+import { useRecentScansQuery } from '../hooks/queries'
+import { ScannerActionButton, ScannerCard, ScannerSectionTitle, ScannerStat } from '../components/ScannerUI'
 
 function playBeep(valid) {
   try {
@@ -116,8 +118,10 @@ export default function Scanner() {
   const [result, setResult]       = useState(null)
   const [scans, setScans]         = useState([])
   const [stats, setStats]         = useState({ valid: 0, invalid: 0 })
-  const { data: recentScans = [] } = useAdminQuery(() => getRecentScans(20), [], { initialData: [] })
-  const { mutate: checkInMutation } = useAdminMutation(checkInTicket)
+  const { data: recentScans = [] } = useRecentScansQuery(20, { initialData: [] })
+  const { mutate: checkInMutation } = useAdminMutation(checkInTicket, {
+    successMessage: 'Scan processed.',
+  })
 
   useEffect(() => {
     if (!recentScans.length) return
@@ -263,26 +267,10 @@ export default function Scanner() {
         </div>
 
         {/* Stats — center */}
-        <div style={{ flex: 1, display: 'flex', justifyContent: 'center', gap: 0 }}>
-          {[
-            { value: stats.valid,   label: t.admitted, color: '#16a34a', bg: '#f0fdf4', border: '#bbf7d0' },
-            { value: stats.invalid, label: t.rejected,  color: '#dc2626', bg: '#fef2f2', border: '#fecaca' },
-            { value: total,         label: t.sessionStats, color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe' },
-          ].map((s, i) => (
-            <div key={i} style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              padding: '0 20px',
-              borderRight: i < 2 ? '1px solid #e5e7eb' : 'none',
-            }}>
-              <div style={{
-                width: 36, height: 36, borderRadius: 8,
-                background: s.bg, border: `1px solid ${s.border}`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontWeight: 800, fontSize: 16, color: s.color,
-              }}>{s.value}</div>
-              <span style={{ fontSize: 12, color: '#6b7280', fontWeight: 500 }}>{s.label}</span>
-            </div>
-          ))}
+        <div className="flex flex-1 justify-center">
+          <ScannerStat value={stats.valid} label={t.admitted} color="#16a34a" bg="#f0fdf4" border="#bbf7d0" />
+          <ScannerStat value={stats.invalid} label={t.rejected} color="#dc2626" bg="#fef2f2" border="#fecaca" />
+          <ScannerStat value={total} label={t.sessionStats} color="#2563eb" bg="#eff6ff" border="#bfdbfe" />
         </div>
 
         {/* Right controls */}
@@ -300,14 +288,9 @@ export default function Scanner() {
             <option value="zh-Hans">简体中文</option>
             <option value="zh-Hant">繁體中文</option>
           </select>
-          <button
-            onClick={() => window.close()}
-            style={{
-              marginLeft: 6, padding: '6px 14px', borderRadius: 7,
-              border: '1px solid #e5e7eb', background: '#fff',
-              color: '#374151', cursor: 'pointer', fontSize: 13, fontWeight: 500,
-            }}
-          >{t.close}</button>
+          <ScannerActionButton variant="secondary" onClick={() => window.close()} className="ml-1">
+            {t.close}
+          </ScannerActionButton>
         </div>
       </header>
 
@@ -315,30 +298,17 @@ export default function Scanner() {
       <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 400px', gap: 16, padding: 16, minHeight: 0 }}>
 
         {/* Left — Camera */}
-        <div style={{
-          background: '#fff', borderRadius: 14,
-          border: '1px solid #e2e8f0',
-          boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
-          display: 'flex', flexDirection: 'column', overflow: 'hidden',
-        }}>
-          {/* Panel title bar */}
-          <div style={{
-            padding: '12px 18px', flexShrink: 0,
-            borderBottom: '1px solid #f1f5f9',
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          }}>
-            <div style={{ fontWeight: 600, fontSize: 14, color: '#111827', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <i className="fa fa-camera" style={{ color: '#6366f1', fontSize: 13 }} />
-              QR {t.scannerTitle}
-            </div>
-            {cameraOn && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <ScannerCard className="flex flex-col">
+          <ScannerSectionTitle
+            icon="fa-camera"
+            title={`QR ${t.scannerTitle}`}
+            actions={cameraOn && (
+              <div className="flex items-center gap-2">
                 <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#16a34a', animation: 'blink 1.4s infinite' }} />
                 <span style={{ fontSize: 12, color: '#16a34a', fontWeight: 600 }}>{t.scanning}</span>
               </div>
             )}
-          </div>
-
+          />
           {/* Camera viewport */}
           <div style={{ flex: 1, position: 'relative', background: '#0f172a', overflow: 'hidden' }}>
             <video
@@ -441,30 +411,21 @@ export default function Scanner() {
           {cameraOn && (
             <div style={{ padding: '10px 18px', borderTop: '1px solid #f1f5f9', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontSize: 12, color: '#9ca3af' }}>{t.pointCameraAtQR}</span>
-              <button onClick={stopCamera} style={{
-                padding: '6px 14px', background: '#fff', color: '#6b7280',
-                border: '1px solid #e5e7eb', borderRadius: 6, cursor: 'pointer', fontSize: 12,
-                display: 'inline-flex', alignItems: 'center', gap: 5,
-              }}>
+              <ScannerActionButton variant="secondary" onClick={stopCamera}>
                 <i className="fa fa-stop-circle" style={{ color: '#ef4444' }} />
                 {t.stopCamera}
-              </button>
+              </ScannerActionButton>
             </div>
           )}
-        </div>
+        </ScannerCard>
 
         {/* Right — Controls */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, minHeight: 0 }}>
 
           {/* Manual Entry */}
-          <div style={{
-            background: '#fff', borderRadius: 14,
-            border: '1px solid #e2e8f0',
-            boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
-            padding: 18, flexShrink: 0,
-          }}>
-            <div style={{ fontWeight: 600, fontSize: 13, color: '#374151', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 7 }}>
-              <i className="fa fa-keyboard" style={{ color: '#6366f1', fontSize: 12 }} />
+          <ScannerCard className="p-4">
+            <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
+              <i className="fa fa-keyboard text-brand-500 text-xs" />
               {t.manualEntry}
             </div>
             <form onSubmit={handleManual} style={{ display: 'flex', gap: 8 }}>
@@ -484,43 +445,22 @@ export default function Scanner() {
                 onFocus={e => e.target.style.borderColor = '#6366f1'}
                 onBlur={e => e.target.style.borderColor = '#e5e7eb'}
               />
-              <button type="submit" style={{
-                padding: '10px 16px', background: '#6366f1', color: '#fff',
-                border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 14, fontWeight: 600,
-                display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
-                boxShadow: '0 2px 8px rgba(123,32,32,0.3)',
-              }}>
+              <ScannerActionButton type="submit">
                 <i className="fa fa-check" />
                 {t.verify}
-              </button>
+              </ScannerActionButton>
             </form>
             <div style={{ fontSize: 11, color: '#d1d5db', marginTop: 10, lineHeight: 1.6 }}>
               {t.tryTheseCodes}
             </div>
-          </div>
+          </ScannerCard>
 
           {/* Recent Scans */}
-          <div style={{
-            background: '#fff', borderRadius: 14,
-            border: '1px solid #e2e8f0',
-            boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
-            flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0,
-          }}>
-            <div style={{
-              padding: '14px 18px', borderBottom: '1px solid #f1f5f9', flexShrink: 0,
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            }}>
-              <div style={{ fontWeight: 600, fontSize: 13, color: '#374151', display: 'flex', alignItems: 'center', gap: 7 }}>
-                <i className="fa fa-history" style={{ color: '#6366f1', fontSize: 12 }} />
-                {t.recentScans}
-                {scans.length > 0 && (
-                  <span style={{
-                    background: '#f3f4f6', color: '#6b7280',
-                    borderRadius: 10, padding: '1px 7px', fontSize: 11, fontWeight: 500,
-                  }}>{scans.length}</span>
-                )}
-              </div>
-              {scans.length > 0 && (
+          <ScannerCard className="flex min-h-0 flex-1 flex-col">
+            <ScannerSectionTitle
+              icon="fa-history"
+              title={t.recentScans}
+              actions={scans.length > 0 && (
                 <button
                   onClick={() => { setScans([]); setStats({ valid: 0, invalid: 0 }) }}
                   style={{
@@ -533,8 +473,7 @@ export default function Scanner() {
                   {t.clearAll}
                 </button>
               )}
-            </div>
-
+            />
             <div style={{ flex: 1, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 7 }}>
               {scans.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '48px 0', color: '#d1d5db' }}>
@@ -575,7 +514,7 @@ export default function Scanner() {
                 </div>
               ))}
             </div>
-          </div>
+          </ScannerCard>
         </div>
       </div>
     </div>

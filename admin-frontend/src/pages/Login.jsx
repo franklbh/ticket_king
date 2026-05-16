@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth, useLang } from '../context/AuthContext'
 import { useT } from '../i18n/translations'
+import { AdminAlert } from '../components/AdminUI'
 
 
 export default function Login() {
@@ -29,30 +30,13 @@ export default function Login() {
   }
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      background: 'linear-gradient(135deg, #eef2ff 0%, #c7d2fe 100%)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-    }}>
-      <div style={{
-        background: '#fff',
-        borderRadius: 12,
-        padding: '32px 36px',
-        width: 380,
-        boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
-      }}>
-        {/* Language select */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 24 }}>
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-brand-50 to-brand-200 px-4">
+      <div className="w-full max-w-[380px] rounded-xl bg-white px-9 py-8 shadow-2xl shadow-brand-950/20">
+        <div className="mb-6 flex justify-end">
           <select
             value={lang}
             onChange={e => changeLang(e.target.value)}
-            style={{
-              padding: '6px 10px', border: '1px solid #e5e7eb',
-              borderRadius: 6, background: '#fff',
-              fontSize: 13, color: '#374151', cursor: 'pointer', outline: 'none',
-            }}
+            className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
           >
             <option value="en">English</option>
             <option value="zh-Hans">简体中文</option>
@@ -60,13 +44,13 @@ export default function Login() {
           </select>
         </div>
 
-        <h1 style={{ textAlign: 'center', fontSize: 22, fontWeight: 700, marginBottom: 28, color: '#111827' }}>
+        <h1 className="mb-7 text-center text-[22px] font-bold text-slate-950">
           {t.adminLogin}
         </h1>
 
         <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: 18 }}>
-            <label style={{ display: 'block', fontWeight: 500, marginBottom: 6, fontSize: 14, color: '#374151' }}>{t.email}</label>
+          <div className="mb-5">
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">{t.email}</label>
             <input
               className="form-input"
               type="email"
@@ -79,8 +63,8 @@ export default function Login() {
             />
           </div>
 
-          <div style={{ marginBottom: 18 }}>
-            <label style={{ display: 'block', fontWeight: 500, marginBottom: 6, fontSize: 14, color: '#374151' }}>{t.password}</label>
+          <div className="mb-5">
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">{t.password}</label>
             <input
               className="form-input"
               type="password"
@@ -92,40 +76,25 @@ export default function Login() {
             />
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 24 }}>
+          <div className="mb-6 flex items-center gap-2">
             <input
               type="checkbox"
               id="remember"
               checked={form.remember}
               onChange={e => setForm(f => ({ ...f, remember: e.target.checked }))}
-              style={{ width: 16, height: 16, cursor: 'pointer' }}
+              className="h-4 w-4 cursor-pointer"
             />
-            <label htmlFor="remember" style={{ fontSize: 14, color: '#374151', cursor: 'pointer' }}>{t.rememberMe}</label>
+            <label htmlFor="remember" className="cursor-pointer text-sm text-slate-700">{t.rememberMe}</label>
           </div>
 
           {error && (
-            <div style={{ background: '#fee2e2', color: '#991b1b', padding: '10px 14px', borderRadius: 6, marginBottom: 16, fontSize: 14 }}>
-              {error}
-            </div>
+            <AdminAlert tone="error">{error}</AdminAlert>
           )}
 
           <button
             type="submit"
             disabled={loading}
-            style={{
-              width: '100%',
-              padding: '12px',
-              background: loading ? '#818cf8' : '#6366f1',
-              color: '#fff',
-              border: 'none',
-              borderRadius: 6,
-              fontSize: 16,
-              fontWeight: 600,
-              cursor: loading ? 'not-allowed' : 'pointer',
-              transition: 'background 0.15s',
-            }}
-            onMouseEnter={e => { if (!loading) e.currentTarget.style.background = '#4f46e5' }}
-            onMouseLeave={e => { if (!loading) e.currentTarget.style.background = '#6366f1' }}
+            className="h-12 w-full rounded-md border-0 bg-brand-500 text-base font-semibold text-white transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:bg-brand-300"
           >
             {loading ? '...' : t.login}
           </button>

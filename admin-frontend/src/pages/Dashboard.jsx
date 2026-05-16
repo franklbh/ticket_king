@@ -7,8 +7,7 @@ import {
 import { useLang } from '../context/AuthContext'
 import { useT } from '../i18n/translations'
 import { useAuth } from '../context/AuthContext'
-import { getDashboard } from '../api/adminApi'
-import { useAdminQuery } from '../hooks/useAdminApi'
+import { useDashboardQuery } from '../hooks/queries'
 import {
   CustomTooltip,
   PopularSlotsChart,
@@ -16,6 +15,8 @@ import {
   StatCard,
   SummaryCard,
 } from '../components/DashboardWidgets'
+import LoadingIndicator from '../components/LoadingIndicator'
+import { AdminAlert, AdminCard, PageHeader } from '../components/AdminUI'
 
 const RANGE_TO_API = { last7Days: '7d', last14Days: '14d', last30Days: '30d', last90Days: '90d', allTime: 'all' }
 
@@ -35,9 +36,8 @@ export default function Dashboard() {
   const t = useT(lang)
   const navigate = useNavigate()
   const [range, setRange] = useState('last7Days')
-  const { data: dashboard, error, loading } = useAdminQuery(
-    () => getDashboard(RANGE_TO_API[range]),
-    [range],
+  const { data: dashboard, error, loading } = useDashboardQuery(
+    RANGE_TO_API[range],
     { initialData: EMPTY_DASHBOARD }
   )
 
@@ -49,23 +49,22 @@ export default function Dashboard() {
   const totalOrders  = dashboard?.summary?.totalOrders || 0
   const totalTickets = dashboard?.summary?.totalTickets || 0
 
+  if (loading) {
+    return <LoadingIndicator label="Loading live dashboard data..." />
+  }
+
   return (
     <div>
-      {/* Page header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: '#111827', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <i className="fa fa-chart-line" style={{ color: '#6366f1' }} />
-          {t.dashboard}
-        </h1>
-        <div style={{ fontSize: 14, color: '#6b7280' }}>{t.welcomeBack}, {admin?.username}!</div>
-      </div>
+      <PageHeader
+        icon="fa-chart-line"
+        title={t.dashboard}
+        meta={`${t.welcomeBack}, ${admin?.username || ''}!`}
+      />
       {error && (
-        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b', padding: 12, borderRadius: 8, marginBottom: 16, fontSize: 13 }}>
+        <AdminAlert tone="error">
           Backend data could not be loaded: {error.message}
-        </div>
+        </AdminAlert>
       )}
-      {loading && <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 12 }}>Loading live dashboard data...</div>}
-
       {/* Top stat cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
         <StatCard
@@ -99,7 +98,7 @@ export default function Dashboard() {
       </div>
 
       {/* Stats & Analysis */}
-      <div className="stat-card" style={{ marginBottom: 24 }}>
+      <AdminCard className="mb-6">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
           <h2 style={{ fontSize: 16, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, color: '#111827' }}>
             <i className="fa fa-chart-bar" style={{ color: '#6366f1' }} />
@@ -182,10 +181,10 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
-      </div>
+      </AdminCard>
 
       {/* Popular Slots */}
-      <div className="stat-card" style={{ marginBottom: 24 }}>
+      <AdminCard className="mb-6">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
           <div style={{ fontWeight: 700, fontSize: 15 }}>{t.popularSlots}</div>
           <div style={{ display: 'flex', gap: 16, fontSize: 12, color: '#6b7280' }}>
@@ -200,10 +199,10 @@ export default function Dashboard() {
           </div>
         </div>
         <PopularSlotsChart data={popularSlots} />
-      </div>
+      </AdminCard>
 
       {/* Quick Actions */}
-      <div className="stat-card">
+      <AdminCard>
         <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 6 }}>
           <i className="fa fa-bolt" style={{ color: '#6366f1' }} />
           {t.quickActions}
@@ -214,7 +213,7 @@ export default function Dashboard() {
           <QuickActionCard icon="fa-calendar" label={t.slotsManagement} onClick={() => navigate('/slots')} />
           <QuickActionCard icon="fa-qrcode" label={t.scanVerify} onClick={() => window.open('/scanner', '_blank')} />
         </div>
-      </div>
+      </AdminCard>
     </div>
   )
 }

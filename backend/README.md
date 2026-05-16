@@ -50,10 +50,9 @@ Important endpoints:
 - `GET /api/v1/admin/users`
 - `POST /api/v1/admin/users/bootstrap-owner`
 
-Admin routes accept either:
+Admin routes require:
 
 - `Authorization: Bearer <supabase_access_token>`
-- temporary `X-User-Id: <public.users.id>` while the admin frontend is being wired to Supabase sessions
 
 ### Bootstrap First Owner
 

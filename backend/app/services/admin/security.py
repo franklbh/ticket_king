@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
 
-from fastapi import Depends, Header, HTTPException, status
-from fastapi.security import HTTPAuthorizationCredentials
+from fastapi import Depends, HTTPException, status
 
-from app.core.admin_db import supabase
 from app.core.config import settings
-from app.core.supabase_auth import bearer_scheme, verify_supabase_token
+from app.core.supabase_auth import SupabaseUser, get_current_user
+from app.services.admin.repository import admin_repository
+from app.utils.datetime import format_datetime, utc_now
 
 OWNER = "owner"
 ADMINISTRATOR = "administrator"
@@ -31,25 +31,18 @@ def normalize_role(value: Any) -> str:
 
 
 async def current_user(
-    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
-    x_user_id: str | None = Header(default=None, alias="X-User-Id"),
+    auth_user: SupabaseUser = Depends(get_current_user),
 ) -> dict[str, Any]:
-    user_id = _user_id_from_credentials(credentials)
-    if user_id is None and x_user_id and _dev_header_allowed():
-        user_id = x_user_id
-    if not user_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing admin bearer token.",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    rows = await supabase.select(settings.admin_users_table)
-    for row in rows:
-        if str(row.get("id")) == str(user_id):
-            user = dict(row)
-            user["role"] = normalize_role(user.get("role"))
-            return user
+    rows = await admin_repository.select_where(
+        settings.admin_users_table,
+        column="id",
+        value=auth_user.id,
+        limit=1,
+    )
+    if rows:
+        user = dict(rows[0])
+        user["role"] = normalize_role(user.get("role"))
+        return user
 
     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unknown user.")
 
@@ -91,22 +84,7 @@ def public_user(row: dict[str, Any]) -> dict[str, Any]:
 
 
 def now_utc() -> datetime:
-    return datetime.now(timezone.utc)
+    return utc_now()
 
 
-def _dev_header_allowed() -> bool:
-    return settings.admin_allow_dev_user_header and settings.app_env.lower() in {"local", "dev", "development", "test"}
-
-
-def _user_id_from_credentials(credentials: HTTPAuthorizationCredentials | None) -> str | None:
-    if credentials is None:
-        return None
-    return verify_supabase_token(credentials.credentials).id
-
-
-def _format_datetime(value: Any) -> str | None:
-    if value is None:
-        return None
-    if isinstance(value, datetime):
-        return value.isoformat()
-    return str(value)
+_format_datetime = format_datetime

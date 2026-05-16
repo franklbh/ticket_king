@@ -22,11 +22,11 @@ class Settings(BaseSettings):
         ],
     )
     database_url: str | None = None
-    db_user: str | None = Field(default=None, validation_alias=AliasChoices("user", "DB_USER", "POSTGRES_USER"))
-    db_password: str | None = Field(default=None, validation_alias=AliasChoices("password", "DB_PASSWORD", "POSTGRES_PASSWORD"))
-    db_host: str | None = Field(default=None, validation_alias=AliasChoices("host", "DB_HOST", "POSTGRES_HOST"))
-    db_port: int = Field(default=5432, validation_alias=AliasChoices("port", "DB_PORT", "POSTGRES_PORT"))
-    db_name: str = Field(default="postgres", validation_alias=AliasChoices("dbname", "DB_NAME", "POSTGRES_DB"))
+    db_user: str | None = Field(default=None, validation_alias=AliasChoices("DB_USER", "POSTGRES_USER"))
+    db_password: str | None = Field(default=None, validation_alias=AliasChoices("DB_PASSWORD", "POSTGRES_PASSWORD"))
+    db_host: str | None = Field(default=None, validation_alias=AliasChoices("DB_HOST", "POSTGRES_HOST"))
+    db_port: int = Field(default=5432, validation_alias=AliasChoices("DB_PORT", "POSTGRES_PORT"))
+    db_name: str = Field(default="postgres", validation_alias=AliasChoices("DB_NAME", "POSTGRES_DB"))
     supabase_url: str | None = None
     supabase_publishable_key: str | None = Field(
         default=None,
@@ -41,7 +41,6 @@ class Settings(BaseSettings):
     admin_audit_logs_table: str = "audit_logs"
     admin_users_table: str = "users"
     admin_bootstrap_token: str | None = None
-    admin_allow_dev_user_header: bool = True
 
     admin_order_id_column: str = "id"
     admin_ticket_id_column: str = "id"

@@ -6,14 +6,14 @@ from typing import Any
 from fastapi import HTTPException, status
 
 from app.core.config import settings
-from app.core.admin_db import supabase
+from app.services.admin.repository import admin_repository
 from app.schemas.admin import AdminAccountCreate, OwnerBootstrapCreate, UserRoleUpdate
-from app.services.admin_security import ADMINISTRATOR, ALL_ROLES, OWNER, normalize_role, now_utc, public_user
+from app.services.admin.security import ADMINISTRATOR, ALL_ROLES, OWNER, normalize_role, now_utc, public_user
 
 
 class UserService:
     async def list_users(self, role: str | None = None) -> list[dict[str, Any]]:
-        rows = await supabase.select(settings.admin_users_table)
+        rows = await admin_repository.select(settings.admin_users_table)
         users = [public_user(row) for row in rows]
         if role:
             normalized_role = normalize_role(role)
@@ -22,7 +22,7 @@ class UserService:
         return users
 
     async def create_admin_account(self, payload: AdminAccountCreate, actor: dict[str, Any]) -> dict[str, Any]:
-        rows = await supabase.select(settings.admin_users_table)
+        rows = await admin_repository.select(settings.admin_users_table)
         auth_user = await self._require_auth_user_by_email(payload.email)
         existing_user = self._find_user_by_id(rows, auth_user["id"])
         if existing_user:
@@ -48,7 +48,7 @@ class UserService:
         }
 
     async def bootstrap_owner(self, payload: OwnerBootstrapCreate) -> dict[str, Any]:
-        rows = await supabase.select(settings.admin_users_table)
+        rows = await admin_repository.select(settings.admin_users_table)
         if any(normalize_role(row.get("role")) == OWNER for row in rows):
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Owner account already exists.")
 
@@ -93,7 +93,7 @@ class UserService:
         return public_user(updated[0])
 
     async def _ensure_email_unique(self, email: str, rows: list[dict[str, Any]] | None = None) -> None:
-        rows = rows or await supabase.select(settings.admin_users_table)
+        rows = rows or await admin_repository.select(settings.admin_users_table)
         for row in rows:
             if str(row.get("email")).lower() == email.lower():
                 raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already exists.")
@@ -111,10 +111,14 @@ class UserService:
         return None
 
     async def _require_auth_user_by_email(self, email: str) -> dict[str, Any]:
-        rows = await supabase.select(settings.supabase_auth_users_table)
-        for row in rows:
-            if str(row.get("email")).lower() == email.lower():
-                return row
+        rows = await admin_repository.select_where(
+            settings.supabase_auth_users_table,
+            column="email",
+            value=email,
+            limit=1,
+        )
+        if rows:
+            return rows[0]
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=(
@@ -140,10 +144,10 @@ class UserService:
             "created_at": now,
             "updated_at": now,
         }
-        return await supabase.insert(settings.admin_users_table, user_row)
+        return await admin_repository.insert(settings.admin_users_table, user_row)
 
     async def _update_user(self, *, user_id: str, values: dict[str, Any]) -> list[dict[str, Any]]:
-        return await supabase.update(
+        return await admin_repository.update(
             settings.admin_users_table,
             match_column="id",
             match_value=uuid.UUID(str(user_id)),
