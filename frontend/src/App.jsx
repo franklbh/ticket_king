@@ -708,27 +708,17 @@ function App() {
     try {
       setAlphapayLoading(true)
       const backendBase = import.meta.env.VITE_BACKEND_BASE || 'http://localhost:8000'
-      const paymentRequestId = `order_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
       const checkoutTotals = cartCheckoutMode ? cartCheckoutTotals : totals
       const totalCents = Math.round(checkoutTotals.grand * 100)
-      const res = await fetch(`${backendBase}/api/v1/alphapay/qr`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          method,
-          amount: totalCents,
-          payment_request_id: paymentRequestId,
-          description: cartCheckoutMode
-            ? `${checkoutTotals.numTickets} ticket${checkoutTotals.numTickets !== 1 ? 's' : ''} - WE ARE VR`
-            : bookingExperience.title,
-        }),
-      const totalCents = Math.round(totals.grand * 100)
-      const order = buildCheckoutOrder()
+      const order = cartCheckoutMode ? undefined : buildCheckoutOrder()
+      const fallbackPaymentRequestId = `order_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
       const payload = {
         method,
         amount: totalCents,
-        description: bookingExperience.title,
-        ...(order ? { order } : { payment_request_id: `order_${Date.now()}_${Math.random().toString(36).slice(2, 8)}` }),
+        description: cartCheckoutMode
+          ? `${checkoutTotals.numTickets} ticket${checkoutTotals.numTickets !== 1 ? 's' : ''} - WE ARE VR`
+          : bookingExperience.title,
+        ...(order ? { order } : { payment_request_id: fallbackPaymentRequestId }),
       }
       const res = await fetch(`${backendBase}/api/v1/alphapay/qr`, {
         method: 'POST',
