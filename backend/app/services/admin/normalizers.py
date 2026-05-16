@@ -4,12 +4,7 @@ from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
-
-def pick(row: dict[str, Any], *keys: str, default: Any = None) -> Any:
-    for key in keys:
-        if key in row and row[key] not in (None, ""):
-            return row[key]
-    return default
+from app.utils.records import pick
 
 
 def as_float(value: Any, default: float = 0.0) -> float:
@@ -112,13 +107,52 @@ def db_ticket_status(value: str) -> str:
     return aliases.get(value, value)
 
 
-def normalize_order(row: dict[str, Any], ticket_counts: dict[str, dict[str, int]] | None = None) -> dict[str, Any]:
-    order_id = str(pick(row, "order_id", "order_number", "id"))
-    slot_time = pick(row, "slot_time", "slot_time_label")
+def customer_from_row(row: dict[str, Any], user: dict[str, Any] | None = None) -> dict[str, Any]:
+    if user:
+        return {
+            "name": user.get("name") or "Customer",
+            "email": user.get("email"),
+            "phone": None,
+        }
+    return {
+        "name": pick(row, "guest_name", "customer_name", "user_name", default="Walk-in customer"),
+        "email": pick(row, "guest_email", "customer_email", "email"),
+        "phone": pick(row, "guest_phone", "customer_phone", "phone"),
+    }
+
+
+def slot_times_from_row(row: dict[str, Any] | None) -> tuple[str | None, str | None, str | None]:
+    if not row:
+        return None, None, None
+    slot_time = pick(row, "slot_time_label", "slot_time")
     start_time, end_time = split_slot_time(slot_time)
-    start_time = pick(row, "slot_start_time", "start_time", default=start_time)
-    end_time = pick(row, "slot_end_time", "end_time", default=end_time)
-    counts = (ticket_counts or {}).get(order_id, {})
+    start_time = pick(row, "start_time", "slot_start_time", default=start_time)
+    end_time = pick(row, "end_time", "slot_end_time", default=end_time)
+    slot_date = to_date_string(pick(row, "business_date", "slot_date", "date"))
+    return (
+        slot_date,
+        str(start_time)[:5] if start_time else None,
+        str(end_time)[:5] if end_time else None,
+    )
+
+
+def normalize_order(
+    row: dict[str, Any],
+    ticket_counts: dict[str, dict[str, int]] | None = None,
+    *,
+    slot: dict[str, Any] | None = None,
+    customer: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    order_id = str(pick(row, "order_id", "order_number", "id"))
+    order_pk = str(pick(row, "id", "order_id", "order_number"))
+    slot_date, start_time, end_time = slot_times_from_row(slot)
+    if slot_date is None:
+        legacy_time = pick(row, "slot_time", "slot_time_label")
+        start_time, end_time = split_slot_time(legacy_time)
+        start_time = pick(row, "slot_start_time", "start_time", default=start_time)
+        end_time = pick(row, "slot_end_time", "end_time", default=end_time)
+        slot_date = to_date_string(pick(row, "slot_date", "date"))
+    counts = (ticket_counts or {}).get(order_id) or (ticket_counts or {}).get(order_pk, {})
     total = as_int(pick(row, "ticket_total", "ticket_count", "total_tickets"), counts.get("total", 0))
     used = as_int(pick(row, "completed_tickets", "used_tickets"), counts.get("used", 0))
     not_used = as_int(pick(row, "not_used_tickets", "unused_tickets"), max(total - used, 0))
@@ -126,16 +160,12 @@ def normalize_order(row: dict[str, Any], ticket_counts: dict[str, dict[str, int]
 
     return {
         "id": order_id,
-        "user": {
-            "name": pick(row, "customer_name", "user_name", "name", default="Walk-in customer"),
-            "email": pick(row, "email", "customer_email"),
-            "phone": pick(row, "phone", "customer_phone"),
-        },
+        "user": customer_from_row(row, customer),
         "emailStatus": normalize_email_status(pick(row, "email_status")),
         "slot": {
-            "date": to_date_string(pick(row, "slot_date", "date")),
-            "startTime": str(start_time)[:5] if start_time else None,
-            "endTime": str(end_time)[:5] if end_time else None,
+            "date": slot_date,
+            "startTime": start_time,
+            "endTime": end_time,
         },
         "ticketDetails": pick(row, "ticket_details"),
         "ticketCount": {
@@ -155,27 +185,36 @@ def normalize_order(row: dict[str, Any], ticket_counts: dict[str, dict[str, int]
     }
 
 
-def normalize_ticket(row: dict[str, Any]) -> dict[str, Any]:
+def normalize_ticket(
+    row: dict[str, Any],
+    *,
+    slot: dict[str, Any] | None = None,
+    customer: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     order_id = str(pick(row, "order_id", "order_number"))
-    slot_time = pick(row, "slot_time")
-    start_time, end_time = split_slot_time(slot_time)
-    start_time = pick(row, "slot_start_time", "start_time", default=start_time)
-    end_time = pick(row, "slot_end_time", "end_time", default=end_time)
+    slot_date, start_time, end_time = slot_times_from_row(slot)
+    if slot_date is None:
+        legacy_time = pick(row, "slot_time")
+        start_time, end_time = split_slot_time(legacy_time)
+        start_time = pick(row, "slot_start_time", "start_time", default=start_time)
+        end_time = pick(row, "slot_end_time", "end_time", default=end_time)
+        slot_date = to_date_string(pick(row, "slot_date", "date"))
     status = normalize_ticket_status(pick(row, "ticket_status", "status"))
+    customer_info = customer_from_row(row, customer)
 
     return {
         "id": pick(row, "ticket_id", "id"),
         "code": pick(row, "verification_code", "code", "qr_code", default=str(pick(row, "ticket_id", "id"))),
         "qrCode": pick(row, "qr_code", "qr_payload", "verification_code", "code"),
         "orderId": order_id,
-        "orderUser": pick(row, "customer_name", "order_user", "user_name"),
-        "orderEmail": pick(row, "email", "order_email"),
+        "orderUser": customer_info.get("name"),
+        "orderEmail": customer_info.get("email"),
         "orderPayment": pick(row, "payment_method", "order_payment"),
         "remarks": pick(row, "memo", "remarks"),
         "ticketType": pick(row, "ticket_type", "ticket_type_name", default="Regular"),
-        "slotDate": to_date_string(pick(row, "slot_date", "date")),
-        "slotStart": str(start_time)[:5] if start_time else None,
-        "slotEnd": str(end_time)[:5] if end_time else None,
+        "slotDate": slot_date,
+        "slotStart": start_time,
+        "slotEnd": end_time,
         "status": status,
         "verifiedAt": to_datetime_string(pick(row, "check_in_at", "verified_at", "checked_in_at")),
         "createdAt": to_datetime_string(pick(row, "created_at", "order_created_at")),
@@ -183,14 +222,14 @@ def normalize_ticket(row: dict[str, Any]) -> dict[str, Any]:
 
 
 def normalize_slot(row: dict[str, Any]) -> dict[str, Any]:
-    slot_time = pick(row, "slot_time")
+    slot_time = pick(row, "slot_time", "slot_time_label")
     start_time, end_time = split_slot_time(slot_time)
     start_time = pick(row, "start_time", "slot_start_time", default=start_time)
     end_time = pick(row, "end_time", "slot_end_time", default=end_time)
     return {
-        "id": pick(row, "id", "slot_id"),
+        "id": str(pick(row, "id", "slot_id")) if pick(row, "id", "slot_id") is not None else None,
         "event": pick(row, "event", "event_id", default=1),
-        "date": to_date_string(pick(row, "date", "slot_date")),
+        "date": to_date_string(pick(row, "date", "slot_date", "business_date")),
         "startTime": str(start_time)[:5] if start_time else None,
         "endTime": str(end_time)[:5] if end_time else None,
         "price": as_float(pick(row, "price", "base_price"), 37.95),
@@ -203,7 +242,7 @@ def normalize_slot(row: dict[str, Any]) -> dict[str, Any]:
 
 def normalize_ticket_type(row: dict[str, Any]) -> dict[str, Any]:
     return {
-        "id": pick(row, "id", "ticket_type_id"),
+        "id": str(pick(row, "id", "ticket_type_id")) if pick(row, "id", "ticket_type_id") is not None else None,
         "name": pick(row, "name", "ticket_type", default="Regular"),
         "event": pick(row, "event", "event_id", default=1),
         "priceType": pick(row, "price_type", default="fixed" if pick(row, "price") else "daily"),
@@ -241,3 +280,60 @@ def none_or_float(value: Any) -> float | None:
         return None
     return as_float(value)
 
+
+def normalize_event(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": pick(row, "id"),
+        "name": pick(row, "name"),
+        "slug": pick(row, "slug"),
+        "status": pick(row, "status", default="active"),
+    }
+
+
+def normalize_coupon(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": pick(row, "id"),
+        "code": pick(row, "code"),
+        "source": pick(row, "source", default="manual"),
+        "discountType": pick(row, "discount_type"),
+        "discountValue": as_float(pick(row, "discount_value")),
+        "minPurchase": as_float(pick(row, "min_purchase")),
+        "maxUses": row.get("max_uses"),
+        "usedCount": as_int(pick(row, "used_count")),
+        "totalAmount": as_float(pick(row, "total_amount")),
+        "validFrom": to_date_string(pick(row, "valid_from")),
+        "validTo": to_date_string(pick(row, "valid_to")),
+        "remarks": pick(row, "remarks"),
+        "status": pick(row, "status", default="active"),
+        "createdAt": to_datetime_string(pick(row, "created_at")),
+        "updatedAt": to_datetime_string(pick(row, "updated_at")),
+    }
+
+
+def normalize_marketing_settings(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "enabled": bool(row.get("enabled")),
+        "sendDelay": as_int(pick(row, "send_delay_minutes"), 45),
+        "couponValidity": as_int(pick(row, "coupon_validity_days"), 30),
+        "discountType": pick(row, "discount_type", default="percent"),
+        "discountValue": as_float(pick(row, "discount_value"), 5),
+        "minPurchase": as_float(pick(row, "min_purchase")),
+        "maxUses": as_int(pick(row, "max_uses"), 9999),
+        "referralEnabled": bool(row.get("referral_enabled")),
+        "referralReward": as_float(pick(row, "referral_reward"), 5),
+        "updatedAt": to_datetime_string(pick(row, "updated_at")),
+    }
+
+
+def normalize_marketing_record(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": pick(row, "id"),
+        "recipientName": pick(row, "recipient_name"),
+        "recipientEmail": pick(row, "recipient_email"),
+        "couponCode": pick(row, "coupon_code"),
+        "orderId": pick(row, "order_id"),
+        "status": pick(row, "status", default="pending"),
+        "couponUsed": bool(row.get("coupon_used")),
+        "sentAt": to_datetime_string(pick(row, "sent_at")),
+        "createdAt": to_datetime_string(pick(row, "created_at")),
+    }

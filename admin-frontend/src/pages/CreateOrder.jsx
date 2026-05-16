@@ -1,10 +1,16 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAuth, useLang } from '../context/AuthContext'
+import { useLang } from '../context/AuthContext'
 import { useT } from '../i18n/translations'
-import { SLOTS_DATA, TICKET_TYPES_DATA } from '../data/mockData'
+import { createWalkInOrder } from '../api/adminApi'
+import { useAdminMutation } from '../hooks/useAdminApi'
+import { useSlotsQuery, useTicketTypesQuery } from '../hooks/queries'
+import LoadingIndicator from '../components/LoadingIndicator'
+import { AdminAlert, AdminCard, PageHeader } from '../components/AdminUI'
+import { addDays, todayIso } from '../utils/date'
+import { dedupeBy } from '../utils/collections'
 
-const TODAY = '2026-05-14'
+const TODAY = todayIso()
 const PAYMENT_METHODS = [
   { id: 'Cash', label: 'Cash', icon: 'fa-money-bill-wave' },
   { id: 'Credit Card', label: 'Credit Card', icon: 'fa-credit-card' },
@@ -13,14 +19,6 @@ const PAYMENT_METHODS = [
   { id: 'Other', label: 'Other', icon: 'fa-ellipsis-h' },
 ]
 const GST_RATE = 0.05
-const CREATED_ORDERS_KEY = 'tk_created_orders'
-
-function dedupeTicketTypes(types) {
-  return types.reduce((list, type) => {
-    if (!list.some(item => item.name === type.name)) list.push(type)
-    return list
-  }, [])
-}
 
 function StepIndicator({ step }) {
   const steps = [1, 2, 3, 4]
@@ -45,7 +43,6 @@ function StepIndicator({ step }) {
 
 export default function CreateOrder() {
   const navigate = useNavigate()
-  const { admin } = useAuth()
   const { lang } = useLang()
   const t = useT(lang)
   const [step, setStep] = useState(1)
@@ -58,11 +55,21 @@ export default function CreateOrder() {
   const [markUsed, setMarkUsed] = useState(false)
   const [orderComplete, setOrderComplete] = useState(false)
   const [lastOrderId, setLastOrderId] = useState(null)
-
-  const availableSlots = SLOTS_DATA.filter(s => s.date === selectedDate && s.status === 'active')
-  const enabledTypes = dedupeTicketTypes(
-    TICKET_TYPES_DATA.filter(tp => tp.status === 'enabled')
+  const [submitError, setSubmitError] = useState(null)
+  const { data: slots = [], error: slotsError, loading: loadingSlots } = useSlotsQuery(
+    { dateFrom: TODAY, dateTo: addDays(TODAY, 90) },
+    { initialData: [] }
   )
+  const { data: ticketTypes = [], error: typesError, loading: loadingTypes } = useTicketTypesQuery(
+    true,
+    { initialData: [] }
+  )
+  const { mutate: createOrderMutation, loading: creatingOrder } = useAdminMutation(createWalkInOrder, {
+    successMessage: 'Order created.',
+  })
+
+  const availableSlots = slots.filter(s => s.date === selectedDate && s.status === 'active')
+  const enabledTypes = dedupeBy(ticketTypes.filter(tp => tp.status === 'enabled'), tp => tp.name)
 
   function handleSlotSelect(slot) {
     setSelectedSlot(slot)
@@ -83,7 +90,7 @@ export default function CreateOrder() {
 
   const totalTickets = Object.values(ticketSelections).reduce((s, v) => s + v, 0)
   const totalAmount = Object.entries(ticketSelections).reduce((sum, [typeId, count]) => {
-    const tp = enabledTypes.find(t => t.id === Number(typeId))
+    const tp = enabledTypes.find(t => String(t.id) === String(typeId))
     if (!tp) return sum
     const price = tp.priceType === 'fixed' ? (tp.price || 0) : (selectedSlot?.price || 37.95) + (tp.priceAdj || 0)
     return sum + price * count
@@ -93,52 +100,50 @@ export default function CreateOrder() {
   const customerName = [customer.firstName, customer.lastName].filter(Boolean).join(' ')
   const ticketValidationError = Object.entries(ticketSelections).reduce((message, [typeId, count]) => {
     if (message) return message
-    const type = enabledTypes.find(t => t.id === Number(typeId))
+    const type = enabledTypes.find(t => String(t.id) === String(typeId))
     if (!type) return ''
     if (type.name.includes('Family Bundle') && count < 3) return 'Family Bundle requires at least 3 tickets.'
     if (type.name.includes('Group Ticket') && count < 6) return 'Group Ticket requires at least 6 tickets.'
     return ''
   }, '')
 
-  function handleConfirm() {
-    const orderId = `2026051${Date.now().toString().slice(-6)}`
-    const now = new Date().toISOString().slice(0, 19).replace('T', ' ')
-    const createdOrder = {
-      id: orderId,
-      user: {
-        name: customerName || 'Walk-in customer',
-        email: customer.email || null,
-        phone: customer.phone || null,
-      },
-      emailStatus: markUsed || !customer.email ? 'not_sent' : 'sent',
-      slot: {
-        date: selectedSlot.date,
-        startTime: selectedSlot.startTime,
-        endTime: selectedSlot.endTime,
-      },
-      ticketCount: {
-        total: totalTickets,
-        completed: markUsed ? totalTickets : 0,
-        notUsed: markUsed ? 0 : totalTickets,
-      },
-      amount: Number(totalDue.toFixed(2)),
-      couponCode: null,
-      couponDiscount: 0,
-      remarks: customer.remarks || null,
-      status: markUsed ? 'completed' : 'paid',
-      paymentMethod: payment,
-      createdAt: now,
-      createdBy: admin ? `${admin.username} (Admin#${admin.id})` : 'Admin',
-      ip: null,
-    }
+  async function handleConfirm() {
+    setSubmitError(null)
+    const tickets = Object.entries(ticketSelections)
+      .map(([typeId, quantity]) => {
+        const type = enabledTypes.find(t => String(t.id) === String(typeId))
+        if (!type) return null
+        const unitPrice = type.priceType === 'fixed' ? (type.price || 0) : (selectedSlot?.price || 37.95) + (type.priceAdj || 0)
+        return {
+          ticket_type_id: type.id,
+          ticket_type: type.name,
+          quantity,
+          unit_price: Number(unitPrice.toFixed(2)),
+        }
+      })
+      .filter(Boolean)
+
     try {
-      const existing = JSON.parse(localStorage.getItem(CREATED_ORDERS_KEY) || '[]')
-      localStorage.setItem(CREATED_ORDERS_KEY, JSON.stringify([createdOrder, ...existing]))
-    } catch {
-      localStorage.setItem(CREATED_ORDERS_KEY, JSON.stringify([createdOrder]))
+      const created = await createOrderMutation({
+        slot_id: selectedSlot.id,
+        slot_date: selectedSlot.date,
+        slot_start_time: selectedSlot.startTime,
+        slot_end_time: selectedSlot.endTime,
+        tickets,
+        customer: {
+          name: customerName || null,
+          email: customer.email || null,
+          phone: customer.phone || null,
+          remarks: customer.remarks || null,
+        },
+        payment_method: payment,
+        mark_used_immediately: markUsed,
+      })
+      setLastOrderId(created?.order?.id || created?.order?.orderNumber || created?.order?.order_number)
+      setOrderComplete(true)
+    } catch (err) {
+      setSubmitError(err.message)
     }
-    setLastOrderId(orderId)
-    setOrderComplete(true)
   }
 
   function resetOrder() {
@@ -178,21 +183,27 @@ export default function CreateOrder() {
     )
   }
 
+  if (loadingSlots || loadingTypes) {
+    return <LoadingIndicator label="Loading live slots and ticket types..." />
+  }
+
   return (
     <div>
-      <div style={{ marginBottom: 20 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, color: '#111827', marginBottom: 4 }}>
-          <i className="fa fa-cash-register" style={{ color: '#6366f1' }} />
-          {t.createOrderTitle}
-        </h1>
-        <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>{t.createOrderSub}</p>
-      </div>
-
+      <PageHeader
+        icon="fa-cash-register"
+        title={t.createOrderTitle}
+        subtitle={t.createOrderSub}
+      />
+      {(slotsError || typesError || submitError) && (
+        <AdminAlert tone="warning">
+          {submitError || `Backend catalog data could not be fully loaded: ${(slotsError || typesError)?.message}`}
+        </AdminAlert>
+      )}
       <StepIndicator step={step} />
 
       {/* Step 1: Select Time Slot */}
       {step === 1 && (
-        <div className="stat-card">
+        <AdminCard>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <h2 style={{ fontSize: 16, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, color: '#6366f1' }}>
               <i className="fa fa-clock" />
@@ -270,12 +281,12 @@ export default function CreateOrder() {
               </button>
             </div>
           )}
-        </div>
+        </AdminCard>
       )}
 
       {/* Step 2: Select Tickets */}
       {step === 2 && (
-        <div className="stat-card">
+        <AdminCard>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <h2 style={{ fontSize: 16, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
               <i className="fa fa-ticket" style={{ color: '#6366f1' }} />
@@ -343,12 +354,12 @@ export default function CreateOrder() {
               {t.next} <i className="fa fa-arrow-right" />
             </button>
           </div>
-        </div>
+        </AdminCard>
       )}
 
       {/* Step 3: Customer Information */}
       {step === 3 && (
-        <div className="stat-card">
+        <AdminCard>
           <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 20 }}>
             <i className="fa fa-user" style={{ color: '#6366f1' }} /> Step 3: Customer Information (Optional)
           </h2>
@@ -386,12 +397,12 @@ export default function CreateOrder() {
               {t.next} <i className="fa fa-arrow-right" />
             </button>
           </div>
-        </div>
+        </AdminCard>
       )}
 
       {/* Step 4: Payment Method & Summary */}
       {step === 4 && (
-        <div className="stat-card">
+        <AdminCard>
           <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 20 }}>
             <i className="fa fa-credit-card" style={{ color: '#6366f1' }} /> Step 4: Payment Method & Summary
           </h2>
@@ -441,7 +452,7 @@ export default function CreateOrder() {
                 <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 10 }}>Amount summary</div>
                 <div style={{ display: 'grid', gap: 8 }}>
                   {Object.entries(ticketSelections).map(([typeId, count]) => {
-                    const tp = enabledTypes.find(t => t.id === Number(typeId))
+                    const tp = enabledTypes.find(t => String(t.id) === String(typeId))
                     if (!tp) return null
                     const price = tp.priceType === 'fixed' ? tp.price : (selectedSlot.price + (tp.priceAdj || 0))
                     return (
@@ -484,11 +495,11 @@ export default function CreateOrder() {
             <button className="btn-secondary" onClick={() => setStep(3)}>
               <i className="fa fa-arrow-left" /> {t.back}
             </button>
-            <button className="btn-primary" onClick={handleConfirm} disabled={!payment} style={{ padding: '10px 28px', fontSize: 16 }}>
+            <button className="btn-primary" onClick={handleConfirm} disabled={!payment || creatingOrder} style={{ padding: '10px 28px', fontSize: 16 }}>
               <i className="fa fa-check-circle" /> Create Order & Complete Payment
             </button>
           </div>
-        </div>
+        </AdminCard>
       )}
     </div>
   )

@@ -1,11 +1,11 @@
 from fastapi import APIRouter
 
-from app.services.admin_data import admin_data_service
+from app.schemas.admin.responses import HealthResponse
+from app.services.admin.dashboard_service import dashboard_service
 
-router = APIRouter(tags=["health"])
+router = APIRouter(prefix="/health", tags=["health"])
 
 
-@router.get("/health")
-async def health() -> dict:
-    return await admin_data_service.health()
-
+@router.get("", response_model=HealthResponse)
+async def health() -> HealthResponse:
+    return await dashboard_service.health()

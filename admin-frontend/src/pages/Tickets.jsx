@@ -2,11 +2,14 @@ import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useLang } from '../context/AuthContext'
 import { useT } from '../i18n/translations'
-import { TICKETS_DATA } from '../data/mockData'
+import { exportTickets, updateTicketStatus } from '../api/adminApi'
+import { useAdminMutation } from '../hooks/useAdminApi'
+import { useTicketsQuery } from '../hooks/queries'
+import LoadingIndicator from '../components/LoadingIndicator'
+import { AdminAlert, EmptyTableRow, FilterCard, PageHeader, TableShell } from '../components/AdminUI'
 
-const TICKET_TYPES_FILTER = ['Regular', 'Child (7-15)', 'Senior (65+)', 'Family Bundle (max. 2 adults)', 'Group Ticket (min. 6 people)', 'VIP', 'Early Bird']
 const PAGE_SIZE = 10
-const TODAY = '2026-05-14'
+const TODAY = new Date().toISOString().slice(0, 10)
 const THEME = {
   primary: '#6366f1',
   primaryDark: '#4f46e5',
@@ -120,7 +123,21 @@ export default function Tickets() {
     types: [],
   })
   const [page, setPage] = useState(1)
-  const [tickets, setTickets] = useState(TICKETS_DATA)
+  const { data: ticketsData, error: loadError, loading: loadingTickets, setData: setTicketsData } = useTicketsQuery(
+    { page: 1, pageSize: 200 },
+    { initialData: { items: [], total: 0 } }
+  )
+  const { mutate: updateStatusMutation } = useAdminMutation(updateTicketStatus, {
+    successMessage: 'Ticket status updated.',
+  })
+  const { mutate: exportTicketsMutation, loading: exporting } = useAdminMutation(exportTickets, {
+    successMessage: 'Tickets exported.',
+  })
+  const tickets = ticketsData?.items || []
+  const ticketTypeOptions = useMemo(
+    () => Array.from(new Set(tickets.map(ticket => ticket.ticketType).filter(Boolean))).sort(),
+    [tickets]
+  )
   const [qrTicket, setQrTicket] = useState(null)
   const [showExportConfirm, setShowExportConfirm] = useState(false)
 
@@ -132,22 +149,30 @@ export default function Tickets() {
     setPage(1)
   }
 
-  function toggleStatus(id) {
-    setTickets(prev => prev.map(t =>
-      t.id === id ? { ...t, status: t.status === 'used' ? 'not_used' : 'used', verifiedAt: t.status === 'used' ? null : new Date().toISOString().slice(0, 19).replace('T', ' ') } : t
-    ))
+  async function toggleStatus(id) {
+    const ticket = tickets.find(t => t.id === id)
+    const nextStatus = ticket?.status === 'used' ? 'not_used' : 'used'
+    const updated = await updateStatusMutation(id, nextStatus)
+    setTicketsData(prev => ({
+      ...prev,
+      items: (prev?.items || []).map(t => t.id === id ? updated : t),
+    }))
   }
 
-  function voidTicket(id) {
-    setTickets(prev => prev.map(t =>
-      t.id === id ? { ...t, status: 'voided', verifiedAt: null } : t
-    ))
+  async function voidTicket(id) {
+    const updated = await updateStatusMutation(id, 'voided')
+    setTicketsData(prev => ({
+      ...prev,
+      items: (prev?.items || []).map(t => t.id === id ? updated : t),
+    }))
   }
 
-  function unvoidTicket(id) {
-    setTickets(prev => prev.map(t =>
-      t.id === id ? { ...t, status: 'not_used', verifiedAt: null } : t
-    ))
+  async function unvoidTicket(id) {
+    const updated = await updateStatusMutation(id, 'not_used')
+    setTicketsData(prev => ({
+      ...prev,
+      items: (prev?.items || []).map(t => t.id === id ? updated : t),
+    }))
   }
 
   const filtered = useMemo(() => {
@@ -181,34 +206,17 @@ export default function Tickets() {
     setPage(1)
   }
 
-  function exportCSV() {
-    const headers = ['Verification Code', 'Order ID', 'Customer', 'Email', 'Payment Method', 'Remarks', 'Ticket Type', 'Slot Date', 'Slot Time', 'Status', 'Verified At', 'Created At']
-    const rows = filtered.map(tk => [
-      tk.code,
-      tk.orderId,
-      tk.orderUser || '',
-      tk.orderEmail || '',
-      tk.orderPayment || '',
-      tk.remarks || '',
-      tk.ticketType,
-      tk.slotDate,
-      `${tk.slotStart}-${tk.slotEnd}`,
-      statusMeta[tk.status]?.label || tk.status,
-      tk.verifiedAt || '',
-      tk.createdAt || '',
-    ])
-    const csv = [headers, ...rows]
-      .map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
-      .join('\n')
-    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `tickets_${new Date().toISOString().slice(0, 10)}.csv`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
+  async function exportCSV() {
+    await exportTicketsMutation({
+      code: filters.code,
+      orderId: filters.orderId,
+      status: filters.status,
+      slotDateFrom: filters.slotDateFrom,
+      slotDateTo: filters.slotDateTo,
+      verifiedFrom: filters.verifiedFrom,
+      verifiedTo: filters.verifiedTo,
+      ticketType: filters.types,
+    })
     setShowExportConfirm(false)
   }
 
@@ -250,9 +258,18 @@ export default function Tickets() {
     voided: { label: t.voided, badge: 'badge-red' },
   }
 
+  if (loadingTickets) {
+    return <LoadingIndicator label="Loading live tickets..." />
+  }
+
   return (
     <div>
       {qrTicket && <QRModal code={qrTicket} onClose={() => setQrTicket(null)} />}
+      {loadError && (
+        <AdminAlert tone="warning">
+          Backend tickets could not be loaded: {loadError.message}
+        </AdminAlert>
+      )}
       {showExportConfirm && (
         <ExportConfirmDialog
           title="Confirm Action"
@@ -263,21 +280,19 @@ export default function Tickets() {
         />
       )}
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, color: '#111827', marginBottom: 4 }}>
-            <i className="fa fa-ticket" style={{ color: THEME.primary }} />
-            {t.ticketsManagement}
-          </h1>
-          <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>{t.manageTickets}</p>
-        </div>
-        <button className="btn-secondary btn-sm" onClick={() => setShowExportConfirm(true)}>
+      <PageHeader
+        icon="fa-ticket"
+        title={t.ticketsManagement}
+        subtitle={t.manageTickets}
+        actions={
+        <button className="btn-secondary btn-sm" onClick={() => setShowExportConfirm(true)} disabled={exporting}>
           <i className="fa fa-file-export" /> {t.exportCSV}
         </button>
-      </div>
+        }
+      />
 
       {/* Filters */}
-      <div className="filter-card">
+      <FilterCard>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr) auto', gap: 12, marginBottom: 12 }}>
           <div>
             <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>{t.verificationCode}</label>
@@ -316,10 +331,10 @@ export default function Tickets() {
             </button>
           </div>
         </div>
-      </div>
+      </FilterCard>
 
       {/* Quick filter */}
-      <div className="filter-card" style={{ padding: '12px 16px' }}>
+      <FilterCard className="py-3">
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 13, fontWeight: 500, color: '#374151' }}>{t.quickFilter}:</span>
           <button className="btn-sm" onClick={setTodaySlotFilter} style={{ background: THEME.primary, color: '#fff', border: 'none', borderRadius: 4, padding: '5px 12px', cursor: 'pointer', fontSize: 13 }}>
@@ -329,13 +344,13 @@ export default function Tickets() {
             <i className="fa fa-check-circle" /> {t.todayVerifiedTickets}
           </button>
         </div>
-      </div>
+      </FilterCard>
 
       {/* Ticket type filter */}
-      <div className="filter-card" style={{ padding: '12px 16px' }}>
+      <FilterCard className="py-3">
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 13, fontWeight: 500, color: '#374151' }}>{t.ticketType}:</span>
-          {TICKET_TYPES_FILTER.map(type => (
+          {ticketTypeOptions.map(type => (
             <label key={type} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, cursor: 'pointer', fontSize: 13, background: THEME.primarySoft, border: `1px solid ${THEME.primaryBorder}`, borderRadius: 8, padding: '8px 10px', maxWidth: '100%' }}>
               <input type="checkbox" checked={filters.types.includes(type)} onChange={() => toggleType(type)} style={{ width: 14, height: 14 }} />
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0, whiteSpace: 'nowrap', color: THEME.primaryText, fontWeight: 600 }}>
@@ -345,10 +360,10 @@ export default function Tickets() {
             </label>
           ))}
         </div>
-      </div>
+      </FilterCard>
 
       {/* Table */}
-      <div style={{ background: '#fff', borderRadius: 8, border: '1px solid #e5e7eb', overflow: 'hidden' }}>
+      <TableShell>
         <div className="table-container tickets-table-container" style={{ overflowX: 'auto' }}>
           <table className="tickets-table" style={{ tableLayout: 'auto', minWidth: 1100, whiteSpace: 'nowrap' }}>
             <colgroup>
@@ -379,7 +394,7 @@ export default function Tickets() {
             </thead>
             <tbody>
               {paged.length === 0 ? (
-                <tr><td colSpan={10} style={{ textAlign: 'center', color: '#9ca3af', padding: 32 }}>{t.noTicketsFound}</td></tr>
+                <EmptyTableRow colSpan={10}>{t.noTicketsFound}</EmptyTableRow>
               ) : paged.map((tk, idx) => (
                 <tr key={tk.id}>
                   <td style={{ color: '#9ca3af', fontSize: 13 }}>{(page - 1) * PAGE_SIZE + idx + 1}</td>
@@ -483,7 +498,7 @@ export default function Tickets() {
           </table>
         </div>
         <Pagination page={page} total={filtered.length} pageSize={PAGE_SIZE} onPage={setPage} />
-      </div>
+      </TableShell>
     </div>
   )
 }

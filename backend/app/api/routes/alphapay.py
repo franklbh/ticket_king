@@ -3,7 +3,6 @@ import base64
 import json
 import urllib.parse
 import uuid
-from datetime import datetime, timezone
 from pathlib import Path
 
 import httpx
@@ -14,6 +13,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from app.core.config import settings
+from app.utils.datetime import utc_now_millis_z
 
 # test
 router = APIRouter(prefix="/alphapay", tags=["alphapay"])
@@ -36,7 +36,7 @@ def _load_private_key():
 
 
 def _build_headers(method: str, uri: str, body_str: str) -> dict[str, str]:
-    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+    timestamp = utc_now_millis_z()
     nonce = uuid.uuid4().hex  # 32 hex chars
     content = f"{method} {uri}\n{settings.alphapay_partner_code}.{timestamp}.{nonce}.{body_str}"
     private_key = _load_private_key()

@@ -1,10 +1,25 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { updateMarketingSettings } from '../api/adminApi'
+import { AdminCard, AdminPagination, EmptyTableRow, PageHeader, TableShell } from '../components/AdminUI'
+import LoadingIndicator from '../components/LoadingIndicator'
 import { useLang } from '../context/AuthContext'
 import { useT } from '../i18n/translations'
-import { MARKETING_SETTINGS, MARKETING_RECORDS } from '../data/mockData'
+import { adminQueryKeys, useMarketingRecordsQuery, useMarketingSettingsQuery } from '../hooks/queries'
+import { useAdminMutation } from '../hooks/useAdminApi'
 
 const PAGE_SIZE = 10
+const DEFAULT_MARKETING_SETTINGS = {
+  enabled: false,
+  sendDelay: 45,
+  couponValidity: 30,
+  discountType: 'percent',
+  discountValue: 5,
+  minPurchase: 0,
+  maxUses: 9999,
+  referralEnabled: false,
+  referralReward: 5,
+}
 
 function Toggle({ checked, onChange }) {
   return (
@@ -37,22 +52,50 @@ export default function Marketing() {
   const { lang } = useLang()
   const t = useT(lang)
   const navigate = useNavigate()
-  const [settings, setSettings] = useState(MARKETING_SETTINGS)
-  const [records] = useState(MARKETING_RECORDS)
   const [page, setPage] = useState(1)
   const [saved, setSaved] = useState(false)
 
+  const { data: loadedSettings, loading: loadingSettings } = useMarketingSettingsQuery({
+    initialData: DEFAULT_MARKETING_SETTINGS,
+  })
+  const [settings, setSettings] = useState(DEFAULT_MARKETING_SETTINGS)
+
+  useEffect(() => {
+    if (loadedSettings) setSettings(loadedSettings)
+  }, [loadedSettings])
+
+  const { data: recordsData, loading: loadingRecords } = useMarketingRecordsQuery(
+    { page, pageSize: PAGE_SIZE },
+    { initialData: { items: [], total: 0, page: 1, pageSize: PAGE_SIZE } }
+  )
+  const records = recordsData?.items || []
+
+  const saveSettings = useAdminMutation(
+    payload => updateMarketingSettings(payload),
+    { invalidateQueries: adminQueryKeys.marketingSettings, successMessage: 'Marketing settings saved.' }
+  )
+
   const stats = {
-    total: 681, pending: 0, cancelled: 4, sent: 675, failed: 2, couponsUsed: 1, todaySent: 3
+    total: recordsData?.total ?? records.length,
+    pending: records.filter(record => record.status === 'pending').length,
+    cancelled: records.filter(record => record.status === 'cancelled').length,
+    sent: records.filter(record => record.status === 'sent').length,
+    failed: records.filter(record => record.status === 'failed').length,
+    couponsUsed: records.filter(record => record.couponUsed).length,
+    todaySent: records.filter(record => (record.sentAt || '').startsWith(new Date().toISOString().slice(0, 10))).length,
   }
 
-  function saveSettings() {
+  async function handleSaveSettings() {
+    await saveSettings.mutate(settings)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
 
-  const pages = Math.ceil(records.length / PAGE_SIZE)
-  const paged = records.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  if (loadingSettings && !loadedSettings) {
+    return <LoadingIndicator label="Loading marketing settings..." />
+  }
+
+  const paged = records
 
   const discountPreview = settings.discountType === 'percent'
     ? `${settings.discountValue}% OFF`
@@ -60,16 +103,14 @@ export default function Marketing() {
 
   return (
     <div>
-      <div style={{ marginBottom: 20 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, color: '#111827', marginBottom: 4 }}>
-          <i className="fa fa-bullhorn" style={{ color: '#6366f1' }} />
-          {t.marketingManagement}
-        </h1>
-        <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>Configure automatic marketing emails with discount coupons after ticket check-in</p>
-      </div>
+      <PageHeader
+        icon="fa-bullhorn"
+        title={t.marketingManagement}
+        subtitle="Configure automatic marketing emails with discount coupons after ticket check-in"
+      />
 
       {/* Stats */}
-      <div className="stat-card" style={{ marginBottom: 20, padding: 0, overflow: 'hidden' }}>
+      <AdminCard className="mb-5 overflow-hidden p-0">
         <div style={{ display: 'flex' }}>
           <StatBox value={stats.total} label={t.totalRecords} color="#6366f1" />
           <StatBox value={stats.pending} label={t.pending} color="#f59e0b" />
@@ -82,10 +123,10 @@ export default function Marketing() {
             <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>{t.todaySent}</div>
           </div>
         </div>
-      </div>
+      </AdminCard>
 
       {/* Marketing Settings */}
-      <div className="stat-card" style={{ marginBottom: 20 }}>
+      <AdminCard className="mb-5">
         <h2 style={{ fontSize: 16, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, marginBottom: 20, color: '#111827' }}>
           <i className="fa fa-cog" style={{ color: '#6366f1' }} />
           {t.marketingSettings}
@@ -218,14 +259,14 @@ export default function Marketing() {
         </div>
 
         <div style={{ marginTop: 20 }}>
-          <button className="btn-primary" onClick={saveSettings} style={{ gap: 6 }}>
+          <button className="btn-primary" onClick={handleSaveSettings} style={{ gap: 6 }}>
             {saved ? <><i className="fa fa-check" /> Saved!</> : <><i className="fa fa-save" /> {t.saveSettings}</>}
           </button>
         </div>
-      </div>
+      </AdminCard>
 
       {/* Send Records */}
-      <div className="stat-card">
+      <TableShell>
         <h2 style={{ fontSize: 16, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16, color: '#111827' }}>
           <i className="fa fa-history" style={{ color: '#6366f1' }} />
           {t.sendRecords}
@@ -244,7 +285,9 @@ export default function Marketing() {
               </tr>
             </thead>
             <tbody>
-              {paged.map(r => (
+              {paged.length === 0 ? (
+                <EmptyTableRow colSpan={7}>No marketing records found</EmptyTableRow>
+              ) : paged.map(r => (
                 <tr key={r.id}>
                   <td style={{ color: '#9ca3af', fontSize: 13 }}>{r.id}</td>
                   <td>
@@ -290,14 +333,13 @@ export default function Marketing() {
             </tbody>
           </table>
         </div>
-        <div className="pagination">
-          <button className="page-btn" disabled={page === 1} onClick={() => setPage(p => p - 1)}>‹</button>
-          {Array.from({ length: Math.min(pages, 5) }, (_, i) => (
-            <button key={i + 1} className={`page-btn ${i + 1 === page ? 'active' : ''}`} onClick={() => setPage(i + 1)}>{i + 1}</button>
-          ))}
-          <button className="page-btn" disabled={page === pages} onClick={() => setPage(p => p + 1)}>›</button>
-        </div>
-      </div>
+        <AdminPagination
+          page={page}
+          total={recordsData?.total ?? 0}
+          pageSize={PAGE_SIZE}
+          onPage={setPage}
+        />
+      </TableShell>
     </div>
   )
 }

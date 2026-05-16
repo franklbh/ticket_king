@@ -3,9 +3,13 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import alphapay, auth, health, shows, stripe_pay, test_db
 from app.api.routes.admin import catalog as admin_catalog
+from app.api.routes.admin import coupons as admin_coupons
 from app.api.routes.admin import dashboard as admin_dashboard
 from app.api.routes.admin import health as admin_health
+from app.api.routes.admin import logs as admin_logs
+from app.api.routes.admin import marketing as admin_marketing
 from app.api.routes.admin import orders as admin_orders
+from app.api.routes.admin import scanner as admin_scanner
 from app.api.routes.admin import tickets as admin_tickets
 from app.api.routes.admin import users as admin_users
 from app.core.config import settings
@@ -35,6 +39,10 @@ def create_app() -> FastAPI:
     app.include_router(admin_orders.router, prefix=ADMIN_API_PREFIX)
     app.include_router(admin_tickets.router, prefix=ADMIN_API_PREFIX)
     app.include_router(admin_catalog.router, prefix=ADMIN_API_PREFIX)
+    app.include_router(admin_coupons.router, prefix=ADMIN_API_PREFIX)
+    app.include_router(admin_marketing.router, prefix=ADMIN_API_PREFIX)
+    app.include_router(admin_scanner.router, prefix=ADMIN_API_PREFIX)
+    app.include_router(admin_logs.router, prefix=ADMIN_API_PREFIX)
     app.include_router(admin_users.router, prefix=ADMIN_API_PREFIX)
     app.include_router(test_db.router)
     app.include_router(auth.router)

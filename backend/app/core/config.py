@@ -22,11 +22,11 @@ class Settings(BaseSettings):
         ],
     )
     database_url: str | None = None
-    db_user: str | None = Field(default=None, validation_alias=AliasChoices("user", "DB_USER", "POSTGRES_USER"))
-    db_password: str | None = Field(default=None, validation_alias=AliasChoices("password", "DB_PASSWORD", "POSTGRES_PASSWORD"))
-    db_host: str | None = Field(default=None, validation_alias=AliasChoices("host", "DB_HOST", "POSTGRES_HOST"))
-    db_port: int = Field(default=5432, validation_alias=AliasChoices("port", "DB_PORT", "POSTGRES_PORT"))
-    db_name: str = Field(default="postgres", validation_alias=AliasChoices("dbname", "DB_NAME", "POSTGRES_DB"))
+    db_user: str | None = Field(default=None, validation_alias=AliasChoices("DB_USER", "POSTGRES_USER"))
+    db_password: str | None = Field(default=None, validation_alias=AliasChoices("DB_PASSWORD", "POSTGRES_PASSWORD"))
+    db_host: str | None = Field(default=None, validation_alias=AliasChoices("DB_HOST", "POSTGRES_HOST"))
+    db_port: int = Field(default=5432, validation_alias=AliasChoices("DB_PORT", "POSTGRES_PORT"))
+    db_name: str = Field(default="postgres", validation_alias=AliasChoices("DB_NAME", "POSTGRES_DB"))
     supabase_url: str | None = None
     supabase_publishable_key: str | None = Field(
         default=None,
@@ -38,12 +38,17 @@ class Settings(BaseSettings):
     admin_tickets_table: str = "tickets"
     admin_slots_table: str = "slots"
     admin_ticket_types_table: str = "ticket_types"
+    admin_events_table: str = "events"
+    admin_coupons_table: str = "coupons"
+    admin_marketing_settings_table: str = "marketing_settings"
+    admin_marketing_records_table: str = "marketing_records"
     admin_audit_logs_table: str = "audit_logs"
     admin_users_table: str = "users"
+    admin_default_timezone: str = "America/Vancouver"
     admin_bootstrap_token: str | None = None
 
-    admin_order_id_column: str = "order_id"
-    admin_ticket_id_column: str = "ticket_id"
+    admin_order_id_column: str = "id"
+    admin_ticket_id_column: str = "id"
     admin_ticket_status_column: str = "ticket_status"
     max_table_rows: int = 10000
 

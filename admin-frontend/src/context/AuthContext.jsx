@@ -17,19 +17,14 @@ export function AuthProvider({ children }) {
   const [lang, setLang] = useState(() => localStorage.getItem('tk_lang') || 'en')
 
   async function login(email, password, remember) {
-    const session = await loginAdminWithPassword(email, password)
-    const nextSession = {
-      ...session,
-      admin: {
-        ...session.admin,
-        loginTime: new Date().toISOString(),
-      },
-    }
+    const nextSession = await resolveAdminSession(email, password)
     setAdmin(nextSession.admin)
     const storage = remember ? localStorage : sessionStorage
     localStorage.removeItem(ADMIN_SESSION_KEY)
     sessionStorage.removeItem(ADMIN_SESSION_KEY)
+    localStorage.removeItem('tk_admin')
     storage.setItem(ADMIN_SESSION_KEY, JSON.stringify(nextSession))
+    storage.setItem('tk_admin', JSON.stringify(nextSession.admin))
     return nextSession.admin
   }
 
@@ -37,6 +32,8 @@ export function AuthProvider({ children }) {
     setAdmin(null)
     localStorage.removeItem(ADMIN_SESSION_KEY)
     sessionStorage.removeItem(ADMIN_SESSION_KEY)
+    localStorage.removeItem('tk_admin')
+    sessionStorage.removeItem('tk_admin')
   }
 
   function changeLang(l) {
@@ -55,3 +52,18 @@ export function AuthProvider({ children }) {
 
 export function useAuth() { return useContext(AuthContext) }
 export function useLang() { return useContext(LangContext) }
+
+async function resolveAdminSession(email, password) {
+  const session = await loginAdminWithPassword(email, password)
+  const loginTime = new Date().toISOString()
+  return {
+    ...session,
+    admin: {
+      ...session.admin,
+      accessToken: session.accessToken,
+      refreshToken: session.refreshToken,
+      expiresAt: session.expiresAt,
+      loginTime,
+    },
+  }
+}

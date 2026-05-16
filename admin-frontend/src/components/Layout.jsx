@@ -1,9 +1,7 @@
-import { useState, useRef, useEffect } from 'react' // useRef/useEffect still used by UserMenu
+import { useState, useRef, useEffect } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth, useLang } from '../context/AuthContext'
 import { useT } from '../i18n/translations'
-
-const SIDEBAR_BG = '#312e81'
 
 const navItems = [
   { path: '/dashboard', icon: 'fa-chart-line', key: 'dashboard' },
@@ -24,11 +22,7 @@ function LangDropdown({ lang, changeLang }) {
     <select
       value={lang}
       onChange={e => changeLang(e.target.value)}
-      style={{
-        padding: '6px 10px', border: '1px solid #e5e7eb',
-        borderRadius: 6, background: '#fff',
-        fontSize: 13, color: '#374151', cursor: 'pointer', outline: 'none',
-      }}
+      className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
     >
       <option value="en">English</option>
       <option value="zh-Hans">简体中文</option>
@@ -52,29 +46,29 @@ function UserMenu({ admin, logout, t }) {
 
   const initial = (admin?.username || 'A')[0].toUpperCase()
   return (
-    <div ref={ref} style={{ position: 'relative' }}>
+    <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(o => !o)}
-        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 8px', border: 'none', background: 'transparent', cursor: 'pointer' }}
+        className="flex items-center gap-2 rounded-md border-0 bg-transparent px-2 py-1 text-left transition hover:bg-slate-50"
       >
-        <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#312e81', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 16 }}>
+        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-900 text-base font-bold text-white">
           {initial}
         </div>
-        <div style={{ textAlign: 'left', lineHeight: 1.3 }}>
-          <div style={{ fontWeight: 600, fontSize: 14 }}>{admin?.username}</div>
-          <div style={{ fontSize: 12, color: '#888' }}>{admin?.role}</div>
+        <div className="hidden leading-tight sm:block">
+          <div className="text-sm font-semibold text-slate-950">{admin?.username}</div>
+          <div className="text-xs text-slate-500">{admin?.role}</div>
         </div>
-        <i className="fa fa-chevron-down" style={{ fontSize: 11, color: '#888' }} />
+        <i className="fa fa-chevron-down text-[11px] text-slate-400" />
       </button>
       {open && (
-        <div style={{ position: 'absolute', top: '110%', right: 0, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 6, boxShadow: '0 4px 12px rgba(0,0,0,0.12)', zIndex: 999, minWidth: 160 }}>
-          <button style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 14px', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 14, color: '#374151' }}>
-            <i className="fa fa-key" style={{ color: '#666' }} />
+        <div className="absolute right-0 top-[110%] z-[999] min-w-40 rounded-md border border-slate-200 bg-white py-1 shadow-lg">
+          <button className="flex w-full items-center gap-2 border-0 bg-transparent px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50">
+            <i className="fa fa-key text-slate-500" />
             {t.changePassword}
           </button>
-          <div style={{ height: 1, background: '#f3f4f6', margin: '0 8px' }} />
-          <button onClick={handleLogout} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 14px', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 14, color: '#dc2626' }}>
-            <i className="fa fa-sign-out-alt" style={{ color: '#dc2626' }} />
+          <div className="mx-2 h-px bg-slate-100" />
+          <button onClick={handleLogout} className="flex w-full items-center gap-2 border-0 bg-transparent px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50">
+            <i className="fa fa-sign-out-alt text-red-600" />
             {t.logout}
           </button>
         </div>
@@ -105,60 +99,52 @@ export default function Layout() {
   }
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
-      {/* Sidebar */}
-      <div style={{ width: 205, background: SIDEBAR_BG, display: 'flex', flexDirection: 'column', flexShrink: 0, overflowY: 'auto' }}>
-        {/* Brand */}
-        <div style={{ padding: '20px 16px 16px', borderBottom: '1px solid rgba(255,255,255,0.12)' }}>
-          <div style={{ color: '#fff', fontWeight: 700, fontSize: 16, lineHeight: 1.2 }}>{t.ticketSystem}</div>
-          <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, marginTop: 2 }}>{t.adminPanel}</div>
+    <div className="flex h-screen overflow-hidden bg-slate-50">
+      <aside className="flex w-[216px] shrink-0 flex-col overflow-y-auto bg-brand-900">
+        <div className="border-b border-white/10 px-4 py-5">
+          <div className="text-base font-bold leading-tight text-white">{t.ticketSystem}</div>
+          <div className="mt-1 text-xs text-white/60">{t.adminPanel}</div>
         </div>
 
-        {/* Nav */}
-        <nav style={{ flex: 1, padding: '8px 0' }}>
+        <nav className="flex-1 py-2">
           {navItems.map(item => (
             <NavLink
               key={item.path}
               to={item.path}
               className={({ isActive }) => `sidebar-nav-item${isActive ? ' active' : ''}`}
             >
-              <i className={`fa ${item.icon}`} style={{ width: 18, textAlign: 'center' }} />
+              <i className={`fa ${item.icon} w-[18px] text-center`} />
               <span>{t[item.key]}</span>
             </NavLink>
           ))}
-          {/* Scanner opens in new window */}
           <a
             href="/scanner"
             target="_blank"
             rel="noopener noreferrer"
             className="sidebar-nav-item"
           >
-            <i className="fa fa-qrcode" style={{ width: 18, textAlign: 'center' }} />
-            <span style={{ flex: 1 }}>{t.scanner}</span>
-            <i className="fa fa-external-link-alt" style={{ fontSize: 11, opacity: 0.7 }} />
+            <i className="fa fa-qrcode w-[18px] text-center" />
+            <span className="flex-1">{t.scanner}</span>
+            <i className="fa fa-external-link-alt text-[11px] opacity-70" />
           </a>
         </nav>
 
-        {/* Bottom user info */}
-        <div style={{ padding: '12px 16px', borderTop: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.75)', fontSize: 12 }}>
+        <div className="border-t border-white/10 px-4 py-3 text-xs text-white/75">
           <div>User: {admin?.username}</div>
           <div>Role: {admin?.role}</div>
         </div>
-      </div>
+      </aside>
 
-      {/* Main content */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        {/* Header */}
-        <header style={{ background: '#fff', borderBottom: '1px solid #e5e7eb', padding: '0 24px', height: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-          <div style={{ fontWeight: 600, fontSize: 16, color: '#111827' }}>{getPageTitle()}</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-6">
+          <div className="text-base font-semibold text-slate-950">{getPageTitle()}</div>
+          <div className="flex items-center gap-4">
             <LangDropdown lang={lang} changeLang={changeLang} />
             <UserMenu admin={admin} logout={logout} t={t} />
           </div>
         </header>
 
-        {/* Page content */}
-        <main style={{ flex: 1, overflow: 'auto', padding: 24 }}>
+        <main className="flex-1 overflow-auto p-6">
           <Outlet />
         </main>
       </div>

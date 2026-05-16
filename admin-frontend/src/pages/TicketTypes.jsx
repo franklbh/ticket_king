@@ -1,7 +1,29 @@
 import { useState, useMemo } from 'react'
 import { useLang } from '../context/AuthContext'
 import { useT } from '../i18n/translations'
-import { TICKET_TYPES_DATA, EVENTS } from '../data/mockData'
+import { createTicketType, updateTicketType } from '../api/adminApi'
+import { AdminAlert, EmptyTableRow, FilterCard, PageHeader, TableShell } from '../components/AdminUI'
+import LoadingIndicator from '../components/LoadingIndicator'
+import { adminQueryKeys, useEventsQuery, useTicketTypesQuery } from '../hooks/queries'
+import { useAdminMutation } from '../hooks/useAdminApi'
+
+function ticketTypePayload(form) {
+  const name = typeof form.name === 'string' ? form.name : form.name?.en || ''
+  return {
+    event: form.event,
+    name,
+    priceType: 'fixed',
+    price: form.price,
+    priceAdj: form.priceAdj ?? 0,
+    weekdays: form.weekdays,
+    validFrom: form.validFrom,
+    validTo: form.validTo,
+    timeStart: form.timeStart,
+    timeEnd: form.timeEnd,
+    remarks: form.remarks,
+    status: form.status || (form.enabled ? 'enabled' : 'disabled'),
+  }
+}
 
 const ALL_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
@@ -38,7 +60,7 @@ function LangTabs({ active, onSelect }) {
   )
 }
 
-function TypeModal({ type, onClose, onSave }) {
+function TypeModal({ type, events, onClose, onSave }) {
   const initName = typeof type?.name === 'object' ? type.name : { en: type?.name || '', zhHans: '', zhHant: '' }
   const [form, setForm] = useState({
     event: type?.event || 1,
@@ -82,7 +104,7 @@ function TypeModal({ type, onClose, onSave }) {
               Event <span style={{ color: '#ef4444' }}>*</span>
             </label>
             <select className="form-select" value={form.event} onChange={e => setForm(f => ({ ...f, event: Number(e.target.value) }))}>
-              {EVENTS.map(ev => <option key={ev.id} value={ev.id}>{ev.name}</option>)}
+              {events.map(ev => <option key={ev.id} value={ev.id}>{ev.name}</option>)}
             </select>
           </div>
 
@@ -263,7 +285,21 @@ function PriceCell({ price, color, bg, border, editing, editValue, onStart, onCh
 export default function TicketTypes() {
   const { lang } = useLang()
   const t = useT(lang)
-  const [types, setTypes] = useState(TICKET_TYPES_DATA)
+  const { data: loadedTypes, error: loadError, loading: loadingTypes, reload } = useTicketTypesQuery(
+    false,
+    { initialData: [] }
+  )
+  const { data: events = [] } = useEventsQuery({ initialData: [] })
+  const types = loadedTypes || []
+
+  const saveType = useAdminMutation(
+    async (form, existing) => {
+      const payload = ticketTypePayload(form)
+      if (existing?.id) return updateTicketType(existing.id, payload)
+      return createTicketType(payload)
+    },
+    { invalidateQueries: adminQueryKeys.ticketTypes, successMessage: 'Ticket type saved.' }
+  )
   const [filters, setFilters] = useState({ search: '', status: 'all' })
   const [modal, setModal] = useState(null)
   const [editingCell, setEditingCell] = useState(null) // { name, tier }
@@ -295,20 +331,19 @@ export default function TicketTypes() {
       })
   }, [types, filters])
 
-  function handleSave(form) {
-    if (modal === 'create') {
-      setTypes(prev => [...prev, { ...form, id: Date.now() }])
-    } else {
-      setTypes(prev => prev.map(tp => tp.id === modal.id ? { ...tp, ...form } : tp))
-    }
+  async function handleSave(form) {
+    const existing = modal === 'create' ? null : modal
+    await saveType.mutate(form, existing)
     setModal(null)
+    reload()
   }
 
-  function toggleStatus(name) {
-    setTypes(prev => {
-      const anyEnabled = prev.filter(tp => tp.name === name).some(r => r.status === 'enabled')
-      return prev.map(tp => tp.name === name ? { ...tp, status: anyEnabled ? 'disabled' : 'enabled' } : tp)
-    })
+  async function toggleStatus(name) {
+    const rows = types.filter(tp => tp.name === name)
+    const anyEnabled = rows.some(r => r.status === 'enabled')
+    const nextStatus = anyEnabled ? 'disabled' : 'enabled'
+    await Promise.all(rows.map(row => updateTicketType(row.id, { ...ticketTypePayload(row), status: nextStatus })))
+    reload()
   }
 
   function startEdit(name, tier, price) {
@@ -316,39 +351,55 @@ export default function TicketTypes() {
     setEditValue(price?.toFixed(2) ?? '0.00')
   }
 
-  function commitEdit() {
+  async function commitEdit() {
     if (!editingCell) return
     const newPrice = parseFloat(editValue)
     if (!isNaN(newPrice) && newPrice >= 0) {
       const isOffPeak = editingCell.tier === 'off-peak'
-      setTypes(prev => prev.map(tp => {
-        if (tp.name !== editingCell.name) return tp
+      const targets = types.filter(tp => {
+        if (tp.name !== editingCell.name) return false
         const remarks = tp.remarks?.toLowerCase() ?? ''
-        const match = isOffPeak
+        return isOffPeak
           ? remarks.includes('off-peak')
           : remarks.includes('peak') && !remarks.includes('off-peak')
-        return match ? { ...tp, price: newPrice } : tp
-      }))
+      })
+      await Promise.all(
+        targets.map(row => updateTicketType(row.id, { ...ticketTypePayload({ ...row, price: newPrice }), price: newPrice }))
+      )
+      reload()
     }
     setEditingCell(null)
   }
 
+  if (loadingTypes) {
+    return <LoadingIndicator label="Loading live ticket types..." />
+  }
+
   return (
     <div>
-      {modal && <TypeModal type={modal === 'create' ? null : modal} onClose={() => setModal(null)} onSave={handleSave} />}
-
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, color: '#111827', marginBottom: 4 }}>
-            <i className="fa fa-tags" style={{ color: '#6366f1' }} />
-            {t.ticketTypesManagement}
-          </h1>
-          <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>Click any price to edit inline</p>
-        </div>
+      {modal && (
+        <TypeModal
+          type={modal === 'create' ? null : modal}
+          events={events}
+          onClose={() => setModal(null)}
+          onSave={handleSave}
+        />
+      )}
+      {loadError && (
+        <AdminAlert tone="warning">
+          Backend ticket types could not be loaded: {loadError.message}
+        </AdminAlert>
+      )}
+      <PageHeader
+        icon="fa-tags"
+        title={t.ticketTypesManagement}
+        subtitle="Click any price to edit inline"
+        actions={
         <button className="btn-primary" onClick={() => setModal('create')}>
           {t.createTicketType}
         </button>
-      </div>
+        }
+      />
 
       {/* Schedule reference */}
       <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
@@ -368,7 +419,7 @@ export default function TicketTypes() {
       </div>
 
       {/* Filters */}
-      <div className="filter-card" style={{ marginBottom: 12 }}>
+      <FilterCard className="mb-3">
         <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end' }}>
           <div style={{ flex: 1 }}>
             <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>Search</label>
@@ -386,10 +437,10 @@ export default function TicketTypes() {
             <i className="fa fa-redo" /> {t.reset}
           </button>
         </div>
-      </div>
+      </FilterCard>
 
       {/* Price Matrix Table */}
-      <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e5e7eb', overflow: 'hidden' }}>
+      <TableShell>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
@@ -416,9 +467,7 @@ export default function TicketTypes() {
           </thead>
           <tbody>
             {rows.length === 0 ? (
-              <tr>
-                <td colSpan={5} style={{ padding: 40, textAlign: 'center', color: '#9ca3af', fontSize: 14 }}>No ticket types found</td>
-              </tr>
+              <EmptyTableRow colSpan={5}>{t.noTicketTypesFound}</EmptyTableRow>
             ) : rows.map((row, idx) => (
               <tr key={row.name} style={{
                 borderBottom: idx < rows.length - 1 ? '1px solid #f3f4f6' : 'none',
@@ -493,7 +542,7 @@ export default function TicketTypes() {
             ))}
           </tbody>
         </table>
-      </div>
+      </TableShell>
     </div>
   )
 }

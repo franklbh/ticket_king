@@ -1,7 +1,11 @@
 import { useState, useMemo } from 'react'
 import { useLang } from '../context/AuthContext'
 import { useT } from '../i18n/translations'
-import { ADMINS_DATA } from '../data/mockData'
+import { createAdminAccount, updateStaffProfile } from '../api/adminApi'
+import { adminQueryKeys, useUsersQuery } from '../hooks/queries'
+import { useAdminMutation } from '../hooks/useAdminApi'
+import LoadingIndicator from '../components/LoadingIndicator'
+import { AdminAlert, EmptyTableRow, FilterCard, PageHeader, TableShell } from '../components/AdminUI'
 
 const ROLES = ['SuperAdmin', 'SDirector', 'Director', 'Operator', 'Front']
 const ROLE_COLORS = { SuperAdmin: 'badge-red', SDirector: 'badge-purple', Director: 'badge-blue', Operator: 'badge-teal', Front: 'badge-orange' }
@@ -61,7 +65,6 @@ function AdminModal({ admin, onClose, onSave, t }) {
 }
 
 function IPModal({ ip, onClose, t }) {
-  const info = { location: 'Surrey, British Columbia, Canada', isp: 'TELUS Communications', ua: 'macOS · Chrome 147' }
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-box" style={{ maxWidth: 360 }} onClick={e => e.stopPropagation()}>
@@ -71,12 +74,6 @@ function IPModal({ ip, onClose, t }) {
         </div>
         <div style={{ fontSize: 13, lineHeight: 1.8 }}>
           <div><strong>IP Address:</strong> {ip}</div>
-          <div><strong>Location:</strong> {info?.location}</div>
-          <div><strong>ISP:</strong> {info?.isp}</div>
-          <div style={{ marginTop: 8 }}><strong>User Agent:</strong></div>
-          <div style={{ color: '#6b7280', display: 'flex', alignItems: 'center', gap: 6 }}>
-            <i className="fa fa-desktop" /> <i className="fa fa-globe" /> {info?.ua}
-          </div>
         </div>
       </div>
     </div>
@@ -86,50 +83,85 @@ function IPModal({ ip, onClose, t }) {
 export default function Admins() {
   const { lang } = useLang()
   const t = useT(lang)
-  const [admins, setAdmins] = useState(ADMINS_DATA)
+  const { data: loadedAdmins, error: loadError, loading: loadingAdmins, reload } = useUsersQuery(
+    {},
+    { initialData: [] }
+  )
+  const admins = loadedAdmins || []
+
+  const saveAdmin = useAdminMutation(
+    async (form, existing) => {
+      if (existing?.id) {
+        return updateStaffProfile(existing.id, {
+          staffRole: form.role,
+          department: form.department || null,
+          position: form.position || null,
+          status: form.status || 'active',
+        })
+      }
+      return createAdminAccount({
+        name: form.username || form.name,
+        email: form.email,
+        department: form.department || null,
+        position: form.position || null,
+      })
+    },
+    { invalidateQueries: adminQueryKeys.users, successMessage: 'Admin saved.' }
+  )
   const [filters, setFilters] = useState({ role: 'all', status: 'all' })
   const [modal, setModal] = useState(null)
   const [ipModal, setIpModal] = useState(null)
 
   const filtered = useMemo(() => {
     return admins.filter(a => {
-      if (filters.role !== 'all' && a.role !== filters.role) return false
+      if (filters.role !== 'all' && (a.staffRole || a.role) !== filters.role) return false
       if (filters.status !== 'all' && a.status !== filters.status) return false
       return true
     })
   }, [admins, filters])
 
-  function handleSave(form) {
-    if (modal === 'create') {
-      setAdmins(prev => [...prev, { ...form, id: prev.length + 1, lastLogin: null, lastLoginRelative: '-', ip: null, canDisable: true }])
-    } else {
-      setAdmins(prev => prev.map(a => a.id === modal.id ? { ...a, ...form } : a))
-    }
+  async function handleSave(form) {
+    const existing = modal === 'create' ? null : modal
+    await saveAdmin.mutate(form, existing)
     setModal(null)
+    reload()
   }
 
-  function toggleAdminStatus(id) {
-    setAdmins(prev => prev.map(a => a.id === id ? { ...a, status: a.status === 'active' ? 'inactive' : 'active' } : a))
+  async function toggleAdminStatus(admin) {
+    const nextStatus = admin.status === 'active' ? 'inactive' : 'active'
+    await updateStaffProfile(admin.id, {
+      staffRole: admin.staffRole || admin.role,
+      department: admin.department || null,
+      position: admin.position || null,
+      status: nextStatus,
+    })
+    reload()
+  }
+
+  if (loadingAdmins) {
+    return <LoadingIndicator label="Loading live admin users..." />
   }
 
   return (
     <div>
       {modal && <AdminModal admin={modal === 'create' ? null : modal} onClose={() => setModal(null)} onSave={handleSave} t={t} />}
       {ipModal && <IPModal ip={ipModal} onClose={() => setIpModal(null)} t={t} />}
-
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, color: '#111827', marginBottom: 4 }}>
-            <i className="fa fa-users" style={{ color: '#6366f1' }} />
-            {t.administratorsManagement}
-          </h1>
-          <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>{t.manageAdmins}</p>
-        </div>
+      {loadError && (
+        <AdminAlert tone="warning">
+          Backend admin users could not be loaded: {loadError.message}
+        </AdminAlert>
+      )}
+      <PageHeader
+        icon="fa-users"
+        title={t.administratorsManagement}
+        subtitle={t.manageAdmins}
+        actions={
         <button className="btn-primary" onClick={() => setModal('create')}>{t.createAdmin}</button>
-      </div>
+        }
+      />
 
       {/* Filters */}
-      <div className="filter-card">
+      <FilterCard>
         <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end' }}>
           <div>
             <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>{t.role}</label>
@@ -150,10 +182,10 @@ export default function Admins() {
             <i className="fa fa-redo" /> {t.reset}
           </button>
         </div>
-      </div>
+      </FilterCard>
 
       {/* Table */}
-      <div style={{ background: '#fff', borderRadius: 8, border: '1px solid #e5e7eb', overflow: 'hidden' }}>
+      <TableShell>
         <div className="table-container">
           <table>
             <thead>
@@ -171,26 +203,26 @@ export default function Admins() {
             </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan={9} style={{ textAlign: 'center', color: '#9ca3af', padding: 32 }}>{t.noAdminsFound}</td></tr>
+                <EmptyTableRow colSpan={9}>{t.noAdminsFound}</EmptyTableRow>
               ) : filtered.map(a => (
                 <tr key={a.id}>
                   <td style={{ fontWeight: 600, color: '#6b7280' }}>{a.id}</td>
-                  <td style={{ fontWeight: 600, fontSize: 14 }}>{a.username}</td>
+                  <td style={{ fontWeight: 600, fontSize: 14 }}>{a.username || a.name || a.email || '-'}</td>
                   <td style={{ fontSize: 13, color: '#6b7280' }}>{a.email || '-'}</td>
                   <td>
-                    <span className={`badge ${ROLE_COLORS[a.role] || 'badge-gray'}`}>{a.role}</span>
+                    <span className={`badge ${ROLE_COLORS[a.staffRole || a.role] || 'badge-gray'}`}>{a.staffRole || a.role}</span>
                   </td>
                   <td style={{ fontSize: 13, color: '#6b7280' }}>{a.department || '-'}</td>
                   <td style={{ fontSize: 13, color: '#6b7280' }}>{a.position || '-'}</td>
                   <td>
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}>
                       <div>
-                        <div style={{ fontSize: 13 }}>{a.lastLoginRelative}</div>
-                        {a.ip && <div style={{ fontSize: 11, color: '#9ca3af', fontFamily: 'monospace' }}>{a.ip}</div>}
+                        <div style={{ fontSize: 13 }}>{a.lastLoginRelative || a.lastLoginAt || '-'}</div>
+                        {(a.ip || a.lastLoginIp) && <div style={{ fontSize: 11, color: '#9ca3af', fontFamily: 'monospace' }}>{a.ip || a.lastLoginIp}</div>}
                       </div>
-                      {a.ip && (
+                      {(a.ip || a.lastLoginIp) && (
                         <button
-                          onClick={() => setIpModal(a.ip)}
+                          onClick={() => setIpModal(a.ip || a.lastLoginIp)}
                           style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 3, padding: '2px 6px', fontSize: 11, cursor: 'pointer' }}
                         >
                           <i className="fa fa-search" />
@@ -211,7 +243,7 @@ export default function Admins() {
                       </button>
                       {a.canDisable && (
                         <button
-                          onClick={() => toggleAdminStatus(a.id)}
+                          onClick={() => toggleAdminStatus(a)}
                           className="btn-sm"
                           style={{
                             background: a.status === 'active' ? '#f59e0b' : '#10b981',
@@ -230,7 +262,7 @@ export default function Admins() {
             </tbody>
           </table>
         </div>
-      </div>
+      </TableShell>
     </div>
   )
 }

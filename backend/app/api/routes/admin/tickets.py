@@ -1,9 +1,11 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import Response
 
+from app.api.deps import client_ip
 from app.schemas.admin import TicketStatusUpdate
-from app.services.admin_data import admin_data_service
-from app.services.admin_security import require_admin
+from app.schemas.admin.responses import TicketPage, TicketRead
+from app.services.admin.security import require_admin
+from app.services.admin.ticket_service import ticket_service
 
 router = APIRouter(prefix="/tickets", tags=["tickets"], dependencies=[Depends(require_admin)])
 
@@ -34,14 +36,18 @@ def _ticket_filters(
     }
 
 
-@router.get("")
-async def list_tickets(filters: dict = Depends(_ticket_filters)) -> dict:
-    return await admin_data_service.list_tickets(filters)
+@router.get("", response_model=TicketPage)
+async def list_tickets(filters: dict = Depends(_ticket_filters)) -> TicketPage:
+    return await ticket_service.list_tickets(filters)
 
 
 @router.get("/export")
-async def export_tickets(filters: dict = Depends(_ticket_filters)) -> Response:
-    csv_body = await admin_data_service.export_tickets_csv(filters)
+async def export_tickets(
+    request: Request,
+    filters: dict = Depends(_ticket_filters),
+    actor: dict = Depends(require_admin),
+) -> Response:
+    csv_body = await ticket_service.export_tickets_csv(filters, actor, client_ip(request))
     return Response(
         content="\ufeff" + csv_body,
         media_type="text/csv; charset=utf-8",
@@ -49,6 +55,11 @@ async def export_tickets(filters: dict = Depends(_ticket_filters)) -> Response:
     )
 
 
-@router.patch("/{ticket_id}/status")
-async def update_ticket_status(ticket_id: str, payload: TicketStatusUpdate) -> dict:
-    return await admin_data_service.update_ticket_status(ticket_id, payload)
+@router.patch("/{ticket_id}/status", response_model=TicketRead)
+async def update_ticket_status(
+    ticket_id: str,
+    payload: TicketStatusUpdate,
+    request: Request,
+    actor: dict = Depends(require_admin),
+) -> TicketRead:
+    return await ticket_service.update_ticket_status(ticket_id, payload, actor, client_ip(request))
