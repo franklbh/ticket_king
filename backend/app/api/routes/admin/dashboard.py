@@ -8,5 +8,5 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"], dependencies=[Depend
 
 
 @router.get("", response_model=DashboardResponse)
-async def get_dashboard(range: str = Query("7d", pattern="^(7d|14d|30d|90d|all)$")) -> DashboardResponse:
+async def get_dashboard(range: str = Query("all", pattern="^(7d|14d|30d|90d|all)$")) -> DashboardResponse:
     return await dashboard_service.dashboard(range)

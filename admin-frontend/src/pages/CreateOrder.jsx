@@ -4,17 +4,15 @@ import Checkbox from '@mui/material/Checkbox'
 import FormControlLabel from '@mui/material/FormControlLabel'
 import TextField from '@mui/material/TextField'
 import { useNavigate } from 'react-router-dom'
-import { useLang } from '../context/AuthContext'
+import { useLang } from '../context/authHooks'
 import { useT } from '../i18n/translations'
 import { createWalkInOrder } from '../api/adminApi'
 import { useAdminMutation } from '../hooks/useAdminApi'
 import { useSlotsQuery, useTicketTypesQuery } from '../hooks/catalog'
 import LoadingIndicator from '../components/LoadingIndicator'
 import { AdminAlert, AdminCard, PageHeader } from '../components/AdminUI'
-import { addDays, todayIso } from '../utils/date'
 import { dedupeBy } from '../utils/collections'
 
-const TODAY = todayIso()
 const PAYMENT_METHODS = [
   { id: 'Cash', label: 'Cash', icon: 'fa-money-bill-wave' },
   { id: 'Credit Card', label: 'Credit Card', icon: 'fa-credit-card' },
@@ -50,7 +48,7 @@ export default function CreateOrder() {
   const { lang } = useLang()
   const t = useT(lang)
   const [step, setStep] = useState(1)
-  const [selectedDate, setSelectedDate] = useState(TODAY)
+  const [selectedDate, setSelectedDate] = useState('')
   const [showDatePicker, setShowDatePicker] = useState(false)
   const [selectedSlot, setSelectedSlot] = useState(null)
   const [ticketSelections, setTicketSelections] = useState({})
@@ -61,8 +59,8 @@ export default function CreateOrder() {
   const [lastOrderId, setLastOrderId] = useState(null)
   const [submitError, setSubmitError] = useState(null)
   const { data: slots = [], error: slotsError, loading: loadingSlots } = useSlotsQuery(
-    { dateFrom: TODAY, dateTo: addDays(TODAY, 90) },
-    { initialData: [] }
+    selectedDate ? { dateFrom: selectedDate, dateTo: selectedDate } : {},
+    { initialData: [], enabled: Boolean(selectedDate) }
   )
   const { data: ticketTypes = [], error: typesError, loading: loadingTypes } = useTicketTypesQuery(
     true,
@@ -72,7 +70,7 @@ export default function CreateOrder() {
     successMessage: 'Order created.',
   })
 
-  const availableSlots = slots.filter(s => s.date === selectedDate && s.status === 'active')
+  const availableSlots = selectedDate ? slots.filter(s => s.date === selectedDate && s.status === 'active') : []
   const enabledTypes = dedupeBy(ticketTypes.filter(tp => tp.status === 'enabled'), tp => tp.name)
 
   function handleSlotSelect(slot) {
@@ -181,7 +179,7 @@ export default function CreateOrder() {
     )
   }
 
-  if (loadingSlots || loadingTypes) {
+  if ((selectedDate && loadingSlots) || loadingTypes) {
     return <LoadingIndicator label="Loading live slots and ticket types..." />
   }
 
@@ -220,7 +218,7 @@ export default function CreateOrder() {
           <div style={{ background: '#dbeafe', borderLeft: '4px solid #3b82f6', padding: '10px 14px', borderRadius: 4, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 6, fontSize: 14 }}>
             <i className="fa fa-calendar-day" style={{ color: '#3b82f6' }} />
             <strong>{t.currentDate}:</strong>
-            {showDatePicker ? (
+              {showDatePicker || !selectedDate ? (
               <input
                 type="date"
                 value={selectedDate}

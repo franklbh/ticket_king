@@ -12,10 +12,10 @@ from app.services.admin.repository import admin_repository
 from app.utils.datetime import format_datetime, utc_now
 
 OWNER = "owner"
-ADMIN = "admin"
+ADMINISTRATOR = "administrator"
 CUSTOMER = "customer"
-ADMIN_ROLES = {OWNER, ADMIN}
-ALL_ROLES = {OWNER, ADMIN, CUSTOMER}
+ADMIN_ROLES = {OWNER, ADMINISTRATOR}
+ALL_ROLES = {OWNER, ADMINISTRATOR, CUSTOMER}
 
 
 ROLE_PERMISSIONS = {
@@ -69,9 +69,9 @@ def _coerce_permissions(value: Any) -> set[str]:
 def normalize_role(value: Any) -> str:
     role = str(value or CUSTOMER).strip().lower()
     aliases = {
-        "admin": ADMIN,
-        # Compatibility for rows created before admin became the canonical role.
-        "administrator": ADMIN,
+        # UI/business alias. The DB canonical value remains "administrator".
+        "admin": ADMINISTRATOR,
+        "administrator": ADMINISTRATOR,
         "super_admin": OWNER,
         "superadmin": OWNER,
         "customer": CUSTOMER,
@@ -131,7 +131,7 @@ def require_permission(permission: str):
     return dependency
 
 
-require_admin = require_roles(OWNER, ADMIN)
+require_admin = require_roles(OWNER, ADMINISTRATOR)
 require_owner = require_roles(OWNER)
 
 

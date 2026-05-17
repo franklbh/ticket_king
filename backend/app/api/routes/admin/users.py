@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 
+from app.api.deps import client_ip
 from app.core.config import settings
 from app.schemas.admin import AdminAccountCreate, OwnerBootstrapCreate, StaffProfileUpdate, UserRoleUpdate
 from app.services.admin.security import public_user, require_admin, require_permission
@@ -9,8 +10,18 @@ router = APIRouter(prefix="/users", tags=["users"])
 
 
 @router.get("/me")
-async def me(user: dict = Depends(require_admin)) -> dict:
+async def me(
+    user: dict = Depends(require_admin),
+) -> dict:
     return public_user(user)
+
+
+@router.post("/me/login-event")
+async def record_login_event(
+    request: Request,
+    user: dict = Depends(require_admin),
+) -> dict:
+    return await user_service.record_login(user, client_ip(request))
 
 
 @router.get("")

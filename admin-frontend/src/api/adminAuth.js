@@ -36,6 +36,7 @@ export async function loginAdminWithPassword(email, password) {
   }
 
   const admin = await fetchCurrentAdmin(accessToken)
+  await recordAdminLogin(accessToken).catch(() => null)
 
   return {
     admin: {
@@ -63,6 +64,15 @@ export async function fetchCurrentAdmin(accessToken) {
     ...admin,
     username: admin.username || admin.name || admin.email,
   }
+}
+
+async function recordAdminLogin(accessToken) {
+  await fetch(`${adminApiBase}/users/me/login-event`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  })
 }
 
 async function readJson(response) {

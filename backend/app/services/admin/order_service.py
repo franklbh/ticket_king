@@ -9,10 +9,10 @@ from typing import Any
 from fastapi import HTTPException, status
 
 from app.core.config import settings
-from app.schemas.admin import OrderCustomerUpdate, OrderSlotUpdate, OrderStatusUpdate, WalkInOrderCreate
+from app.schemas.admin import OrderCouponUpdate, OrderCustomerUpdate, OrderEmailRequest, OrderSlotUpdate, OrderStatusUpdate, WalkInOrderCreate
 from app.schemas.admin.mappers import paginate, to_model, to_models
 from app.schemas.admin.responses import OrderPage, OrderRead, TicketRead, WalkInOrderResponse
-from app.services.admin.audit import write_audit_log
+from app.services.admin.audit import audit_change, write_audit_log
 from app.services.admin.enrichment import slots_by_id
 from app.services.admin.normalizers import (
     db_order_status,
@@ -50,6 +50,7 @@ class OrderService:
         actor: dict[str, Any],
         client_ip: str | None = None,
     ) -> OrderRead:
+        before = await admin_repository.get_order(order_id)
         rows = await admin_repository.update(
             settings.admin_orders_table,
             match_column="id",
@@ -58,7 +59,9 @@ class OrderService:
         )
         if not rows:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found.")
-        await write_audit_log(actor, "Update", "Order", order_id, {"status": payload.status}, client_ip)
+        details = audit_change(before, rows[0], ["order_status"])
+        details["requested_status"] = payload.status
+        await write_audit_log(actor, "Update", "Order", order_id, details, client_ip)
         return await self.get_order(order_id)
 
     async def update_order_customer(
@@ -68,6 +71,7 @@ class OrderService:
         actor: dict[str, Any],
         client_ip: str | None = None,
     ) -> OrderRead:
+        before = await admin_repository.get_order(order_id)
         values = {
             "guest_name": payload.name,
             "guest_email": payload.email,
@@ -82,7 +86,9 @@ class OrderService:
         )
         if not rows:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found.")
-        await write_audit_log(actor, "Update", "Order", order_id, {"customer": payload.model_dump()}, client_ip)
+        details = audit_change(before, rows[0], ["guest_name", "guest_email", "guest_phone"])
+        details["customer"] = payload.model_dump()
+        await write_audit_log(actor, "Update", "Order", order_id, details, client_ip)
         return await self.get_order(order_id)
 
     async def update_order_slot(
@@ -92,6 +98,7 @@ class OrderService:
         actor: dict[str, Any],
         client_ip: str | None = None,
     ) -> OrderRead:
+        before = await admin_repository.get_order(order_id)
         slot_id = str(payload.slot_id)
         try:
             slot_value: Any = uuid.UUID(slot_id)
@@ -105,8 +112,78 @@ class OrderService:
         )
         if not rows:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found.")
-        await write_audit_log(actor, "Update", "Order", order_id, {"slot_id": slot_id}, client_ip)
+        details = audit_change(before, rows[0], ["slot_id"])
+        details["slot_id"] = slot_id
+        await write_audit_log(actor, "Update", "Order", order_id, details, client_ip)
         return await self.get_order(order_id)
+
+    async def apply_coupon(
+        self,
+        order_id: str,
+        payload: OrderCouponUpdate,
+        actor: dict[str, Any],
+        client_ip: str | None = None,
+    ) -> OrderRead:
+        before = await admin_repository.get_order(order_id)
+        code = payload.coupon_code.strip().upper()
+        rows = await admin_repository.update(
+            settings.admin_orders_table,
+            match_column="id",
+            match_value=order_id,
+            values={
+                "coupon_code": code,
+                "coupon_discount": payload.coupon_discount,
+                "updated_at": utc_now_iso_seconds(),
+            },
+        )
+        if not rows:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found.")
+        details = audit_change(before, rows[0], ["coupon_code", "coupon_discount"])
+        details.update({"coupon_code": code, "coupon_discount": payload.coupon_discount})
+        await write_audit_log(actor, "Update", "Order", order_id, details, client_ip)
+        return await self.get_order(order_id)
+
+    async def remove_coupon(
+        self,
+        order_id: str,
+        actor: dict[str, Any],
+        client_ip: str | None = None,
+    ) -> OrderRead:
+        before = await admin_repository.get_order(order_id)
+        rows = await admin_repository.update(
+            settings.admin_orders_table,
+            match_column="id",
+            match_value=order_id,
+            values={"coupon_code": None, "coupon_discount": 0, "coupon_details": {}, "updated_at": utc_now_iso_seconds()},
+        )
+        if not rows:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found.")
+        details = audit_change(before, rows[0], ["coupon_code", "coupon_discount", "coupon_details"])
+        details["coupon_removed"] = True
+        await write_audit_log(actor, "Update", "Order", order_id, details, client_ip)
+        return await self.get_order(order_id)
+
+    async def resend_ticket_email(
+        self,
+        order_id: str,
+        payload: OrderEmailRequest,
+        actor: dict[str, Any],
+        client_ip: str | None = None,
+    ) -> dict[str, Any]:
+        order = await self.get_order(order_id)
+        await write_audit_log(
+            actor,
+            "Resend Email",
+            "Order",
+            order_id,
+            {"email": order.user.email, "reason": payload.reason, "queued": False, "message": "Email provider is not configured in this backend."},
+            client_ip,
+        )
+        return {
+            "ok": True,
+            "message": "Resend request audited. Email dispatch provider is not configured.",
+            "id": order_id,
+        }
 
     async def export_orders_csv(
         self,

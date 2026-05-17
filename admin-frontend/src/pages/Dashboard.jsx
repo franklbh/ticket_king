@@ -9,9 +9,9 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   Cell, PieChart, Pie,
 } from 'recharts'
-import { useLang } from '../context/AuthContext'
+import { useLang } from '../context/authHooks'
 import { useT } from '../i18n/translations'
-import { useAuth } from '../context/AuthContext'
+import { useAuth } from '../context/authHooks'
 import { useDashboardQuery } from '../hooks/dashboard'
 import {
   CustomTooltip,
@@ -41,7 +41,7 @@ export default function Dashboard() {
   const { admin } = useAuth()
   const t = useT(lang)
   const navigate = useNavigate()
-  const [range, setRange] = useState('last7Days')
+  const [range, setRange] = useState('allTime')
   const { data: dashboard, error, loading } = useDashboardQuery(
     RANGE_TO_API[range],
     { initialData: EMPTY_DASHBOARD }

@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import Response
 
 from app.api.deps import client_ip
-from app.schemas.admin import OrderCustomerUpdate, OrderSlotUpdate, OrderStatusUpdate, WalkInOrderCreate
-from app.schemas.admin.responses import OrderPage, OrderRead, WalkInOrderResponse
+from app.schemas.admin import OrderCouponUpdate, OrderCustomerUpdate, OrderEmailRequest, OrderSlotUpdate, OrderStatusUpdate, WalkInOrderCreate
+from app.schemas.admin.responses import ActionResponse, OrderPage, OrderRead, WalkInOrderResponse
 from app.services.admin.order_service import order_service
 from app.services.admin.security import require_permission
 
@@ -105,3 +105,32 @@ async def update_order_slot(
     actor: dict = Depends(require_permission("orders:write")),
 ) -> OrderRead:
     return await order_service.update_order_slot(order_id, payload, actor, client_ip(request))
+
+
+@router.post("/{order_id}/coupon", response_model=OrderRead)
+async def apply_order_coupon(
+    order_id: str,
+    payload: OrderCouponUpdate,
+    request: Request,
+    actor: dict = Depends(require_permission("orders:write")),
+) -> OrderRead:
+    return await order_service.apply_coupon(order_id, payload, actor, client_ip(request))
+
+
+@router.delete("/{order_id}/coupon", response_model=OrderRead)
+async def remove_order_coupon(
+    order_id: str,
+    request: Request,
+    actor: dict = Depends(require_permission("orders:write")),
+) -> OrderRead:
+    return await order_service.remove_coupon(order_id, actor, client_ip(request))
+
+
+@router.post("/{order_id}/resend-email", response_model=ActionResponse)
+async def resend_order_email(
+    order_id: str,
+    payload: OrderEmailRequest,
+    request: Request,
+    actor: dict = Depends(require_permission("orders:write")),
+) -> ActionResponse:
+    return ActionResponse.model_validate(await order_service.resend_ticket_email(order_id, payload, actor, client_ip(request)))

@@ -1,8 +1,6 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { fetchCurrentAdmin, loginAdminWithPassword } from '../api/adminAuth'
-
-const AuthContext = createContext(null)
-const LangContext = createContext(null)
+import { AuthContext, LangContext } from './authHooks'
 
 const ADMIN_SESSION_KEY = 'tk_admin_session'
 
@@ -71,9 +69,6 @@ export function AuthProvider({ children }) {
     </AuthContext.Provider>
   )
 }
-
-export function useAuth() { return useContext(AuthContext) }
-export function useLang() { return useContext(LangContext) }
 
 function persistAdmin(admin) {
   const localSession = localStorage.getItem(ADMIN_SESSION_KEY)

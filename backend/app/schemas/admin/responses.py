@@ -11,6 +11,29 @@ class HealthResponse(AdminModel):
     tables: dict[str, str]
 
 
+class ActionResponse(AdminModel):
+    ok: bool = True
+    message: str | None = None
+    id: str | int | None = None
+
+
+class CouponValidationResponse(AdminModel):
+    valid: bool
+    code: str
+    discount: float = 0
+    reason: str | None = None
+
+
+class CouponQrResponse(AdminModel):
+    code: str
+    payload: str
+
+
+class TicketTypeValidationResponse(AdminModel):
+    valid: bool
+    conflicts: list[dict[str, Any]] = Field(default_factory=list)
+
+
 class CustomerInfo(AdminModel):
     name: str
     email: str | None = None
@@ -223,6 +246,12 @@ class UserRead(AdminModel):
     last_login_ip: str | None = Field(default=None, alias="lastLoginIp")
     created_at: str | None = Field(default=None, alias="createdAt")
     updated_at: str | None = Field(default=None, alias="updatedAt")
+
+
+class BatchActionResponse(AdminModel):
+    ok: bool = True
+    updated: int = 0
+    ids: list[str] = Field(default_factory=list)
 
 
 OrderPage = PaginatedResponse[OrderRead]

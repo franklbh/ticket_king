@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import Button from '@mui/material/Button'
-import { useLang } from '../context/AuthContext'
+import { useLang } from '../context/authHooks'
 import { useT } from '../i18n/translations'
 import { createAdminAccount, updateStaffProfile } from '../api/adminApi'
 import { adminQueryKeys, useUsersQuery } from '../hooks/queries'

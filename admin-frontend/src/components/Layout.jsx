@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
-import { useAuth, useLang } from '../context/AuthContext'
+import { useAuth, useLang } from '../context/authHooks'
 import { useT } from '../i18n/translations'
 import { can } from '../auth/permissions'
 

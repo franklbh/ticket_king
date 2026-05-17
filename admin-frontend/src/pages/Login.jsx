@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAuth, useLang } from '../context/AuthContext'
+import { useAuth, useLang } from '../context/authHooks'
 import { useT } from '../i18n/translations'
 import { AdminAlert } from '../components/AdminUI'
 

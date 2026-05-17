@@ -2,262 +2,187 @@
 
 Base path: `/api/v1/admin`
 
-Authentication: all admin endpoints require `Authorization: Bearer <supabase_access_token>` unless marked otherwise. The backend validates the Supabase bearer token, loads the current user from the admin users table by authenticated user id, then enforces permissions from `app.services.admin.security`.
+Authentication: admin endpoints require `Authorization: Bearer <supabase_access_token>` unless noted. The backend validates the Supabase token, loads the matching row from the admin users table, normalizes role aliases, rejects inactive users, and then checks route permissions.
 
 RBAC model:
 
-- The frontend never sends a role or permission claim to authorize a request.
-- `/users/me` returns the authenticated admin profile plus effective `permissions[]` for UI gating.
-- Backend routes use permission dependencies such as `require_permission("orders:write")`.
-- Current roles:
-  - `owner`: full admin access, including users/admins, logs, and marketing settings writes.
-  - `admin`: operational access to dashboard, orders, tickets, scanner, catalog, coupons, and marketing reads.
-- Compatibility note: existing stored `administrator` role values are normalized to canonical `admin` during auth. Migrate stored rows to `admin` and then remove that compatibility alias.
-- Inactive admin accounts are rejected before permission checks.
+- The frontend never sends role or permission claims to authorize backend work.
+- `GET /users/me` returns the authenticated profile and effective `permissions[]` for UI gating.
+- Stored role values are `owner`, `administrator`, and `customer`.
+- `admin` is accepted only as an alias for stored/canonical `administrator`.
+- `owner` has full access.
+- `administrator` has operational access to dashboard, orders, tickets, scanner, catalog, coupons, and marketing reads.
+- Marketing writes, users/admin management, and audit logs are owner-only by default.
 
 Permission map:
 
-| Permission | Owner | Admin | Used by |
+| Permission | Owner | Administrator | Used by |
 | --- | --- | --- | --- |
 | `dashboard:read` | Yes | Yes | Dashboard |
 | `orders:read` | Yes | Yes | Order list/detail |
 | `orders:write` | Yes | Yes | Walk-in orders and order mutations |
 | `orders:export` | Yes | Yes | Order CSV export |
 | `tickets:read` | Yes | Yes | Ticket list/detail |
-| `tickets:write` | Yes | Yes | Ticket status updates |
+| `tickets:write` | Yes | Yes | Ticket status, batch update, QR regeneration |
 | `tickets:export` | Yes | Yes | Ticket CSV export |
-| `scanner:use` | Yes | Yes | Scanner check-in and recent scans |
+| `scanner:use` | Yes | Yes | Check-in, override check-in, recent scans |
 | `catalog:read` | Yes | Yes | Events, slots, ticket types reads |
 | `catalog:write` | Yes | Yes | Events, slots, ticket types mutations |
-| `coupons:read` | Yes | Yes | Coupon list |
+| `coupons:read` | Yes | Yes | Coupon reads and validation |
 | `coupons:write` | Yes | Yes | Coupon mutations |
 | `marketing:read` | Yes | Yes | Marketing settings/records reads |
-| `marketing:write` | Yes | No | Marketing settings updates |
-| `users:read` | Yes | No | Admin/user management page |
+| `marketing:write` | Yes | No | Marketing settings and record actions |
+| `users:read` | Yes | No | User/admin management |
 | `users:write` | Yes | No | Admin creation, role/profile/status changes |
-| `logs:read` | Yes | No | Activity logs |
+| `logs:read` | Yes | No | Audit logs |
 | `health:read` | Yes | Yes | Admin health |
-
-Status legend:
-
-- `Complete`: route exists and is wired to SQLAlchemy-backed service logic.
-- `Partial`: route exists, but workflow coverage or query efficiency still needs work.
-- `Missing`: expected admin workflow has no backend endpoint yet.
 
 ## Health
 
-| Status | Method | Path | Purpose | Notes |
-| --- | --- | --- | --- | --- |
-| Complete | `GET` | `/health` | Admin backend/database health | Requires `health:read`. Returns DB configured flag and table mapping. |
-
-Needed next:
-
-- Add dependency checks for downstream services if we want more than DB/table mapping.
+| Method | Path | Permission | Purpose |
+| --- | --- | --- | --- |
+| `GET` | `/health` | `health:read` | Backend/database health and configured table names |
 
 ## Dashboard
 
-| Status | Method | Path | Purpose | Query |
+| Method | Path | Permission | Query | Purpose |
 | --- | --- | --- | --- | --- |
-| Complete | `GET` | `/dashboard` | Dashboard stats, summary, sales trend, ticket distribution, popular slots | `range=7d\|14d\|30d\|90d\|all` |
-
-Response shape:
-
-- `stats`: `todayRevenue`, `todayOrders`, `todayTickets`, `pendingOrders`, `activeSlots`
-- `summary`: `totalRevenue`, `totalOrders`, `totalTickets`
-- `salesTrend[]`: `date`, `revenue`, `orders`, `tickets`
-- `ticketDistribution[]`: `name`, `value`, `percent`, `color`
-- `popularSlots[]`: `slot`, `sold`, `total`
-
-Needed next:
-
-- Add explicit dashboard timing/logging for slow query diagnosis.
-- Add endpoint for dashboard refresh metadata if the UI needs “last updated”.
+| `GET` | `/dashboard` | `dashboard:read` | `range=7d\|14d\|30d\|90d\|all`, default `all` | Stats, trend, distribution, popular slots |
 
 ## Orders
 
-| Status | Method | Path | Permission | Purpose | Query / Body |
-| --- | --- | --- | --- | --- | --- |
-| Complete | `GET` | `/orders` | `orders:read` | SQL-filtered paginated order list | `page`, `pageSize`, `orderId`, `userInfo`, `couponCode`, `orderDateFrom`, `orderDateTo`, `slotDateFrom`, `slotDateTo`, `slotStart`, `status` |
-| Complete | `GET` | `/orders/export` | `orders:export` | CSV export | Same filters as `/orders` |
-| Complete | `POST` | `/orders/walk-in` | `orders:write` | Create in-store/walk-in order and tickets | `WalkInOrderCreate` |
-| Complete | `GET` | `/orders/{order_id}` | `orders:read` | Read one order | Path `order_id` |
-| Complete | `PATCH` | `/orders/{order_id}/status` | `orders:write` | Update order status | `{ "status": string }` |
-| Complete | `PATCH` | `/orders/{order_id}/customer` | `orders:write` | Update guest/customer fields on an order | `{ "name": string, "email": string, "phone": string }` |
-| Complete | `PATCH` | `/orders/{order_id}/slot` | `orders:write` | Move order to another slot | `{ "slotId": string }` |
+| Method | Path | Permission | Query / Body | Purpose |
+| --- | --- | --- | --- | --- |
+| `GET` | `/orders` | `orders:read` | `page`, `pageSize`, `orderId`, `userInfo`, `couponCode`, `orderDateFrom`, `orderDateTo`, `slotDateFrom`, `slotDateTo`, `slotStart`, `status` | SQL-filtered paginated orders |
+| `GET` | `/orders/export` | `orders:export` | Same filters as `/orders` | CSV export with audit log |
+| `POST` | `/orders/walk-in` | `orders:write` | `WalkInOrderCreate` | Create walk-in order and tickets |
+| `GET` | `/orders/{order_id}` | `orders:read` | Path `order_id` | Read one order |
+| `PATCH` | `/orders/{order_id}/status` | `orders:write` | `{ "status": string }` | Update order status |
+| `PATCH` | `/orders/{order_id}/customer` | `orders:write` | `{ "name": string, "email": string, "phone": string }` | Update order guest/customer fields |
+| `PATCH` | `/orders/{order_id}/slot` | `orders:write` | `{ "slotId": string }` | Move order to another slot |
+| `POST` | `/orders/{order_id}/coupon` | `orders:write` | `{ "couponCode": string, "couponDiscount": number }` | Apply coupon fields to order |
+| `DELETE` | `/orders/{order_id}/coupon` | `orders:write` | None | Remove coupon fields from order |
+| `POST` | `/orders/{order_id}/resend-email` | `orders:write` | `{ "reason": string }` | Audit resend request; email provider is not wired yet |
 
-Implemented request body for walk-in:
-
-- `slot_id`, `slot_date`, `slot_start_time`, `slot_end_time`
-- `tickets[]`: `ticket_type_id`, `ticket_type`, `quantity`, `unit_price`
-- `customer`: `name`, `email`, `phone`, `remarks`
-- `payment_method`, `mark_used_immediately`
-
-Missing / partial:
-
-- Missing `POST /orders/{order_id}/resend-email`.
-- Missing coupon application/removal endpoint.
-- Partial: slot changes update the order slot reference; if tickets later store denormalized slot data, add a linked ticket update step.
-- Partial: customer update targets order guest fields. If an order belongs to a registered `users` row, decide whether admin edits should also update the user profile.
+Partial: customer updates currently change order guest fields, not the linked registered user profile.
 
 ## Tickets
 
-| Status | Method | Path | Permission | Purpose | Query / Body |
-| --- | --- | --- | --- | --- | --- |
-| Complete | `GET` | `/tickets` | `tickets:read` | Paginated ticket list | `page`, `pageSize`, `code`, `orderId`, `status`, `slotDateFrom`, `slotDateTo`, `verifiedFrom`, `verifiedTo`, `ticketType` |
-| Complete | `GET` | `/tickets/export` | `tickets:export` | CSV export | Same filters as `/tickets` |
-| Complete | `GET` | `/tickets/{ticket_id}` | `tickets:read` | Read one ticket | Path `ticket_id` |
-| Complete | `PATCH` | `/tickets/{ticket_id}/status` | `tickets:write` | Mark ticket `used`, `not_used`, or `voided` | `{ "status": string }` |
-
-Missing / partial:
-
-- Missing batch status update endpoint.
-- Missing ticket regenerate/reissue endpoint.
-- Missing QR payload refresh endpoint.
-- Partial: check-in lookup currently scans selected ticket rows in service code; should use indexed SQL lookup by verification code/QR payload.
+| Method | Path | Permission | Query / Body | Purpose |
+| --- | --- | --- | --- | --- |
+| `GET` | `/tickets` | `tickets:read` | `page`, `pageSize`, `code`, `orderId`, `status`, `slotDateFrom`, `slotDateTo`, `verifiedFrom`, `verifiedTo`, `ticketType` | SQL-filtered paginated tickets |
+| `GET` | `/tickets/export` | `tickets:export` | Same filters as `/tickets` | CSV export with audit log |
+| `GET` | `/tickets/{ticket_id}` | `tickets:read` | Path `ticket_id` | Read one ticket |
+| `PATCH` | `/tickets/{ticket_id}/status` | `tickets:write` | `{ "status": string }` | Mark ticket `used`, `not_used`, or `voided` |
+| `PATCH` | `/tickets/batch/status` | `tickets:write` | `{ "ticketIds": string[], "status": string }` | Batch status update |
+| `POST` | `/tickets/{ticket_id}/regenerate-qr` | `tickets:write` | `{ "reason": string }` | Generate new verification code and QR payload |
 
 ## Scanner
 
-| Status | Method | Path | Permission | Purpose | Query / Body |
-| --- | --- | --- | --- | --- | --- |
-| Complete | `POST` | `/scanner/check-in` | `scanner:use` | Validate and mark ticket used | `{ "code": string }` |
-| Complete | `GET` | `/scanner/recent` | `scanner:use` | Recently checked-in tickets | `minutes` from `1` to `240` |
+| Method | Path | Permission | Query / Body | Purpose |
+| --- | --- | --- | --- | --- |
+| `POST` | `/scanner/check-in` | `scanner:use` | `{ "code": string }` | Validate and mark ticket used |
+| `POST` | `/scanner/override-check-in` | `scanner:use` | `{ "code": string, "reason": string }` | Forced check-in with audit reason |
+| `GET` | `/scanner/recent` | `scanner:use` | `minutes=1..240` | Recent checked-in tickets |
 
-Missing / partial:
-
-- Missing manual override/audit reason for forced check-in.
-- Missing scanner station/session identifier if multiple entrances are used.
-- Partial: recent scans returns ticket rows only; order/slot enrichment may be needed for richer scanner history.
-
-## Catalog: Events, Slots, Ticket Types
+## Catalog
 
 ### Events
 
-| Status | Method | Path | Purpose |
-| --- | --- | --- | --- |
-| Complete | `GET` | `/events` | List events |
-| Complete | `POST` | `/events` | Create event |
-| Complete | `PATCH` | `/events/{event_id}` | Update event |
+| Method | Path | Permission | Body | Purpose |
+| --- | --- | --- | --- | --- |
+| `GET` | `/events` | `catalog:read` | None | List events |
+| `POST` | `/events` | `catalog:write` | `EventUpsert` | Create event |
+| `PATCH` | `/events/{event_id}` | `catalog:write` | `EventUpsert` | Update event |
 
-Missing:
-
-- Missing `DELETE /events/{event_id}` or deactivate endpoint.
+Missing: event archive/deactivate endpoint.
 
 ### Slots
 
-| Status | Method | Path | Purpose | Query / Body |
+| Method | Path | Permission | Query / Body | Purpose |
 | --- | --- | --- | --- | --- |
-| Complete | `GET` | `/slots` | List slots by date range | `dateFrom`, `dateTo` |
-| Complete | `POST` | `/slots` | Create slot | `SlotUpsert` |
-| Complete | `PATCH` | `/slots/{slot_id}` | Update slot | `SlotUpsert` |
-
-Missing / partial:
-
-- Missing batch create/edit slots.
-- Missing dedicated enable/disable endpoint.
-- Missing capacity adjustment/restock endpoint with audit reason.
-- Missing `GET /slots/{slot_id}`.
+| `GET` | `/slots` | `catalog:read` | Optional `dateFrom`, `dateTo` | SQL-filtered slot list. No date defaults are applied. |
+| `POST` | `/slots` | `catalog:write` | `SlotUpsert` | Create slot |
+| `POST` | `/slots/batch` | `catalog:write` | `{ "slots": SlotUpsert[] }` | Batch create slots |
+| `GET` | `/slots/{slot_id}` | `catalog:read` | Path `slot_id` | Read one slot |
+| `PATCH` | `/slots/{slot_id}` | `catalog:write` | `SlotUpsert` | Update slot |
+| `PATCH` | `/slots/{slot_id}/status` | `catalog:write` | `{ "status": string }` | Enable/disable/update slot status |
+| `PATCH` | `/slots/{slot_id}/capacity` | `catalog:write` | `{ "totalSeats": number, "reason": string }` | Capacity/restock update |
 
 ### Ticket Types
 
-| Status | Method | Path | Purpose | Query / Body |
+| Method | Path | Permission | Query / Body | Purpose |
 | --- | --- | --- | --- | --- |
-| Complete | `GET` | `/ticket-types` | List ticket types | `enabledOnly=true\|false` |
-| Complete | `POST` | `/ticket-types` | Create ticket type/rule | `TicketTypeUpsert` |
-| Complete | `PATCH` | `/ticket-types/{type_id}` | Update ticket type/rule | `TicketTypeUpsert` |
-
-Missing / partial:
-
-- Missing dedicated enable/disable endpoint.
-- Missing delete/archive endpoint.
-- Missing bulk price update endpoint for the matrix UI.
-- Missing rule validation endpoint for overlapping time/date/tier rules.
+| `GET` | `/ticket-types` | `catalog:read` | `enabledOnly=true\|false` | List ticket types |
+| `POST` | `/ticket-types` | `catalog:write` | `TicketTypeUpsert` | Create ticket type/rule |
+| `POST` | `/ticket-types/validate` | `catalog:read` | `TicketTypeUpsert` | Validate rule conflicts |
+| `PATCH` | `/ticket-types/bulk-price` | `catalog:write` | `{ "ids": [], "price": number, "priceAdj": number, "remarks": string }` | Bulk price update |
+| `PATCH` | `/ticket-types/{type_id}` | `catalog:write` | `TicketTypeUpsert` | Update ticket type/rule |
+| `PATCH` | `/ticket-types/{type_id}/status` | `catalog:write` | `{ "status": string }` | Update status |
+| `DELETE` | `/ticket-types/{type_id}` | `catalog:write` | None | Archive ticket type |
 
 ## Coupons
 
-| Status | Method | Path | Purpose | Query / Body |
+| Method | Path | Permission | Query / Body | Purpose |
 | --- | --- | --- | --- | --- |
-| Complete | `GET` | `/coupons` | List coupons | `status`, `source` |
-| Complete | `POST` | `/coupons` | Create coupon | `CouponUpsert` |
-| Complete | `PATCH` | `/coupons/{coupon_id}` | Update coupon | `CouponUpsert` |
-
-Missing / partial:
-
-- Missing search filter by coupon code, although frontend currently has client-side search.
-- Missing coupon usage/order list endpoint.
-- Missing coupon QR generation endpoint.
-- Missing delete/archive endpoint.
-- Missing validation endpoint for checkout/admin order creation.
+| `GET` | `/coupons` | `coupons:read` | `status`, `source`, `search` | SQL-filtered coupon list |
+| `POST` | `/coupons/validate` | `coupons:read` | `{ "code": string, "amount": number }` | Validate coupon and compute discount |
+| `POST` | `/coupons` | `coupons:write` | `CouponUpsert` | Create coupon |
+| `PATCH` | `/coupons/{coupon_id}` | `coupons:write` | `CouponUpsert` | Update coupon |
+| `DELETE` | `/coupons/{coupon_id}` | `coupons:write` | None | Archive coupon |
+| `GET` | `/coupons/{coupon_id}/qr` | `coupons:read` | Path `coupon_id` | Coupon QR payload |
+| `GET` | `/coupons/{coupon_id}/orders` | `coupons:read` | `page`, `pageSize` | Orders using coupon |
 
 ## Marketing
 
-| Status | Method | Path | Purpose | Query / Body |
+| Method | Path | Permission | Query / Body | Purpose |
 | --- | --- | --- | --- | --- |
-| Complete | `GET` | `/marketing/settings` | Read marketing settings | None |
-| Complete | `PUT` | `/marketing/settings` | Update marketing settings | `MarketingSettingsUpdate` |
-| Complete | `GET` | `/marketing/records` | Paginated marketing send records | `page`, `pageSize`, `status` |
+| `GET` | `/marketing/settings` | `marketing:read` | None | Read marketing settings |
+| `PUT` | `/marketing/settings` | `marketing:write` | `MarketingSettingsUpdate` | Update settings |
+| `GET` | `/marketing/records` | `marketing:read` | `page`, `pageSize`, `status` | SQL-filtered paginated marketing records |
+| `POST` | `/marketing/records` | `marketing:write` | `MarketingRecordCreate` | Create queued marketing record |
+| `POST` | `/marketing/records/{record_id}/cancel` | `marketing:write` | `{ "reason": string }` | Cancel record |
+| `POST` | `/marketing/records/{record_id}/retry` | `marketing:write` | `{ "reason": string }` | Requeue record |
+| `POST` | `/marketing/test-send` | `marketing:write` | `MarketingTestSendRequest` | Audit test send request |
 
-Missing / partial:
-
-- Missing create/schedule marketing record endpoint.
-- Missing cancel marketing record endpoint.
-- Missing retry failed send endpoint.
-- Missing email preview/test-send endpoint.
-- Missing coupon generation integration for marketing records.
-- Partial: current service only stores settings and lists records; actual email dispatch workflow is not implemented here.
+Partial: email dispatch provider and delivery tracking are not implemented yet.
 
 ## Users / Admins
 
-| Status | Method | Path | Permission / Auth | Purpose |
+| Method | Path | Permission / Auth | Body | Purpose |
 | --- | --- | --- | --- | --- |
-| Complete | `GET` | `/users/me` | Any active admin | Current admin profile with `permissions[]` |
-| Complete | `GET` | `/users` | `users:read` | List users/admins, optional `role` |
-| Complete | `POST` | `/users/admins` | `users:write` | Create admin account |
-| Complete | `POST` | `/users/bootstrap-owner` | Bootstrap token if configured | Bootstrap initial owner |
-| Complete | `PATCH` | `/users/{user_id}/role` | `users:write` | Change user app role |
-| Complete | `PATCH` | `/users/{user_id}/staff-profile` | `users:write` | Update staff role/profile/status |
+| `GET` | `/users/me` | Active admin | None | Current profile with permissions |
+| `POST` | `/users/me/login-event` | Active admin | None | Record login event after successful password login |
+| `GET` | `/users` | `users:read` | Optional `role` query | SQL-filtered user/admin list |
+| `POST` | `/users/admins` | `users:write` | `AdminAccountCreate` | Create administrator account |
+| `POST` | `/users/bootstrap-owner` | Bootstrap token if configured | `OwnerBootstrapCreate` | Bootstrap initial owner |
+| `PATCH` | `/users/{user_id}/role` | `users:write` | `{ "role": "owner\|administrator\|admin\|customer" }` | Change role |
+| `PATCH` | `/users/{user_id}/staff-profile` | `users:write` | `StaffProfileUpdate` | Update staff profile/status |
 
-Missing / partial:
-
-- Missing password reset/change endpoint.
-- Missing deactivate/delete admin endpoint with owner-only guard.
-- Missing user detail endpoint.
-- Missing login history endpoint.
-- Partial: admin creation depends on Supabase auth API configuration; if service role is unavailable it falls back to signup and may require project settings to allow that.
+Missing: password reset/change endpoint, user detail endpoint, and login-history endpoint.
 
 ## Activity Logs
 
-| Status | Method | Path | Purpose | Query |
+| Method | Path | Permission | Query | Purpose |
 | --- | --- | --- | --- | --- |
-| Complete | `GET` | `/logs` | Paginated audit/activity logs | `page`, `pageSize`, `admin`, `actionType`, `targetType`, `targetId`, `dateFrom`, `dateTo` |
+| `GET` | `/logs` | `logs:read` | `page`, `pageSize`, `admin`, `actionType`, `targetType`, `targetId`, `dateFrom`, `dateTo`, `search` | SQL-filtered paginated audit logs |
+| `GET` | `/logs/export` | `logs:read` | Same filters as `/logs` | CSV export |
+| `GET` | `/logs/{log_id}` | `logs:read` | Path `log_id` | Log detail |
 
-Missing / partial:
-
-- Missing log detail endpoint.
-- Missing export logs endpoint.
-- Missing free-text search endpoint.
-- Partial: many actions write audit logs, but not every admin mutation has complete before/after details.
+Audit details now include structured `changes` for the high-frequency order, coupon, and marketing mutations. Some catalog/ticket mutations still record action-specific details rather than a full before/after object.
 
 ## Frontend API Client Coverage
 
-Current `admin-frontend/src/api/adminApi.js` expects these backend functions:
+`admin-frontend/src/api/adminApi.js` exports client functions for every backend route listed above, including routes that are not yet exposed in page UI.
 
-- Dashboard: `GET /dashboard`
-- Health: `GET /health`
-- Orders: `GET /orders`, `GET /orders/{order_id}`, `GET /orders/export`, `POST /orders/walk-in`, `PATCH /orders/{order_id}/status`, `PATCH /orders/{order_id}/customer`, `PATCH /orders/{order_id}/slot`
-- Tickets: `GET /tickets`, `GET /tickets/{ticket_id}`, `GET /tickets/export`, `PATCH /tickets/{ticket_id}/status`
-- Catalog: `GET /events`, `POST /events`, `PATCH /events/{event_id}`, `GET /slots`, `POST /slots`, `PATCH /slots/{slot_id}`, `GET /ticket-types`, `POST /ticket-types`, `PATCH /ticket-types/{type_id}`
-- Coupons: `GET /coupons`, `POST /coupons`, `PATCH /coupons/{coupon_id}`
-- Marketing: `GET /marketing/settings`, `PUT /marketing/settings`, `GET /marketing/records`
-- Scanner: `POST /scanner/check-in`, `GET /scanner/recent`
-- Logs: `GET /logs`
-- Users: `GET /users`, `GET /users/me`, `POST /users/admins`, `PATCH /users/{user_id}/staff-profile`
+## Database Setup
 
-Every function currently exported by `admin-frontend/src/api/adminApi.js` has a matching backend route. The backend also exposes `POST /users/bootstrap-owner` and `PATCH /users/{user_id}/role`; those are not currently exported by the frontend client.
+Run the SQL files in order:
 
-## Recommended Build Order
+1. `backend/sql/001_admin_schema.sql`
+2. `backend/sql/002_admin_seed_catalog.sql`
+3. `backend/sql/003_normalize_relations.sql`
+4. `backend/sql/004_users_role_admin.sql`
+5. `backend/sql/006_admin_performance_indexes.sql`
 
-1. Finish high-frequency admin workflows: order detail/update/status/change-slot/resend-email, ticket batch update, slot batch edit.
-2. Move remaining list filters into SQL where possible for orders, tickets, logs, coupons, and scanner lookup.
-3. Complete marketing dispatch endpoints after email provider behavior is decided.
-4. Harden admin/user permissions around staff status, role changes, deactivation, and password reset.
-5. Add OpenAPI examples or contract tests for each module once the endpoint set stabilizes.
+The performance indexes are important for dashboard, orders, tickets, slots, scanner, coupons, marketing records, and audit log pages.

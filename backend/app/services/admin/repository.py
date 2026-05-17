@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import date
+from datetime import date, datetime
 from threading import Lock
 from typing import Any
 from uuid import UUID
@@ -74,6 +74,39 @@ class AdminRepository:
             {"ticket_id_exact": ticket_id, "page": 1, "page_size": 1},
         )
         return rows[0] if rows else None
+
+    async def get_ticket_by_code(self, code: str) -> dict[str, Any] | None:
+        return await asyncio.to_thread(self._get_ticket_by_code_sync, code)
+
+    async def recent_checked_in_tickets(self, cutoff: datetime, limit: int = 100) -> list[dict[str, Any]]:
+        return await asyncio.to_thread(self._recent_checked_in_tickets_sync, cutoff, limit)
+
+    async def list_slots(self, date_from: str | None = None, date_to: str | None = None) -> list[dict[str, Any]]:
+        return await asyncio.to_thread(self._list_slots_sync, date_from, date_to)
+
+    async def slot_inventory_counts(self) -> dict[str, dict[str, int]]:
+        return await asyncio.to_thread(self._slot_inventory_counts_sync)
+
+    async def list_activity_logs(self, filters: dict[str, Any]) -> tuple[list[dict[str, Any]], int]:
+        return await asyncio.to_thread(self._list_activity_logs_sync, filters)
+
+    async def get_activity_log(self, log_id: str) -> dict[str, Any] | None:
+        return await asyncio.to_thread(self._get_activity_log_sync, log_id)
+
+    async def list_coupons(
+        self,
+        *,
+        status_filter: str | None = None,
+        source: str | None = None,
+        search: str | None = None,
+    ) -> list[dict[str, Any]]:
+        return await asyncio.to_thread(self._list_coupons_sync, status_filter, source, search)
+
+    async def list_marketing_records(self, filters: dict[str, Any]) -> tuple[list[dict[str, Any]], int]:
+        return await asyncio.to_thread(self._list_marketing_records_sync, filters)
+
+    async def list_users(self, role: str | None = None) -> list[dict[str, Any]]:
+        return await asyncio.to_thread(self._list_users_sync, role)
 
     async def insert(self, table_name: str, rows: dict[str, Any] | list[dict[str, Any]]) -> list[dict[str, Any]]:
         payload = rows if isinstance(rows, list) else [rows]
@@ -239,7 +272,7 @@ class AdminRepository:
             order_id = cast(orders.c.id, String)
             order_created_date = func.date(orders.c.created_at)
             order_status = func.lower(cast(orders.c.order_status, String))
-            slot_date = func.date(slots.c.business_date)
+            slot_date = slots.c.business_date
             slot_start = cast(slots.c.start_time, String)
             ticket_status = func.lower(cast(tickets.c[settings.admin_ticket_status_column], String))
 
@@ -332,7 +365,7 @@ class AdminRepository:
             order_id = cast(tickets.c.order_id, String)
             ticket_code = cast(tickets.c.verification_code, String)
             ticket_status = func.lower(cast(tickets.c[settings.admin_ticket_status_column], String))
-            slot_date = func.date(slots.c.business_date)
+            slot_date = slots.c.business_date
             checked_date = func.date(tickets.c.checked_in_at)
 
             conditions = []
@@ -397,6 +430,245 @@ class AdminRepository:
                 .all()
             )
             return [dict(row) for row in rows], total
+
+    def _get_ticket_by_code_sync(self, code: str) -> dict[str, Any] | None:
+        with self._session() as db:
+            tickets = self._table(db, settings.admin_tickets_table)
+            ticket_code = cast(tickets.c.verification_code, String)
+            qr_payload = cast(tickets.c.qr_payload, String)
+            row = (
+                db.execute(
+                    select(tickets)
+                    .where(or_(
+                        ticket_code == code,
+                        qr_payload == code,
+                        qr_payload == f"ticket:{code}",
+                    ))
+                    .limit(1)
+                )
+                .mappings()
+                .first()
+            )
+            return dict(row) if row else None
+
+    def _recent_checked_in_tickets_sync(self, cutoff: datetime, limit: int) -> list[dict[str, Any]]:
+        query_limit = min(max(limit, 1), settings.max_table_rows)
+        with self._session() as db:
+            tickets = self._table(db, settings.admin_tickets_table)
+            rows = (
+                db.execute(
+                    select(tickets)
+                    .where(tickets.c.checked_in_at.is_not(None), tickets.c.checked_in_at >= cutoff)
+                    .order_by(tickets.c.checked_in_at.desc())
+                    .limit(query_limit)
+                )
+                .mappings()
+                .all()
+            )
+            return [dict(row) for row in rows]
+
+    def _list_slots_sync(self, date_from: str | None, date_to: str | None) -> list[dict[str, Any]]:
+        with self._session() as db:
+            slots = self._table(db, settings.admin_slots_table)
+            slot_date = slots.c.business_date
+            statement = select(slots)
+            conditions = []
+            if date_from:
+                conditions.append(slot_date >= date_from)
+            if date_to:
+                conditions.append(slot_date <= date_to)
+            if conditions:
+                statement = statement.where(and_(*conditions))
+            rows = (
+                db.execute(
+                    statement
+                    .order_by(slots.c.business_date.asc(), slots.c.start_time.asc())
+                    .limit(settings.max_table_rows)
+                )
+                .mappings()
+                .all()
+            )
+            return [dict(row) for row in rows]
+
+    def _slot_inventory_counts_sync(self) -> dict[str, dict[str, int]]:
+        with self._session() as db:
+            orders = self._table(db, settings.admin_orders_table)
+            tickets = self._table(db, settings.admin_tickets_table)
+            channel = func.lower(cast(orders.c.sales_channel, String))
+            is_walkin = channel.in_(["walk_in", "walk-in", "instore", "in_store"])
+            rows = (
+                db.execute(
+                    select(
+                        orders.c.slot_id.label("slot_id"),
+                        func.coalesce(func.sum(case((is_walkin, 1), else_=0)), 0).label("walkin_sold"),
+                        func.coalesce(func.sum(case((is_walkin, 0), else_=1)), 0).label("online_sold"),
+                    )
+                    .select_from(tickets.join(orders, tickets.c.order_id == orders.c.id))
+                    .where(orders.c.slot_id.is_not(None))
+                    .group_by(orders.c.slot_id)
+                )
+                .mappings()
+                .all()
+            )
+            return {
+                str(row["slot_id"]): {
+                    "walkin_sold": int(row["walkin_sold"] or 0),
+                    "online_sold": int(row["online_sold"] or 0),
+                }
+                for row in rows
+            }
+
+    def _list_activity_logs_sync(self, filters: dict[str, Any]) -> tuple[list[dict[str, Any]], int]:
+        page = max(int(filters.get("page") or 1), 1)
+        page_size = min(max(int(filters.get("page_size") or 25), 1), 200)
+        with self._session() as db:
+            logs = self._table(db, settings.admin_audit_logs_table)
+            users = self._table(db, settings.admin_users_table)
+            created_date = func.date(logs.c.created_at)
+            conditions = []
+            if filters.get("admin"):
+                needle = f"%{str(filters['admin']).lower()}%"
+                conditions.append(or_(
+                    func.lower(cast(users.c.name, String)).like(needle),
+                    func.lower(cast(users.c.email, String)).like(needle),
+                    func.lower(cast(logs.c.admin_id, String)).like(needle),
+                ))
+            if filters.get("action_type"):
+                actions = [item.strip() for item in str(filters["action_type"]).split(",") if item.strip()]
+                conditions.append(logs.c.action_type.in_(actions))
+            if filters.get("target_type"):
+                targets = [item.strip() for item in str(filters["target_type"]).split(",") if item.strip()]
+                conditions.append(logs.c.target_type.in_(targets))
+            if filters.get("target_id"):
+                conditions.append(cast(logs.c.target_id, String).ilike(f"%{filters['target_id']}%"))
+            if filters.get("date_from"):
+                conditions.append(created_date >= filters["date_from"])
+            if filters.get("date_to"):
+                conditions.append(created_date <= filters["date_to"])
+            if filters.get("search"):
+                needle = f"%{str(filters['search']).lower()}%"
+                conditions.append(or_(
+                    func.lower(cast(logs.c.action_details, String)).like(needle),
+                    func.lower(cast(logs.c.target_id, String)).like(needle),
+                    func.lower(cast(users.c.name, String)).like(needle),
+                    func.lower(cast(users.c.email, String)).like(needle),
+                ))
+
+            from_clause = logs.outerjoin(users, logs.c.admin_id == users.c.id)
+            base = select(
+                logs,
+                users.c.name.label("admin_name"),
+                users.c.email.label("admin_email"),
+            ).select_from(from_clause)
+            count_stmt = select(func.count()).select_from(from_clause)
+            if conditions:
+                base = base.where(and_(*conditions))
+                count_stmt = count_stmt.where(and_(*conditions))
+            total = int(db.scalar(count_stmt) or 0)
+            rows = (
+                db.execute(
+                    base.order_by(logs.c.created_at.desc())
+                    .limit(page_size)
+                    .offset((page - 1) * page_size)
+                )
+                .mappings()
+                .all()
+            )
+            return [dict(row) for row in rows], total
+
+    def _get_activity_log_sync(self, log_id: str) -> dict[str, Any] | None:
+        with self._session() as db:
+            logs = self._table(db, settings.admin_audit_logs_table)
+            users = self._table(db, settings.admin_users_table)
+            row = (
+                db.execute(
+                    select(
+                        logs,
+                        users.c.name.label("admin_name"),
+                        users.c.email.label("admin_email"),
+                    )
+                    .select_from(logs.outerjoin(users, logs.c.admin_id == users.c.id))
+                    .where(cast(logs.c.id, String) == str(log_id))
+                    .limit(1)
+                )
+                .mappings()
+                .first()
+            )
+            return dict(row) if row else None
+
+    def _list_coupons_sync(
+        self,
+        status_filter: str | None,
+        source: str | None,
+        search: str | None,
+    ) -> list[dict[str, Any]]:
+        with self._session() as db:
+            coupons = self._table(db, settings.admin_coupons_table)
+            statement = select(coupons)
+            conditions = []
+            if status_filter and status_filter != "all":
+                conditions.append(func.lower(cast(coupons.c.status, String)) == status_filter.lower())
+            if source and source != "all":
+                conditions.append(func.lower(cast(coupons.c.source, String)) == source.lower())
+            if search:
+                needle = f"%{search.lower()}%"
+                conditions.append(or_(
+                    func.lower(cast(coupons.c.code, String)).like(needle),
+                    func.lower(cast(coupons.c.remarks, String)).like(needle),
+                ))
+            if conditions:
+                statement = statement.where(and_(*conditions))
+            rows = (
+                db.execute(
+                    statement
+                    .order_by(coupons.c.created_at.desc(), coupons.c.code.asc())
+                    .limit(settings.max_table_rows)
+                )
+                .mappings()
+                .all()
+            )
+            return [dict(row) for row in rows]
+
+    def _list_marketing_records_sync(self, filters: dict[str, Any]) -> tuple[list[dict[str, Any]], int]:
+        page = max(int(filters.get("page") or 1), 1)
+        page_size = min(max(int(filters.get("page_size") or 25), 1), 200)
+        with self._session() as db:
+            records = self._table(db, settings.admin_marketing_records_table)
+            statement = select(records)
+            count_stmt = select(func.count()).select_from(records)
+            if filters.get("status") and filters["status"] != "all":
+                condition = func.lower(cast(records.c.status, String)) == str(filters["status"]).lower()
+                statement = statement.where(condition)
+                count_stmt = count_stmt.where(condition)
+            total = int(db.scalar(count_stmt) or 0)
+            rows = (
+                db.execute(
+                    statement
+                    .order_by(records.c.created_at.desc())
+                    .limit(page_size)
+                    .offset((page - 1) * page_size)
+                )
+                .mappings()
+                .all()
+            )
+            return [dict(row) for row in rows], total
+
+    def _list_users_sync(self, role: str | None) -> list[dict[str, Any]]:
+        with self._session() as db:
+            users = self._table(db, settings.admin_users_table)
+            statement = select(users)
+            if role:
+                statement = statement.where(func.lower(cast(users.c.role, String)) == role.lower())
+            rows = (
+                db.execute(
+                    statement
+                    .order_by(users.c.role.asc(), users.c.email.asc())
+                    .limit(settings.max_table_rows)
+                )
+                .mappings()
+                .all()
+            )
+            return [dict(row) for row in rows]
 
     def _insert_sync(self, table_name: str, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if not rows:

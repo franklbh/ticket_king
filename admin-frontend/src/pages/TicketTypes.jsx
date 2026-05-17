@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import Button from '@mui/material/Button'
-import { useLang } from '../context/AuthContext'
+import { useLang } from '../context/authHooks'
 import { useT } from '../i18n/translations'
 import { createTicketType, updateTicketType } from '../api/adminApi'
 import { AdminAlert, EmptyTableRow, FilterCard, PageHeader, TableShell } from '../components/AdminUI'

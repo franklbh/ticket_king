@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import jsQR from 'jsqr'
-import { useLang } from '../context/AuthContext'
+import { useLang } from '../context/authHooks'
 import { useT } from '../i18n/translations'
 import { checkInTicket } from '../api/adminApi'
 import { useAdminMutation } from '../hooks/useAdminApi'

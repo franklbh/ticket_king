@@ -4,7 +4,7 @@ import Button from '@mui/material/Button'
 import MenuItem from '@mui/material/MenuItem'
 import MuiPagination from '@mui/material/Pagination'
 import Select from '@mui/material/Select'
-import { useLang } from '../context/AuthContext'
+import { useLang } from '../context/authHooks'
 import { useT } from '../i18n/translations'
 import { exportOrders, updateOrderCustomer, updateOrderSlot, updateOrderStatus } from '../api/adminApi'
 import { useAdminMutation } from '../hooks/useAdminApi'
@@ -13,7 +13,7 @@ import { useSlotsQuery } from '../hooks/catalog'
 import LoadingIndicator from '../components/LoadingIndicator'
 import { AdminAlert, EmptyTableRow, FilterCard, PageHeader, TableShell } from '../components/AdminUI'
 import { DateRangeFilter, ResetFiltersButton, StatusChipFilter, TextFilter } from '../components/FilterControls'
-import { addDays, formatDateShort, todayIso, weekdayName } from '../utils/date'
+import { formatDateShort, todayIso, weekdayName } from '../utils/date'
 
 const STATUS_LIST = ['paid', 'completed', 'refunded', 'cancelled']
 const STATUS_OPTIONS = STATUS_LIST.map(status => ({ value: status, label: status[0].toUpperCase() + status.slice(1) }))
@@ -341,7 +341,7 @@ export default function Orders() {
     orderDateFrom: '', orderDateTo: '',
     slotDateFrom: linkedSlotDate || '', slotDateTo: linkedSlotDate || '',
     slotStart: linkedSlotStart,
-    statuses: ['completed', 'paid'],
+    statuses: [],
   })
   const [page, setPage] = useState(1)
   const orderQueryFilters = useMemo(() => ({
@@ -361,9 +361,12 @@ export default function Orders() {
     orderQueryFilters,
     { initialData: { items: [], total: 0 } }
   )
+  const [popover, setPopover] = useState(null) // { type, orderId, rect }
+  const [modal, setModal] = useState(null)     // { type, order }
+  const loadSlotOptions = modal?.type === 'changeSlot'
   const { data: slots = [] } = useSlotsQuery(
-    { dateFrom: TODAY, dateTo: addDays(TODAY, 180) },
-    { initialData: [] }
+    {},
+    { initialData: [], enabled: loadSlotOptions }
   )
   const { mutate: exportOrdersMutation, loading: exporting } = useAdminMutation(exportOrders, {
     successMessage: 'Orders exported.',
@@ -377,8 +380,6 @@ export default function Orders() {
   const { mutate: updateStatusMutation } = useAdminMutation(updateOrderStatus, {
     successMessage: 'Order status updated.',
   })
-  const [popover, setPopover] = useState(null) // { type, orderId, rect }
-  const [modal, setModal] = useState(null)     // { type, order }
   const [editForm, setEditForm] = useState({ firstName: '', lastName: '', phone: '', email: '' })
   const [slotPick, setSlotPick] = useState({ date: null, slot: null, resend: true })
   const [copiedId, setCopiedId] = useState(null)
@@ -597,7 +598,7 @@ export default function Orders() {
                   <td>
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
                       <span style={{ fontSize: 13, fontWeight: 500 }}>
-                        {o.slot.date.slice(5)} {o.slot.startTime}–{o.slot.endTime}
+                        {o.slot?.date ? o.slot.date.slice(5) : 'No slot'} {o.slot?.startTime || ''}{o.slot?.endTime ? `-${o.slot.endTime}` : ''}
                       </span>
                       <IconBtn icon="fa-calendar" onClick={() => navigate('/slots')} title={t.viewSlot} color="#6366f1" bg="#eef2ff" />
                       <IconBtn icon="fa-exchange-alt" onClick={() => openModal('changeSlot', o)} title={t.changeOrderSlot} amber />

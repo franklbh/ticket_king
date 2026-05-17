@@ -11,7 +11,7 @@ import MenuItem from '@mui/material/MenuItem'
 import Select from '@mui/material/Select'
 import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
-import { useLang } from '../context/AuthContext'
+import { useLang } from '../context/authHooks'
 import { useT } from '../i18n/translations'
 import { createSlot, updateSlot } from '../api/adminApi'
 import { AdminAlert, AdminPagination, EmptyTableRow, FilterCard, PageHeader, TableShell } from '../components/AdminUI'
@@ -19,7 +19,7 @@ import LoadingIndicator from '../components/LoadingIndicator'
 import { adminQueryKeys } from '../hooks/queries'
 import { useEventsQuery, useSlotsQuery } from '../hooks/catalog'
 import { useAdminMutation } from '../hooks/useAdminApi'
-import { addDays, formatDateWithDay, todayIso } from '../utils/date'
+import { formatDateWithDay, todayIso } from '../utils/date'
 import { DateRangeFilter, ResetFiltersButton, SelectFilter } from '../components/FilterControls'
 
 const PAGE_SIZE = 15
@@ -89,13 +89,13 @@ export default function Slots() {
   const linkedStart = searchParams.get('start')
   const [filters, setFilters] = useState({
     event: 'all',
-    dateFrom: linkedDate || TODAY, dateTo: linkedDate || addDays(TODAY, 180),
+    dateFrom: linkedDate || '', dateTo: linkedDate || '',
     status: 'all', todayOnly: false, hideUnsold: false
   })
 
   const slotParams = useMemo(() => ({
-    dateFrom: filters.dateFrom || linkedDate || TODAY,
-    dateTo: filters.dateTo || addDays(TODAY, 180),
+    dateFrom: filters.dateFrom || linkedDate || '',
+    dateTo: filters.dateTo || linkedDate || '',
   }), [filters.dateFrom, filters.dateTo, linkedDate])
 
   const { data: loadedSlots, error: loadError, loading: loadingSlots, reload } = useSlotsQuery(

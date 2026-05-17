@@ -6,7 +6,7 @@ from typing import Any
 from fastapi import HTTPException, status
 
 from app.core.config import settings
-from app.schemas.admin import EventUpsert, SlotUpsert, TicketTypeUpsert
+from app.schemas.admin import SlotBatchCreate, SlotCapacityUpdate, SlotStatusUpdate, EventUpsert, SlotUpsert, TicketTypeBulkPriceUpdate, TicketTypeStatusUpdate, TicketTypeUpsert
 from app.schemas.admin.mappers import to_model, to_models
 from app.schemas.admin.responses import EventRead, SlotRead, TicketTypeRead
 from app.services.admin.audit import write_audit_log
@@ -56,17 +56,12 @@ class CatalogService:
         return to_model(EventRead, normalize_event(rows[0]))
 
     async def list_slots(self, date_from: str | None, date_to: str | None) -> list[SlotRead]:
-        rows = await admin_repository.select(settings.admin_slots_table)
+        rows = await admin_repository.list_slots(date_from, date_to)
         counts = await slot_inventory_counts()
         slots = [
             normalize_slot({**row, **slot_counts_for_row(row, counts)})
             for row in rows
         ]
-        if date_from:
-            slots = [slot for slot in slots if (slot.get("date") or "") >= date_from]
-        if date_to:
-            slots = [slot for slot in slots if (slot.get("date") or "") <= date_to]
-        slots.sort(key=lambda slot: (slot.get("date") or "", slot.get("startTime") or ""))
         return to_models(SlotRead, slots)
 
     async def create_slot(self, payload: SlotUpsert, actor: dict[str, Any]) -> SlotRead:
@@ -88,6 +83,44 @@ class CatalogService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Slot not found.")
         await write_audit_log(actor, "Update", "Slot", slot_id, {"status": values.get("status")}, None)
         return to_model(SlotRead, normalize_slot(rows[0]))
+
+    async def get_slot(self, slot_id: str) -> SlotRead:
+        rows = await admin_repository.select_where(settings.admin_slots_table, column="id", value=uuid.UUID(str(slot_id)), limit=1)
+        if not rows:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Slot not found.")
+        counts = await slot_inventory_counts()
+        return to_model(SlotRead, normalize_slot({**rows[0], **slot_counts_for_row(rows[0], counts)}))
+
+    async def create_slots_batch(self, payload: SlotBatchCreate, actor: dict[str, Any]) -> list[SlotRead]:
+        created: list[SlotRead] = []
+        for slot in payload.slots:
+            created.append(await self.create_slot(slot, actor))
+        await write_audit_log(actor, "Batch Create", "Slot", None, {"count": len(created)}, None)
+        return created
+
+    async def update_slot_status(self, slot_id: str, payload: SlotStatusUpdate, actor: dict[str, Any]) -> SlotRead:
+        rows = await admin_repository.update(
+            settings.admin_slots_table,
+            match_column="id",
+            match_value=uuid.UUID(str(slot_id)),
+            values={"status": payload.status, "updated_at": utc_now_iso_seconds()},
+        )
+        if not rows:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Slot not found.")
+        await write_audit_log(actor, "Update", "Slot", slot_id, {"status": payload.status}, None)
+        return await self.get_slot(slot_id)
+
+    async def update_slot_capacity(self, slot_id: str, payload: SlotCapacityUpdate, actor: dict[str, Any]) -> SlotRead:
+        rows = await admin_repository.update(
+            settings.admin_slots_table,
+            match_column="id",
+            match_value=uuid.UUID(str(slot_id)),
+            values={"capacity": payload.total_seats, "updated_at": utc_now_iso_seconds()},
+        )
+        if not rows:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Slot not found.")
+        await write_audit_log(actor, "Restock", "Slot", slot_id, {"totalSeats": payload.total_seats, "reason": payload.reason}, None)
+        return await self.get_slot(slot_id)
 
     async def list_ticket_types(self, enabled_only: bool = False) -> list[TicketTypeRead]:
         rows = await admin_repository.select(settings.admin_ticket_types_table)
@@ -115,13 +148,62 @@ class CatalogService:
         rows = await admin_repository.update(
             settings.admin_ticket_types_table,
             match_column="id",
-            match_value=int(type_id),
+            match_value=self._coerce_type_id(type_id),
             values=values,
         )
         if not rows:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket type not found.")
         await write_audit_log(actor, "Update", "Ticket Type", str(type_id), {"name": payload.name}, None)
         return to_model(TicketTypeRead, normalize_ticket_type(rows[0]))
+
+    async def update_ticket_type_status(self, type_id: int | str, payload: TicketTypeStatusUpdate, actor: dict[str, Any]) -> TicketTypeRead:
+        rows = await admin_repository.update(
+            settings.admin_ticket_types_table,
+            match_column="id",
+            match_value=self._coerce_type_id(type_id),
+            values={"status": payload.status, "updated_at": utc_now_iso_seconds()},
+        )
+        if not rows:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket type not found.")
+        await write_audit_log(actor, "Update", "Ticket Type", str(type_id), {"status": payload.status}, None)
+        return to_model(TicketTypeRead, normalize_ticket_type(rows[0]))
+
+    async def archive_ticket_type(self, type_id: int | str, actor: dict[str, Any]) -> TicketTypeRead:
+        return await self.update_ticket_type_status(type_id, TicketTypeStatusUpdate(status="archived"), actor)
+
+    async def bulk_update_ticket_type_prices(self, payload: TicketTypeBulkPriceUpdate, actor: dict[str, Any]) -> list[TicketTypeRead]:
+        values: dict[str, Any] = {"updated_at": utc_now_iso_seconds()}
+        if payload.price is not None:
+            values["price"] = payload.price
+        if payload.price_adj is not None:
+            values["price_adj"] = payload.price_adj
+        if payload.remarks is not None:
+            values["remarks"] = payload.remarks
+        if len(values) == 1:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No price fields provided.")
+        updated: list[TicketTypeRead] = []
+        for type_id in payload.ids:
+            rows = await admin_repository.update(
+                settings.admin_ticket_types_table,
+                match_column="id",
+                match_value=self._coerce_type_id(type_id),
+                values=values,
+            )
+            if rows:
+                updated.append(to_model(TicketTypeRead, normalize_ticket_type(rows[0])))
+        await write_audit_log(actor, "Batch Update", "Ticket Type", None, {"ids": [str(item) for item in payload.ids], "values": values}, None)
+        return updated
+
+    async def validate_ticket_type(self, payload: TicketTypeUpsert) -> dict[str, Any]:
+        rows = await admin_repository.select(settings.admin_ticket_types_table)
+        conflicts = []
+        for row in rows:
+            normalized = normalize_ticket_type(row)
+            if normalized.get("name") != payload.name or normalized.get("status") in {"disabled", "archived"}:
+                continue
+            if normalized.get("validFrom") == payload.valid_from and normalized.get("validTo") == payload.valid_to:
+                conflicts.append({"id": normalized.get("id"), "name": normalized.get("name"), "reason": "Same date window"})
+        return {"valid": not conflicts, "conflicts": conflicts}
 
     @staticmethod
     def _slot_time_label(start: str, end: str | None) -> str:
@@ -177,6 +259,16 @@ class CatalogService:
             "created_at": now,
             "updated_at": now,
         }
+
+    @staticmethod
+    def _coerce_type_id(type_id: int | str) -> int | str:
+        try:
+            return int(type_id)
+        except (TypeError, ValueError):
+            try:
+                return uuid.UUID(str(type_id))
+            except ValueError:
+                return str(type_id)
 
 
 catalog_service = CatalogService()

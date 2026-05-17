@@ -21,7 +21,7 @@ class DashboardService:
             },
         )
 
-    async def dashboard(self, range_key: str = "7d") -> DashboardResponse:
+    async def dashboard(self, range_key: str = "all") -> DashboardResponse:
         days = None if range_key == "all" else {"7d": 7, "14d": 14, "30d": 30, "90d": 90}.get(range_key, 7)
         start = None if days is None else date.today() - timedelta(days=days - 1)
         data = await admin_repository.dashboard(start_date=start, days=days)

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import Button from '@mui/material/Button'
 import Chip from '@mui/material/Chip'
 import MuiPagination from '@mui/material/Pagination'
-import { useLang } from '../context/AuthContext'
+import { useLang } from '../context/authHooks'
 import { useT } from '../i18n/translations'
 import { exportTickets, updateTicketStatus } from '../api/adminApi'
 import { useAdminMutation } from '../hooks/useAdminApi'
@@ -119,7 +119,7 @@ export default function Tickets() {
 
   const [filters, setFilters] = useState({
     code: '', orderId: '', status: 'all',
-    slotDateFrom: TODAY, slotDateTo: TODAY,
+    slotDateFrom: '', slotDateTo: '',
     verifiedFrom: '', verifiedTo: '',
     types: [],
   })

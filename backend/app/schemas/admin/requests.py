@@ -3,7 +3,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 
-UserRole = Literal["owner", "admin", "customer"]
+UserRole = Literal["owner", "administrator", "admin", "customer"]
 
 
 class CustomerInput(BaseModel):
@@ -35,6 +35,17 @@ class TicketStatusUpdate(BaseModel):
     status: str
 
 
+class TicketBatchStatusUpdate(BaseModel):
+    ticket_ids: list[str] = Field(alias="ticketIds", min_length=1)
+    status: str
+
+    model_config = {"populate_by_name": True}
+
+
+class TicketRegenerateRequest(BaseModel):
+    reason: str | None = None
+
+
 class OrderStatusUpdate(BaseModel):
     status: str
 
@@ -51,8 +62,24 @@ class OrderSlotUpdate(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class OrderCouponUpdate(BaseModel):
+    coupon_code: str = Field(alias="couponCode", min_length=1)
+    coupon_discount: float = Field(default=0, ge=0, alias="couponDiscount")
+
+    model_config = {"populate_by_name": True}
+
+
+class OrderEmailRequest(BaseModel):
+    reason: str | None = None
+
+
 class TicketCheckInRequest(BaseModel):
     code: str = Field(min_length=1)
+
+
+class TicketOverrideCheckInRequest(BaseModel):
+    code: str = Field(min_length=1)
+    reason: str = Field(min_length=1)
 
 
 class AdminAccountCreate(BaseModel):
@@ -63,7 +90,7 @@ class AdminAccountCreate(BaseModel):
     department: str | None = None
     position: str | None = None
     staff_role: str | None = Field(default=None, alias="staffRole")
-    role: Literal["admin"] = "admin"
+    role: Literal["administrator", "admin"] = "administrator"
 
     model_config = {"populate_by_name": True}
 
@@ -84,6 +111,21 @@ class StaffProfileUpdate(BaseModel):
     department: str | None = None
     position: str | None = None
     status: Literal["active", "inactive"] | None = None
+
+
+class SlotStatusUpdate(BaseModel):
+    status: str
+
+
+class SlotCapacityUpdate(BaseModel):
+    total_seats: int = Field(gt=0, alias="totalSeats")
+    reason: str | None = None
+
+    model_config = {"populate_by_name": True}
+
+
+class SlotBatchCreate(BaseModel):
+    slots: list["SlotUpsert"] = Field(min_length=1)
 
 
 class SlotUpsert(BaseModel):
@@ -118,6 +160,19 @@ class TicketTypeUpsert(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class TicketTypeStatusUpdate(BaseModel):
+    status: str
+
+
+class TicketTypeBulkPriceUpdate(BaseModel):
+    ids: list[int | str] = Field(min_length=1)
+    price: float | None = Field(default=None, ge=0)
+    price_adj: float | None = Field(default=None, alias="priceAdj")
+    remarks: str | None = None
+
+    model_config = {"populate_by_name": True}
+
+
 class EventUpsert(BaseModel):
     name: str
     slug: str | None = None
@@ -135,6 +190,30 @@ class CouponUpsert(BaseModel):
     valid_to: str | None = Field(default=None, alias="validTo")
     remarks: str | None = None
     status: str = "active"
+
+    model_config = {"populate_by_name": True}
+
+
+class CouponValidationRequest(BaseModel):
+    code: str = Field(min_length=1)
+    amount: float = Field(default=0, ge=0)
+
+
+class MarketingRecordCreate(BaseModel):
+    recipient_name: str | None = Field(default=None, alias="recipientName")
+    recipient_email: str = Field(alias="recipientEmail")
+    coupon_code: str | None = Field(default=None, alias="couponCode")
+    order_id: str | None = Field(default=None, alias="orderId")
+
+    model_config = {"populate_by_name": True}
+
+
+class MarketingRecordAction(BaseModel):
+    reason: str | None = None
+
+
+class MarketingTestSendRequest(BaseModel):
+    recipient_email: str = Field(alias="recipientEmail")
 
     model_config = {"populate_by_name": True}
 

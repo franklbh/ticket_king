@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import Button from '@mui/material/Button'
 import Checkbox from '@mui/material/Checkbox'
 import FormControlLabel from '@mui/material/FormControlLabel'
-import { useLang } from '../context/AuthContext'
+import { useLang } from '../context/authHooks'
 import { useT } from '../i18n/translations'
 import { createCoupon, updateCoupon } from '../api/adminApi'
 import { AdminPagination, EmptyTableRow, FilterCard, PageHeader, TableShell } from '../components/AdminUI'
@@ -160,7 +160,7 @@ export default function Coupons() {
   const t = useT(lang)
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const [filters, setFilters] = useState({ search: searchParams.get('search') || '', status: 'all', source: 'manual', hideUnused: false })
+  const [filters, setFilters] = useState({ search: searchParams.get('search') || '', status: 'all', source: 'all', hideUnused: false })
   const [page, setPage] = useState(1)
   const [modal, setModal] = useState(null) // null | 'create' | { coupon }
 
@@ -267,7 +267,7 @@ export default function Coupons() {
             <FormControlLabel control={<Checkbox checked={filters.hideUnused} onChange={e => setFilters(f => ({ ...f, hideUnused: e.target.checked }))} />} label={t.hideUnused} />
           </div>
           <div className="flex items-end">
-            <ResetFiltersButton onClick={() => setFilters({ search: '', status: 'all', source: 'manual', hideUnused: false })} label={t.reset} />
+            <ResetFiltersButton onClick={() => setFilters({ search: '', status: 'all', source: 'all', hideUnused: false })} label={t.reset} />
           </div>
         </div>
       </FilterCard>
