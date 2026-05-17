@@ -1,4 +1,4 @@
-function NavMenu({ onClose, onBuyTicket, onNavigateToSection, t }) {
+function NavMenu({ onClose, onNavigateToSection, t }) {
   const scrollTo = (id) => {
     onClose()
     if (onNavigateToSection) {
@@ -58,10 +58,6 @@ function NavMenu({ onClose, onBuyTicket, onNavigateToSection, t }) {
           <button onClick={() => scrollTo('faq')} type="button">{t('visitFaqs')} <Arrow /></button>
         </div>
         <div className="nav-menu-footer">
-          <button className="nav-menu-buy-btn" onClick={() => { onClose(); onBuyTicket() }} type="button">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="1" y="7" width="22" height="10" rx="2"/><path d="M17 7V5a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2v2"/><path d="M17 17v2a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-2"/></svg>
-            {t('buyTicket')}
-          </button>
           <div className="nav-menu-socials">
             <a href="https://www.facebook.com/people/We-Are-VR/61582764116105/#" target="_blank" rel="noreferrer" className="nav-social" aria-label="Facebook"><i className="fab fa-facebook-f" /></a>
             <a href="https://www.instagram.com/we.are.vr.show" target="_blank" rel="noreferrer" className="nav-social" aria-label="Instagram"><i className="fab fa-instagram" /></a>

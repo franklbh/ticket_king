@@ -1007,7 +1007,7 @@ function App() {
       )}
 
       {showMapModal && <MapModal onClose={() => setShowMapModal(false)} />}
-      {showNavMenu && <NavMenu onClose={() => setShowNavMenu(false)} onBuyTicket={startBookingWithAuth} onNavigateToSection={navigateToMainSection} t={t} />}
+      {showNavMenu && <NavMenu onClose={() => setShowNavMenu(false)} onNavigateToSection={navigateToMainSection} t={t} />}
 
       {showStripeCheckout && (
         <StripeCheckout
@@ -1089,12 +1089,6 @@ function App() {
           setAuthForm={setAuthForm}
           setAuthMode={setAuthMode}
         />
-      )}
-
-      {view === 'main' && !showBooking && (
-        <div className="floating-cta">
-          <button className="cta-pill" onClick={startBookingWithAuth} type="button">{t('buyTicket')}</button>
-        </div>
       )}
 
       {showBackTop && (
