@@ -1,16 +1,18 @@
 import { useState } from 'react'
+import Button from '@mui/material/Button'
+import Checkbox from '@mui/material/Checkbox'
+import FormControlLabel from '@mui/material/FormControlLabel'
+import TextField from '@mui/material/TextField'
 import { useNavigate } from 'react-router-dom'
-import { useLang } from '../context/AuthContext'
+import { useLang } from '../context/authHooks'
 import { useT } from '../i18n/translations'
 import { createWalkInOrder } from '../api/adminApi'
 import { useAdminMutation } from '../hooks/useAdminApi'
-import { useSlotsQuery, useTicketTypesQuery } from '../hooks/queries'
+import { useSlotsQuery, useTicketTypesQuery } from '../hooks/catalog'
 import LoadingIndicator from '../components/LoadingIndicator'
 import { AdminAlert, AdminCard, PageHeader } from '../components/AdminUI'
-import { addDays, todayIso } from '../utils/date'
 import { dedupeBy } from '../utils/collections'
 
-const TODAY = todayIso()
 const PAYMENT_METHODS = [
   { id: 'Cash', label: 'Cash', icon: 'fa-money-bill-wave' },
   { id: 'Credit Card', label: 'Credit Card', icon: 'fa-credit-card' },
@@ -46,7 +48,7 @@ export default function CreateOrder() {
   const { lang } = useLang()
   const t = useT(lang)
   const [step, setStep] = useState(1)
-  const [selectedDate, setSelectedDate] = useState(TODAY)
+  const [selectedDate, setSelectedDate] = useState('')
   const [showDatePicker, setShowDatePicker] = useState(false)
   const [selectedSlot, setSelectedSlot] = useState(null)
   const [ticketSelections, setTicketSelections] = useState({})
@@ -57,8 +59,8 @@ export default function CreateOrder() {
   const [lastOrderId, setLastOrderId] = useState(null)
   const [submitError, setSubmitError] = useState(null)
   const { data: slots = [], error: slotsError, loading: loadingSlots } = useSlotsQuery(
-    { dateFrom: TODAY, dateTo: addDays(TODAY, 90) },
-    { initialData: [] }
+    selectedDate ? { dateFrom: selectedDate, dateTo: selectedDate } : {},
+    { initialData: [], enabled: Boolean(selectedDate) }
   )
   const { data: ticketTypes = [], error: typesError, loading: loadingTypes } = useTicketTypesQuery(
     true,
@@ -68,7 +70,7 @@ export default function CreateOrder() {
     successMessage: 'Order created.',
   })
 
-  const availableSlots = slots.filter(s => s.date === selectedDate && s.status === 'active')
+  const availableSlots = selectedDate ? slots.filter(s => s.date === selectedDate && s.status === 'active') : []
   const enabledTypes = dedupeBy(ticketTypes.filter(tp => tp.status === 'enabled'), tp => tp.name)
 
   function handleSlotSelect(slot) {
@@ -169,21 +171,15 @@ export default function CreateOrder() {
           {totalTickets} ticket(s) · ${totalDue.toFixed(2)} · {payment}
         </p>
         <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-          <button className="btn-secondary" onClick={resetOrder}>
-            <i className="fa fa-plus" /> Create Another Order
-          </button>
-          <button className="btn-primary">
-            <i className="fa fa-print" /> Print Tickets
-          </button>
-          <button className="btn-primary" onClick={() => navigate(`/orders?orderId=${encodeURIComponent(lastOrderId)}`)}>
-            <i className="fa fa-external-link-alt" /> View in Orders
-          </button>
+          <Button variant="outlined" onClick={resetOrder} startIcon={<i className="fa fa-plus" />}>Create Another Order</Button>
+          <Button variant="contained" startIcon={<i className="fa fa-print" />}>Print Tickets</Button>
+          <Button variant="contained" onClick={() => navigate(`/orders?orderId=${encodeURIComponent(lastOrderId)}`)} startIcon={<i className="fa fa-external-link-alt" />}>View in Orders</Button>
         </div>
       </div>
     )
   }
 
-  if (loadingSlots || loadingTypes) {
+  if ((selectedDate && loadingSlots) || loadingTypes) {
     return <LoadingIndicator label="Loading live slots and ticket types..." />
   }
 
@@ -209,18 +205,20 @@ export default function CreateOrder() {
               <i className="fa fa-clock" />
               {t.step1}
             </h2>
-            <button
-              className="btn-secondary btn-sm"
+            <Button
+              variant="outlined"
+              size="small"
               onClick={() => setShowDatePicker(d => !d)}
+              startIcon={<i className="fa fa-calendar" />}
             >
-              <i className="fa fa-calendar" /> {t.selectOtherDate}
-            </button>
+              {t.selectOtherDate}
+            </Button>
           </div>
 
           <div style={{ background: '#dbeafe', borderLeft: '4px solid #3b82f6', padding: '10px 14px', borderRadius: 4, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 6, fontSize: 14 }}>
             <i className="fa fa-calendar-day" style={{ color: '#3b82f6' }} />
             <strong>{t.currentDate}:</strong>
-            {showDatePicker ? (
+              {showDatePicker || !selectedDate ? (
               <input
                 type="date"
                 value={selectedDate}
@@ -276,9 +274,7 @@ export default function CreateOrder() {
 
           {selectedSlot && (
             <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
-              <button className="btn-primary" onClick={() => setStep(2)}>
-                {t.next} <i className="fa fa-arrow-right" />
-              </button>
+              <Button variant="contained" onClick={() => setStep(2)} endIcon={<i className="fa fa-arrow-right" />}>{t.next}</Button>
             </div>
           )}
         </AdminCard>
@@ -347,12 +343,8 @@ export default function CreateOrder() {
           )}
 
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 16 }}>
-            <button className="btn-secondary" onClick={() => setStep(1)}>
-              <i className="fa fa-arrow-left" /> {t.back}
-            </button>
-            <button className="btn-primary" onClick={() => setStep(3)} disabled={totalTickets === 0 || Boolean(ticketValidationError)}>
-              {t.next} <i className="fa fa-arrow-right" />
-            </button>
+            <Button variant="outlined" onClick={() => setStep(1)} startIcon={<i className="fa fa-arrow-left" />}>{t.back}</Button>
+            <Button variant="contained" onClick={() => setStep(3)} disabled={totalTickets === 0 || Boolean(ticketValidationError)} endIcon={<i className="fa fa-arrow-right" />}>{t.next}</Button>
           </div>
         </AdminCard>
       )}
@@ -366,36 +358,27 @@ export default function CreateOrder() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 500 }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div>
-                <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 6 }}>First name</label>
-                <input className="form-input" value={customer.firstName} onChange={e => setCustomer(c => ({ ...c, firstName: e.target.value }))} />
+                <TextField fullWidth size="small" label="First name" value={customer.firstName} onChange={e => setCustomer(c => ({ ...c, firstName: e.target.value }))} />
               </div>
               <div>
-                <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 6 }}>Last name</label>
-                <input className="form-input" value={customer.lastName} onChange={e => setCustomer(c => ({ ...c, lastName: e.target.value }))} />
+                <TextField fullWidth size="small" label="Last name" value={customer.lastName} onChange={e => setCustomer(c => ({ ...c, lastName: e.target.value }))} />
               </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div>
-                <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 6 }}>{t.phone}</label>
-                <input className="form-input" value={customer.phone} onChange={e => setCustomer(c => ({ ...c, phone: e.target.value }))} />
+                <TextField fullWidth size="small" label={t.phone} value={customer.phone} onChange={e => setCustomer(c => ({ ...c, phone: e.target.value }))} />
               </div>
               <div>
-                <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 6 }}>{t.email}</label>
-                <input className="form-input" type="email" value={customer.email} onChange={e => setCustomer(c => ({ ...c, email: e.target.value }))} />
+                <TextField fullWidth size="small" label={t.email} type="email" value={customer.email} onChange={e => setCustomer(c => ({ ...c, email: e.target.value }))} />
               </div>
             </div>
             <div>
-              <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 6 }}>Remarks (Admin only)</label>
-              <input className="form-input" value={customer.remarks} onChange={e => setCustomer(c => ({ ...c, remarks: e.target.value }))} />
+              <TextField fullWidth size="small" label="Remarks (Admin only)" value={customer.remarks} onChange={e => setCustomer(c => ({ ...c, remarks: e.target.value }))} />
             </div>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 20 }}>
-            <button className="btn-secondary" onClick={() => setStep(2)}>
-              <i className="fa fa-arrow-left" /> {t.back}
-            </button>
-            <button className="btn-primary" onClick={() => setStep(4)}>
-              {t.next} <i className="fa fa-arrow-right" />
-            </button>
+            <Button variant="outlined" onClick={() => setStep(2)} startIcon={<i className="fa fa-arrow-left" />}>{t.back}</Button>
+            <Button variant="contained" onClick={() => setStep(4)} endIcon={<i className="fa fa-arrow-right" />}>{t.next}</Button>
           </div>
         </AdminCard>
       )}
@@ -409,9 +392,10 @@ export default function CreateOrder() {
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(120px, 1fr))', gap: 10, marginBottom: 18 }}>
             {PAYMENT_METHODS.map(pm => (
-              <button
+              <Button
                 key={pm.id}
                 onClick={() => setPayment(pm.id)}
+                variant={payment === pm.id ? 'contained' : 'outlined'}
                 style={{
                   minHeight: 72,
                   padding: '12px 10px',
@@ -431,7 +415,7 @@ export default function CreateOrder() {
               >
                 <i className={`fa ${pm.icon}`} style={{ fontSize: 22 }} />
                 {pm.label}
-              </button>
+              </Button>
             ))}
           </div>
 
@@ -481,10 +465,11 @@ export default function CreateOrder() {
             </div>
           </div>
 
-          <label style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8, fontSize: 13, color: '#374151', marginBottom: 12, cursor: 'pointer' }}>
-            <input type="checkbox" checked={markUsed} onChange={e => setMarkUsed(e.target.checked)} style={{ width: 16, height: 16 }} />
-            Mark order as used immediately
-          </label>
+          <FormControlLabel
+            sx={{ display: 'flex', justifyContent: 'center', mb: 1.5, mx: 0 }}
+            control={<Checkbox checked={markUsed} onChange={e => setMarkUsed(e.target.checked)} />}
+            label="Mark order as used immediately"
+          />
 
           <div style={{ maxWidth: 780, margin: '0 auto 22px', background: '#f3f4f6', borderLeft: '3px solid #3b82f6', borderRadius: 6, padding: '10px 12px', color: '#6b7280', fontSize: 12, lineHeight: 1.4 }}>
             <strong>If unchecked,</strong> order status will be marked as <strong>Paid</strong>, and tickets will be <strong>Not used</strong>. Email is required, and tickets will be sent to the customer automatically.<br />
@@ -492,12 +477,10 @@ export default function CreateOrder() {
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 20 }}>
-            <button className="btn-secondary" onClick={() => setStep(3)}>
-              <i className="fa fa-arrow-left" /> {t.back}
-            </button>
-            <button className="btn-primary" onClick={handleConfirm} disabled={!payment || creatingOrder} style={{ padding: '10px 28px', fontSize: 16 }}>
-              <i className="fa fa-check-circle" /> Create Order & Complete Payment
-            </button>
+            <Button variant="outlined" onClick={() => setStep(3)} startIcon={<i className="fa fa-arrow-left" />}>{t.back}</Button>
+            <Button variant="contained" onClick={handleConfirm} disabled={!payment || creatingOrder} size="large" startIcon={<i className="fa fa-check-circle" />}>
+              Create Order & Complete Payment
+            </Button>
           </div>
         </AdminCard>
       )}

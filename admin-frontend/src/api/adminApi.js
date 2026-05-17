@@ -80,8 +80,16 @@ export function getDashboard(range) {
   return apiRequest(withQuery('/dashboard', { range }))
 }
 
+export function getHealth() {
+  return apiRequest('/health')
+}
+
 export function getOrders(filters = {}) {
   return apiRequest(withQuery('/orders', filters))
+}
+
+export function getOrder(orderId) {
+  return apiRequest(`/orders/${encodeURIComponent(orderId)}`)
 }
 
 export function exportOrders(filters = {}) {
@@ -92,8 +100,45 @@ export function createWalkInOrder(payload) {
   return apiRequest('/orders/walk-in', { method: 'POST', body: payload })
 }
 
+export function updateOrderStatus(orderId, status) {
+  return apiRequest(`/orders/${encodeURIComponent(orderId)}/status`, {
+    method: 'PATCH',
+    body: { status },
+  })
+}
+
+export function updateOrderCustomer(orderId, payload) {
+  return apiRequest(`/orders/${encodeURIComponent(orderId)}/customer`, {
+    method: 'PATCH',
+    body: payload,
+  })
+}
+
+export function updateOrderSlot(orderId, slotId) {
+  return apiRequest(`/orders/${encodeURIComponent(orderId)}/slot`, {
+    method: 'PATCH',
+    body: { slotId },
+  })
+}
+
+export function applyOrderCoupon(orderId, payload) {
+  return apiRequest(`/orders/${encodeURIComponent(orderId)}/coupon`, { method: 'POST', body: payload })
+}
+
+export function removeOrderCoupon(orderId) {
+  return apiRequest(`/orders/${encodeURIComponent(orderId)}/coupon`, { method: 'DELETE' })
+}
+
+export function resendOrderEmail(orderId, payload = {}) {
+  return apiRequest(`/orders/${encodeURIComponent(orderId)}/resend-email`, { method: 'POST', body: payload })
+}
+
 export function getTickets(filters = {}) {
   return apiRequest(withQuery('/tickets', filters))
+}
+
+export function getTicket(ticketId) {
+  return apiRequest(`/tickets/${encodeURIComponent(ticketId)}`)
 }
 
 export function exportTickets(filters = {}) {
@@ -105,6 +150,17 @@ export function updateTicketStatus(ticketId, status) {
     method: 'PATCH',
     body: { status },
   })
+}
+
+export function batchUpdateTicketStatus(ticketIds, status) {
+  return apiRequest('/tickets/batch/status', {
+    method: 'PATCH',
+    body: { ticketIds, status },
+  })
+}
+
+export function regenerateTicketQr(ticketId, payload = {}) {
+  return apiRequest(`/tickets/${encodeURIComponent(ticketId)}/regenerate-qr`, { method: 'POST', body: payload })
 }
 
 export function getSlots(params = {}) {
@@ -127,6 +183,10 @@ export function checkInTicket(code) {
   return apiRequest('/scanner/check-in', { method: 'POST', body: { code } })
 }
 
+export function overrideCheckInTicket(payload) {
+  return apiRequest('/scanner/override-check-in', { method: 'POST', body: payload })
+}
+
 export function getRecentScans(minutes = 20) {
   return apiRequest(withQuery('/scanner/recent', { minutes }))
 }
@@ -135,12 +195,36 @@ export function getEvents() {
   return apiRequest('/events')
 }
 
+export function createEvent(payload) {
+  return apiRequest('/events', { method: 'POST', body: payload })
+}
+
+export function updateEvent(eventId, payload) {
+  return apiRequest(`/events/${encodeURIComponent(eventId)}`, { method: 'PATCH', body: payload })
+}
+
+export function getSlot(slotId) {
+  return apiRequest(`/slots/${encodeURIComponent(slotId)}`)
+}
+
 export function createSlot(payload) {
   return apiRequest('/slots', { method: 'POST', body: payload })
 }
 
+export function createSlotsBatch(payload) {
+  return apiRequest('/slots/batch', { method: 'POST', body: payload })
+}
+
 export function updateSlot(slotId, payload) {
   return apiRequest(`/slots/${encodeURIComponent(slotId)}`, { method: 'PATCH', body: payload })
+}
+
+export function updateSlotStatus(slotId, status) {
+  return apiRequest(`/slots/${encodeURIComponent(slotId)}/status`, { method: 'PATCH', body: { status } })
+}
+
+export function updateSlotCapacity(slotId, payload) {
+  return apiRequest(`/slots/${encodeURIComponent(slotId)}/capacity`, { method: 'PATCH', body: payload })
 }
 
 export function createTicketType(payload) {
@@ -149,6 +233,22 @@ export function createTicketType(payload) {
 
 export function updateTicketType(typeId, payload) {
   return apiRequest(`/ticket-types/${encodeURIComponent(typeId)}`, { method: 'PATCH', body: payload })
+}
+
+export function validateTicketType(payload) {
+  return apiRequest('/ticket-types/validate', { method: 'POST', body: payload })
+}
+
+export function bulkUpdateTicketTypePrices(payload) {
+  return apiRequest('/ticket-types/bulk-price', { method: 'PATCH', body: payload })
+}
+
+export function updateTicketTypeStatus(typeId, status) {
+  return apiRequest(`/ticket-types/${encodeURIComponent(typeId)}/status`, { method: 'PATCH', body: { status } })
+}
+
+export function archiveTicketType(typeId) {
+  return apiRequest(`/ticket-types/${encodeURIComponent(typeId)}`, { method: 'DELETE' })
 }
 
 export function getCoupons(params = {}) {
@@ -163,6 +263,22 @@ export function updateCoupon(couponId, payload) {
   return apiRequest(`/coupons/${encodeURIComponent(couponId)}`, { method: 'PATCH', body: payload })
 }
 
+export function validateCoupon(payload) {
+  return apiRequest('/coupons/validate', { method: 'POST', body: payload })
+}
+
+export function archiveCoupon(couponId) {
+  return apiRequest(`/coupons/${encodeURIComponent(couponId)}`, { method: 'DELETE' })
+}
+
+export function getCouponQr(couponId) {
+  return apiRequest(`/coupons/${encodeURIComponent(couponId)}/qr`)
+}
+
+export function getCouponOrders(couponId, params = {}) {
+  return apiRequest(withQuery(`/coupons/${encodeURIComponent(couponId)}/orders`, params))
+}
+
 export function getMarketingSettings() {
   return apiRequest('/marketing/settings')
 }
@@ -175,6 +291,30 @@ export function getMarketingRecords(params = {}) {
   return apiRequest(withQuery('/marketing/records', params))
 }
 
+export function createMarketingRecord(payload) {
+  return apiRequest('/marketing/records', { method: 'POST', body: payload })
+}
+
+export function cancelMarketingRecord(recordId, payload = {}) {
+  return apiRequest(`/marketing/records/${encodeURIComponent(recordId)}/cancel`, { method: 'POST', body: payload })
+}
+
+export function retryMarketingRecord(recordId, payload = {}) {
+  return apiRequest(`/marketing/records/${encodeURIComponent(recordId)}/retry`, { method: 'POST', body: payload })
+}
+
+export function testSendMarketing(payload) {
+  return apiRequest('/marketing/test-send', { method: 'POST', body: payload })
+}
+
+export function exportLogs(filters = {}) {
+  return downloadCsv(withQuery('/logs/export', filters), 'activity_logs_export.csv')
+}
+
+export function getLog(logId) {
+  return apiRequest(`/logs/${encodeURIComponent(logId)}`)
+}
+
 export function updateStaffProfile(userId, payload) {
   return apiRequest(`/users/${encodeURIComponent(userId)}/staff-profile`, {
     method: 'PATCH',
@@ -182,8 +322,23 @@ export function updateStaffProfile(userId, payload) {
   })
 }
 
+export function updateUserRole(userId, role) {
+  return apiRequest(`/users/${encodeURIComponent(userId)}/role`, {
+    method: 'PATCH',
+    body: { role },
+  })
+}
+
 export function createAdminAccount(payload) {
   return apiRequest('/users/admins', { method: 'POST', body: payload })
+}
+
+export function bootstrapOwner(payload, bootstrapToken) {
+  return apiRequest('/users/bootstrap-owner', {
+    method: 'POST',
+    headers: bootstrapToken ? { 'X-Bootstrap-Token': bootstrapToken } : {},
+    body: payload,
+  })
 }
 
 async function downloadCsv(path, filename) {

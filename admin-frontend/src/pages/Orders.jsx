@@ -1,15 +1,22 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { useLang } from '../context/AuthContext'
+import Button from '@mui/material/Button'
+import MenuItem from '@mui/material/MenuItem'
+import MuiPagination from '@mui/material/Pagination'
+import Select from '@mui/material/Select'
+import { useLang } from '../context/authHooks'
 import { useT } from '../i18n/translations'
-import { exportOrders } from '../api/adminApi'
+import { exportOrders, updateOrderCustomer, updateOrderSlot, updateOrderStatus } from '../api/adminApi'
 import { useAdminMutation } from '../hooks/useAdminApi'
-import { useOrdersQuery, useSlotsQuery } from '../hooks/queries'
+import { useOrdersQuery } from '../hooks/orders'
+import { useSlotsQuery } from '../hooks/catalog'
 import LoadingIndicator from '../components/LoadingIndicator'
 import { AdminAlert, EmptyTableRow, FilterCard, PageHeader, TableShell } from '../components/AdminUI'
-import { addDays, formatDateShort, todayIso, weekdayName } from '../utils/date'
+import { DateRangeFilter, ResetFiltersButton, StatusChipFilter, TextFilter } from '../components/FilterControls'
+import { formatDateShort, todayIso, weekdayName } from '../utils/date'
 
 const STATUS_LIST = ['paid', 'completed', 'refunded', 'cancelled']
+const STATUS_OPTIONS = STATUS_LIST.map(status => ({ value: status, label: status[0].toUpperCase() + status.slice(1) }))
 const STATUS_BADGE = { paid: 'badge-blue', completed: 'badge-green', refunded: 'badge-red', cancelled: 'badge-gray' }
 const STATUS_T = { paid: 'paid', completed: 'completed', refunded: 'refunded', cancelled: 'cancelled' }
 const TODAY = todayIso()
@@ -158,14 +165,16 @@ function ExportConfirmDialog({ title, message, filters, onCancel, onConfirm }) {
 function Pagination({ page, total, pageSize, onPage }) {
   const pages = Math.ceil(total / pageSize)
   if (pages <= 1) return null
-  const items = Array.from({ length: Math.min(pages, 7) }, (_, i) => i + 1)
   return (
-    <div className="pagination">
-      <button className="page-btn" disabled={page === 1} onClick={() => onPage(page - 1)}>‹</button>
-      {items.map(p => (
-        <button key={p} className={`page-btn ${p === page ? 'active' : ''}`} onClick={() => onPage(p)}>{p}</button>
-      ))}
-      <button className="page-btn" disabled={page === pages} onClick={() => onPage(page + 1)}>›</button>
+    <div className="flex justify-end p-3">
+      <MuiPagination
+        count={pages}
+        page={page}
+        onChange={(_, value) => onPage(value)}
+        color="primary"
+        shape="rounded"
+        size="small"
+      />
     </div>
   )
 }
@@ -326,28 +335,51 @@ export default function Orders() {
   const linkedSlotDate = searchParams.get('slotDate') || ''
   const linkedSlotStart = searchParams.get('slotStart') || ''
 
-  const { data: ordersData, error: loadError, loading: loadingOrders, setData: setOrdersData } = useOrdersQuery(
-    { page: 1, pageSize: 200 },
-    { initialData: { items: [], total: 0 } }
-  )
-  const { data: slots = [] } = useSlotsQuery(
-    { dateFrom: TODAY, dateTo: addDays(TODAY, 180) },
-    { initialData: [] }
-  )
-  const { mutate: exportOrdersMutation, loading: exporting } = useAdminMutation(exportOrders, {
-    successMessage: 'Orders exported.',
-  })
   const [filters, setFilters] = useState({
     orderId: searchParams.get('orderId') || '', userInfo: '',
     couponCode: searchParams.get('couponCode') || '',
     orderDateFrom: '', orderDateTo: '',
-    slotDateFrom: linkedSlotDate || '2026-05-13', slotDateTo: linkedSlotDate || '',
+    slotDateFrom: linkedSlotDate || '', slotDateTo: linkedSlotDate || '',
     slotStart: linkedSlotStart,
-    statuses: ['completed', 'paid'],
+    statuses: [],
   })
   const [page, setPage] = useState(1)
+  const orderQueryFilters = useMemo(() => ({
+    page,
+    pageSize: PAGE_SIZE,
+    orderId: filters.orderId,
+    userInfo: filters.userInfo,
+    couponCode: filters.couponCode,
+    orderDateFrom: filters.orderDateFrom,
+    orderDateTo: filters.orderDateTo,
+    slotDateFrom: filters.slotDateFrom,
+    slotDateTo: filters.slotDateTo,
+    slotStart: filters.slotStart,
+    status: filters.statuses,
+  }), [filters, page])
+  const { data: ordersData, error: loadError, loading: loadingOrders, setData: setOrdersData } = useOrdersQuery(
+    orderQueryFilters,
+    { initialData: { items: [], total: 0 } }
+  )
   const [popover, setPopover] = useState(null) // { type, orderId, rect }
   const [modal, setModal] = useState(null)     // { type, order }
+  const loadSlotOptions = modal?.type === 'changeSlot'
+  const { data: slots = [] } = useSlotsQuery(
+    {},
+    { initialData: [], enabled: loadSlotOptions }
+  )
+  const { mutate: exportOrdersMutation, loading: exporting } = useAdminMutation(exportOrders, {
+    successMessage: 'Orders exported.',
+  })
+  const { mutate: updateCustomerMutation } = useAdminMutation(updateOrderCustomer, {
+    successMessage: 'Order customer updated.',
+  })
+  const { mutate: updateSlotMutation } = useAdminMutation(updateOrderSlot, {
+    successMessage: 'Order slot updated.',
+  })
+  const { mutate: updateStatusMutation } = useAdminMutation(updateOrderStatus, {
+    successMessage: 'Order status updated.',
+  })
   const [editForm, setEditForm] = useState({ firstName: '', lastName: '', phone: '', email: '' })
   const [slotPick, setSlotPick] = useState({ date: null, slot: null, resend: true })
   const [copiedId, setCopiedId] = useState(null)
@@ -370,25 +402,24 @@ export default function Orders() {
     setPopover(null)
   }
 
-  function saveUser() {
+  async function saveUser() {
     if (!modal) return
     const name = [editForm.firstName, editForm.lastName].filter(Boolean).join(' ')
-    setOrdersData(prev => ({ ...prev, items: (prev?.items || []).map(o => o.id === modal.order.id
-      ? { ...o, user: { ...o.user, name, phone: editForm.phone || null, email: editForm.email || null } }
-      : o) }))
+    const updated = await updateCustomerMutation(modal.order.id, { name, phone: editForm.phone || null, email: editForm.email || null })
+    setOrdersData(prev => ({ ...prev, items: (prev?.items || []).map(o => o.id === modal.order.id ? updated : o) }))
     setModal(null)
   }
 
-  function saveSlot() {
+  async function saveSlot() {
     if (!slotPick.slot) return
-    setOrdersData(prev => ({ ...prev, items: (prev?.items || []).map(o => o.id === modal.order.id
-      ? { ...o, slot: { date: slotPick.date, startTime: slotPick.slot.startTime, endTime: slotPick.slot.endTime } }
-      : o) }))
+    const updated = await updateSlotMutation(modal.order.id, slotPick.slot.id)
+    setOrdersData(prev => ({ ...prev, items: (prev?.items || []).map(o => o.id === modal.order.id ? updated : o) }))
     setModal(null)
   }
 
-  function updateStatus(orderId, status) {
-    setOrdersData(prev => ({ ...prev, items: (prev?.items || []).map(o => o.id === orderId ? { ...o, status } : o) }))
+  async function updateStatus(orderId, status) {
+    const updated = await updateStatusMutation(orderId, status)
+    setOrdersData(prev => ({ ...prev, items: (prev?.items || []).map(o => o.id === orderId ? updated : o) }))
   }
 
   function copyIp(orderId, ip) {
@@ -432,23 +463,7 @@ export default function Orders() {
     setPage(1)
   }
 
-  const filtered = useMemo(() => orders.filter(o => {
-    if (filters.orderId && !o.id.includes(filters.orderId)) return false
-    if (filters.couponCode && o.couponCode?.toLowerCase() !== filters.couponCode.toLowerCase()) return false
-    if (filters.orderDateFrom && o.createdAt.slice(0, 10) < filters.orderDateFrom) return false
-    if (filters.orderDateTo && o.createdAt.slice(0, 10) > filters.orderDateTo) return false
-    if (filters.slotDateFrom && o.slot.date < filters.slotDateFrom) return false
-    if (filters.slotDateTo && o.slot.date > filters.slotDateTo) return false
-    if (filters.slotStart && o.slot.startTime !== filters.slotStart) return false
-    if (filters.userInfo) {
-      const q = filters.userInfo.toLowerCase()
-      if (!o.user.name?.toLowerCase().includes(q) && !o.user.email?.toLowerCase().includes(q) && !o.user.phone?.includes(q)) return false
-    }
-    if (filters.statuses.length > 0 && !filters.statuses.includes(o.status)) return false
-    return true
-  }), [orders, filters])
-
-  const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const paged = orders
   const popoverOrder = popover ? orders.find(o => o.id === popover.orderId) : null
 
   const labelStyle = { fontSize: 13, fontWeight: 500, color: '#374151', display: 'block', marginBottom: 6 }
@@ -480,40 +495,21 @@ export default function Orders() {
         title={t.ordersManagement}
         subtitle={t.manageOrders}
         actions={
-        <button className="btn-secondary btn-sm" onClick={() => setShowExportConfirm(true)} disabled={exporting}>
-          <i className="fa fa-file-export" /> {t.exportCSV}
-        </button>
+        <Button variant="outlined" size="small" onClick={() => setShowExportConfirm(true)} disabled={exporting} startIcon={<i className="fa fa-file-export" />}>
+          {t.exportCSV}
+        </Button>
         }
       />
 
       {/* Filters */}
       <FilterCard>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr auto', gap: 12, marginBottom: 12 }}>
+        <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1fr_1fr_1fr_1.5fr_1.5fr_auto] mb-3">
+          <TextFilter label={t.orderID} placeholder="Enter order ID..." value={filters.orderId} onChange={value => { setFilters(f => ({ ...f, orderId: value })); setPage(1) }} />
+          <TextFilter label={t.userInfo} placeholder="Enter name/phone/email..." value={filters.userInfo} onChange={value => { setFilters(f => ({ ...f, userInfo: value })); setPage(1) }} />
+          <TextFilter label={t.couponCode} placeholder={t.couponCode} value={filters.couponCode} onChange={value => { setFilters(f => ({ ...f, couponCode: value })); setPage(1) }} />
+          <DateRangeFilter label={t.orderDateRange} from={filters.orderDateFrom} to={filters.orderDateTo} onFromChange={value => { setFilters(f => ({ ...f, orderDateFrom: value })); setPage(1) }} onToChange={value => { setFilters(f => ({ ...f, orderDateTo: value })); setPage(1) }} />
           <div>
-            <label style={labelStyle}>{t.orderID}</label>
-            <input className="form-input" placeholder="Enter order ID..." value={filters.orderId} onChange={e => setFilters(f => ({ ...f, orderId: e.target.value }))} />
-          </div>
-          <div>
-            <label style={labelStyle}>{t.userInfo}</label>
-            <input className="form-input" placeholder="Enter name/phone/email..." value={filters.userInfo} onChange={e => setFilters(f => ({ ...f, userInfo: e.target.value }))} />
-          </div>
-          <div>
-            <label style={labelStyle}>{t.couponCode}</label>
-            <input className="form-input" placeholder={t.couponCode} value={filters.couponCode} onChange={e => setFilters(f => ({ ...f, couponCode: e.target.value }))} />
-          </div>
-          <div>
-            <label style={labelStyle}>{t.orderDateRange}</label>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <input className="form-input" type="date" value={filters.orderDateFrom} onChange={e => setFilters(f => ({ ...f, orderDateFrom: e.target.value }))} />
-              <input className="form-input" type="date" value={filters.orderDateTo} onChange={e => setFilters(f => ({ ...f, orderDateTo: e.target.value }))} />
-            </div>
-          </div>
-          <div>
-            <label style={labelStyle}>{t.slotDateRange}</label>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <input className="form-input" type="date" value={filters.slotDateFrom} onChange={e => setFilters(f => ({ ...f, slotDateFrom: e.target.value }))} />
-              <input className="form-input" type="date" value={filters.slotDateTo} onChange={e => setFilters(f => ({ ...f, slotDateTo: e.target.value }))} />
-            </div>
+            <DateRangeFilter label={t.slotDateRange} from={filters.slotDateFrom} to={filters.slotDateTo} onFromChange={value => { setFilters(f => ({ ...f, slotDateFrom: value })); setPage(1) }} onToChange={value => { setFilters(f => ({ ...f, slotDateTo: value })); setPage(1) }} />
             {filters.slotStart && (
               <div style={{ marginTop: 5, fontSize: 12, color: '#4f46e5', fontWeight: 600, whiteSpace: 'nowrap' }}>
                 Slot start: {filters.slotStart}
@@ -521,20 +517,15 @@ export default function Orders() {
             )}
           </div>
           <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-            <button className="btn-secondary btn-sm" onClick={resetFilters}>
-              <i className="fa fa-redo" /> {t.reset}
-            </button>
+            <ResetFiltersButton onClick={resetFilters} label={t.reset} />
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 13, fontWeight: 500, color: '#374151', marginRight: 4 }}>{t.status}:</span>
-          {STATUS_LIST.map(s => (
-            <label key={s} style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', fontSize: 13 }}>
-              <input type="checkbox" checked={filters.statuses.includes(s)} onChange={() => toggleStatus(s)} style={{ width: 14, height: 14 }} />
-              <span className={`badge ${STATUS_BADGE[s]}`}>{t[STATUS_T[s]]}</span>
-            </label>
-          ))}
-        </div>
+        <StatusChipFilter
+          label={t.status}
+          values={filters.statuses}
+          options={STATUS_OPTIONS.map(option => ({ ...option, label: t[STATUS_T[option.value]] || option.label }))}
+          onToggle={toggleStatus}
+        />
       </FilterCard>
 
       {/* Table */}
@@ -607,7 +598,7 @@ export default function Orders() {
                   <td>
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
                       <span style={{ fontSize: 13, fontWeight: 500 }}>
-                        {o.slot.date.slice(5)} {o.slot.startTime}–{o.slot.endTime}
+                        {o.slot?.date ? o.slot.date.slice(5) : 'No slot'} {o.slot?.startTime || ''}{o.slot?.endTime ? `-${o.slot.endTime}` : ''}
                       </span>
                       <IconBtn icon="fa-calendar" onClick={() => navigate('/slots')} title={t.viewSlot} color="#6366f1" bg="#eef2ff" />
                       <IconBtn icon="fa-exchange-alt" onClick={() => openModal('changeSlot', o)} title={t.changeOrderSlot} amber />
@@ -655,14 +646,14 @@ export default function Orders() {
 
                   {/* Status */}
                   <td style={{ whiteSpace: 'nowrap' }}>
-                    <select
+                    <Select
+                      size="small"
                       value={STATUS_LIST.includes(o.status) ? o.status : STATUS_LIST[0]}
                       onChange={e => updateStatus(o.id, e.target.value)}
-                      className="form-select"
-                      style={{ padding: '4px 8px', fontSize: 12, width: 'auto', minWidth: 110 }}
+                      sx={{ minWidth: 120, height: 32, fontSize: 12 }}
                     >
-                      {STATUS_LIST.map(s => <option key={s} value={s}>{t[STATUS_T[s]]}</option>)}
-                    </select>
+                      {STATUS_LIST.map(s => <MenuItem key={s} value={s}>{t[STATUS_T[s]]}</MenuItem>)}
+                    </Select>
                   </td>
 
                   {/* Payment Method */}
@@ -688,7 +679,7 @@ export default function Orders() {
             </tbody>
           </table>
         </div>
-        <Pagination page={page} total={filtered.length} pageSize={PAGE_SIZE} onPage={setPage} />
+      <Pagination page={page} total={ordersData?.total || 0} pageSize={PAGE_SIZE} onPage={setPage} />
       </TableShell>
 
       {/* Popover */}

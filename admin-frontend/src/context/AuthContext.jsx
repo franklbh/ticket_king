@@ -1,8 +1,6 @@
-import { createContext, useContext, useState } from 'react'
-import { loginAdminWithPassword } from '../api/adminAuth'
-
-const AuthContext = createContext(null)
-const LangContext = createContext(null)
+import { useEffect, useState } from 'react'
+import { fetchCurrentAdmin, loginAdminWithPassword } from '../api/adminAuth'
+import { AuthContext, LangContext } from './authHooks'
 
 const ADMIN_SESSION_KEY = 'tk_admin_session'
 
@@ -15,6 +13,28 @@ export function AuthProvider({ children }) {
   })
 
   const [lang, setLang] = useState(() => localStorage.getItem('tk_lang') || 'en')
+
+  useEffect(() => {
+    if (!admin?.accessToken) return
+    let cancelled = false
+    fetchCurrentAdmin(admin.accessToken)
+      .then(profile => {
+        if (cancelled) return
+        const refreshedAdmin = {
+          ...profile,
+          accessToken: admin.accessToken,
+          refreshToken: admin.refreshToken,
+          expiresAt: admin.expiresAt,
+          loginTime: admin.loginTime,
+        }
+        setAdmin(refreshedAdmin)
+        persistAdmin(refreshedAdmin)
+      })
+      .catch(() => {
+        if (!cancelled) logout()
+      })
+    return () => { cancelled = true }
+  }, [admin?.accessToken])
 
   async function login(email, password, remember) {
     const nextSession = await resolveAdminSession(email, password)
@@ -50,8 +70,13 @@ export function AuthProvider({ children }) {
   )
 }
 
-export function useAuth() { return useContext(AuthContext) }
-export function useLang() { return useContext(LangContext) }
+function persistAdmin(admin) {
+  const localSession = localStorage.getItem(ADMIN_SESSION_KEY)
+  const sessionStorageSession = sessionStorage.getItem(ADMIN_SESSION_KEY)
+  const storage = localSession ? localStorage : sessionStorageSession ? sessionStorage : localStorage
+  storage.setItem(ADMIN_SESSION_KEY, JSON.stringify({ admin }))
+  storage.setItem('tk_admin', JSON.stringify(admin))
+}
 
 async function resolveAdminSession(email, password) {
   const session = await loginAdminWithPassword(email, password)

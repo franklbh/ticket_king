@@ -9,23 +9,29 @@ import httpx
 from app.core.config import settings
 from app.services.admin.repository import admin_repository
 from app.schemas.admin import AdminAccountCreate, OwnerBootstrapCreate, StaffProfileUpdate, UserRoleUpdate
+from app.services.admin.audit import write_audit_log
 from app.services.admin.security import ADMINISTRATOR, ALL_ROLES, OWNER, normalize_role, now_utc, public_user
 
 
 class UserService:
+    async def record_login(self, user: dict[str, Any], client_ip: str | None = None) -> dict[str, Any]:
+        values = {"last_login_at": now_utc(), "last_login_ip": client_ip}
+        updated = await self._update_user(user_id=str(user.get("id")), values=values)
+        row = updated[0] if updated else user
+        await write_audit_log(row, "Login", "Admin", str(user.get("id")), {"email": user.get("email")}, client_ip)
+        return public_user(row)
+
     async def list_users(self, role: str | None = None) -> list[dict[str, Any]]:
-        rows = await admin_repository.select(settings.admin_users_table)
+        normalized_role = normalize_role(role) if role else None
+        rows = await admin_repository.list_users(normalized_role)
         users = [public_user(row) for row in rows]
-        if role:
-            normalized_role = normalize_role(role)
-            users = [user for user in users if user["role"] == normalized_role]
         users.sort(key=lambda row: (row.get("role") or "", row.get("email") or "", row.get("name") or ""))
         return users
 
     async def create_admin_account(self, payload: AdminAccountCreate, actor: dict[str, Any]) -> dict[str, Any]:
-        rows = await admin_repository.select(settings.admin_users_table)
         auth_user = await self._get_or_create_auth_user_by_email(payload.email, payload.password, payload.name)
-        existing_user = self._find_user_by_id(rows, auth_user["id"])
+        existing_rows = await admin_repository.select_where(settings.admin_users_table, column="id", value=auth_user["id"], limit=1)
+        existing_user = existing_rows[0] if existing_rows else None
         values = {
             "name": payload.name,
             "email": payload.email,
@@ -40,12 +46,13 @@ class UserService:
                 user_id=existing_user["id"],
                 values=values,
             )
+            await write_audit_log(actor, "Update", "Admin", str(existing_user["id"]), {"email": payload.email, "reactivated": True}, None)
             return {
                 "user": public_user(updated[0]),
                 "createdBy": actor.get("id"),
             }
 
-        await self._ensure_email_unique(payload.email, rows)
+        await self._ensure_email_unique(payload.email)
         inserted = await self._create_user(
             user_id=auth_user["id"],
             name=payload.name,
@@ -56,17 +63,18 @@ class UserService:
             position=payload.position,
             status="active",
         )
+        await write_audit_log(actor, "Create", "Admin", str(inserted[0].get("id")), {"email": payload.email}, None)
         return {
             "user": public_user(inserted[0]),
             "createdBy": actor.get("id"),
         }
 
     async def bootstrap_owner(self, payload: OwnerBootstrapCreate) -> dict[str, Any]:
-        rows = await admin_repository.select(settings.admin_users_table)
-        if any(normalize_role(row.get("role")) == OWNER for row in rows):
+        owners = await admin_repository.select_where(settings.admin_users_table, column="role", value=OWNER, limit=1)
+        if owners:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Owner account already exists.")
 
-        existing_user = self._find_user_by_email(rows, payload.email)
+        existing_user = await self._find_user_by_email(payload.email)
         if existing_user:
             updated = await self._update_user(
                 user_id=existing_user["id"],
@@ -75,7 +83,8 @@ class UserService:
             return {"user": public_user(updated[0])}
 
         auth_user = await self._require_auth_user_by_email(payload.email)
-        existing_user = self._find_user_by_id(rows, auth_user["id"])
+        existing_rows = await admin_repository.select_where(settings.admin_users_table, column="id", value=auth_user["id"], limit=1)
+        existing_user = existing_rows[0] if existing_rows else None
         if existing_user:
             updated = await self._update_user(
                 user_id=existing_user["id"],
@@ -83,7 +92,7 @@ class UserService:
             )
             return {"user": public_user(updated[0])}
 
-        await self._ensure_email_unique(payload.email, rows)
+        await self._ensure_email_unique(payload.email)
         inserted = await self._create_user(
             user_id=auth_user["id"],
             name=payload.name,
@@ -104,6 +113,7 @@ class UserService:
         updated = await self._update_user(user_id=user_id, values=values)
         if not updated:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+        await write_audit_log(actor, "Update", "Admin", str(user_id), {"profile": values}, None)
         return public_user(updated[0])
 
     async def update_role(self, user_id: str, payload: UserRoleUpdate, actor: dict[str, Any]) -> dict[str, Any]:
@@ -118,25 +128,21 @@ class UserService:
         updated = await self._update_user(user_id=user_id, values={"role": role})
         if not updated:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+        await write_audit_log(actor, "Update", "Admin", str(user_id), {"role": role}, None)
         return public_user(updated[0])
 
-    async def _ensure_email_unique(self, email: str, rows: list[dict[str, Any]] | None = None) -> None:
-        rows = rows or await admin_repository.select(settings.admin_users_table)
-        for row in rows:
-            if str(row.get("email")).lower() == email.lower():
-                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already exists.")
+    async def _ensure_email_unique(self, email: str) -> None:
+        if await self._find_user_by_email(email):
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already exists.")
 
-    def _find_user_by_email(self, rows: list[dict[str, Any]], email: str) -> dict[str, Any] | None:
-        for row in rows:
-            if str(row.get("email")).lower() == email.lower():
-                return row
-        return None
-
-    def _find_user_by_id(self, rows: list[dict[str, Any]], user_id: Any) -> dict[str, Any] | None:
-        for row in rows:
-            if str(row.get("id")) == str(user_id):
-                return row
-        return None
+    async def _find_user_by_email(self, email: str) -> dict[str, Any] | None:
+        rows = await admin_repository.select_where(
+            settings.admin_users_table,
+            column="email",
+            value=email,
+            limit=1,
+        )
+        return rows[0] if rows else None
 
     async def _require_auth_user_by_email(self, email: str) -> dict[str, Any]:
         rows = await admin_repository.select_where(

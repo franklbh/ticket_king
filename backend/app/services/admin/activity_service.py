@@ -1,31 +1,60 @@
 from __future__ import annotations
 
+import csv
+import io
 from typing import Any
+
+from fastapi import HTTPException, status
 
 from app.core.config import settings
 from app.schemas.admin.mappers import paginate
 from app.schemas.admin.responses import ActivityLogPage, ActivityLogRead
-from app.services.admin.enrichment import users_by_id
-from app.services.admin.filters import filter_activity_logs
 from app.services.admin.normalizers import pick
 from app.services.admin.repository import admin_repository
 
 
 class ActivityService:
     async def list_activity_logs(self, filters: dict[str, Any]) -> ActivityLogPage:
-        rows = await admin_repository.select(settings.admin_audit_logs_table)
-        users = await users_by_id()
-        logs = [self._normalize_log(row, users) for row in rows]
-        logs = filter_activity_logs(logs, filters)
-        logs.sort(key=lambda row: row.get("timestamp") or "", reverse=True)
-        return paginate(ActivityLogRead, logs, page=filters.get("page", 1), page_size=filters.get("page_size", 25))
+        rows, total = await admin_repository.list_activity_logs(filters)
+        logs = [self._normalize_log(row) for row in rows]
+        return paginate(
+            ActivityLogRead,
+            logs,
+            page=filters.get("page", 1),
+            page_size=filters.get("page_size", 25),
+            total=total,
+            already_paginated=True,
+        )
+
+    async def get_activity_log(self, log_id: str) -> ActivityLogRead:
+        row = await admin_repository.get_activity_log(log_id)
+        if row:
+            return ActivityLogRead.model_validate(self._normalize_log(row))
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Activity log not found.")
+
+    async def export_activity_logs_csv(self, filters: dict[str, Any]) -> str:
+        page = await self.list_activity_logs(filters | {"page": 1, "page_size": settings.max_table_rows})
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(["ID", "Admin", "Action Type", "Target Type", "Target ID", "Action Details", "Login Info", "Timestamp"])
+        for log in page.items:
+            writer.writerow([
+                log.id,
+                log.admin,
+                log.action_type,
+                log.target_type,
+                log.target_id,
+                log.action_details,
+                log.login_info,
+                log.timestamp,
+            ])
+        return output.getvalue()
 
     @staticmethod
-    def _normalize_log(row: dict[str, Any], users_by_id: dict[str, dict[str, Any]]) -> dict[str, Any]:
-        admin_user = users_by_id.get(str(row.get("admin_id") or ""))
+    def _normalize_log(row: dict[str, Any]) -> dict[str, Any]:
         admin = (
-            (admin_user or {}).get("name")
-            or (admin_user or {}).get("email")
+            row.get("admin_name")
+            or row.get("admin_email")
             or pick(row, "admin_name", "admin_email", "admin_id", default="Unknown")
         )
         return {

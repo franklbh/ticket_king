@@ -67,20 +67,7 @@ def ticket_counts(tickets: list[dict[str, Any]]) -> dict[str, dict[str, int]]:
 
 
 async def slot_inventory_counts() -> dict[str, dict[str, int]]:
-    tickets = await admin_repository.select(settings.admin_tickets_table)
-    orders = await orders_by_id()
-    counts: dict[str, dict[str, int]] = defaultdict(lambda: {"online_sold": 0, "walkin_sold": 0})
-    for ticket in tickets:
-        order = orders.get(str(ticket.get("order_id")))
-        key = slot_key(order or ticket)
-        if not key:
-            continue
-        channel = str((order or {}).get("sales_channel") or "").lower()
-        if channel in {"walk_in", "walk-in", "instore", "in_store"}:
-            counts[key]["walkin_sold"] += 1
-        else:
-            counts[key]["online_sold"] += 1
-    return dict(counts)
+    return await admin_repository.slot_inventory_counts()
 
 
 def slot_key(row: dict[str, Any]) -> str:

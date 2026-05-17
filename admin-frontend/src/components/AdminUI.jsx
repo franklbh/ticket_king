@@ -1,5 +1,6 @@
 import Alert from '@mui/material/Alert'
 import Button from '@mui/material/Button'
+import Pagination from '@mui/material/Pagination'
 
 export function PageHeader({ icon, title, subtitle, actions, meta }) {
   return (
@@ -67,24 +68,16 @@ export function EmptyTableRow({ colSpan, children = 'No records found' }) {
 export function AdminPagination({ page, total, pageSize, onPage }) {
   const pages = Math.ceil(total / pageSize)
   if (pages <= 1) return null
-  const visible = Math.min(pages, 7)
   return (
-    <div className="pagination">
-      <button type="button" className="page-btn" disabled={page === 1} onClick={() => onPage(page - 1)}>‹</button>
-      {Array.from({ length: visible }, (_, i) => {
-        const n = i + 1
-        return (
-          <button
-            key={n}
-            type="button"
-            className={`page-btn ${n === page ? 'active' : ''}`}
-            onClick={() => onPage(n)}
-          >
-            {n}
-          </button>
-        )
-      })}
-      <button type="button" className="page-btn" disabled={page === pages} onClick={() => onPage(page + 1)}>›</button>
+    <div className="flex justify-end p-3">
+      <Pagination
+        count={pages}
+        page={page}
+        onChange={(_, value) => onPage(value)}
+        color="primary"
+        shape="rounded"
+        size="small"
+      />
     </div>
   )
 }

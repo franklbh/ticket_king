@@ -1,12 +1,17 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useLang } from '../context/AuthContext'
+import Button from '@mui/material/Button'
+import Chip from '@mui/material/Chip'
+import MuiPagination from '@mui/material/Pagination'
+import { useLang } from '../context/authHooks'
 import { useT } from '../i18n/translations'
 import { exportTickets, updateTicketStatus } from '../api/adminApi'
 import { useAdminMutation } from '../hooks/useAdminApi'
-import { useTicketsQuery } from '../hooks/queries'
+import { useTicketsQuery } from '../hooks/tickets'
+import { useTicketTypesQuery } from '../hooks/catalog'
 import LoadingIndicator from '../components/LoadingIndicator'
 import { AdminAlert, EmptyTableRow, FilterCard, PageHeader, TableShell } from '../components/AdminUI'
+import { DateRangeFilter, ResetFiltersButton, SelectFilter, TextFilter } from '../components/FilterControls'
 
 const PAGE_SIZE = 10
 const TODAY = new Date().toISOString().slice(0, 10)
@@ -101,12 +106,8 @@ function Pagination({ page, total, pageSize, onPage }) {
   const pages = Math.ceil(total / pageSize)
   if (pages <= 1) return null
   return (
-    <div className="pagination">
-      <button className="page-btn" disabled={page === 1} onClick={() => onPage(page - 1)}>‹</button>
-      {Array.from({ length: Math.min(pages, 7) }, (_, i) => (
-        <button key={i + 1} className={`page-btn ${i + 1 === page ? 'active' : ''}`} onClick={() => onPage(i + 1)}>{i + 1}</button>
-      ))}
-      <button className="page-btn" disabled={page === pages} onClick={() => onPage(page + 1)}>›</button>
+    <div className="flex justify-end p-3">
+      <MuiPagination count={pages} page={page} onChange={(_, value) => onPage(value)} color="primary" shape="rounded" size="small" />
     </div>
   )
 }
@@ -118,15 +119,28 @@ export default function Tickets() {
 
   const [filters, setFilters] = useState({
     code: '', orderId: '', status: 'all',
-    slotDateFrom: TODAY, slotDateTo: TODAY,
+    slotDateFrom: '', slotDateTo: '',
     verifiedFrom: '', verifiedTo: '',
     types: [],
   })
   const [page, setPage] = useState(1)
+  const ticketQueryFilters = useMemo(() => ({
+    page,
+    pageSize: PAGE_SIZE,
+    code: filters.code,
+    orderId: filters.orderId,
+    status: filters.status,
+    slotDateFrom: filters.slotDateFrom,
+    slotDateTo: filters.slotDateTo,
+    verifiedFrom: filters.verifiedFrom,
+    verifiedTo: filters.verifiedTo,
+    ticketType: filters.types,
+  }), [filters, page])
   const { data: ticketsData, error: loadError, loading: loadingTickets, setData: setTicketsData } = useTicketsQuery(
-    { page: 1, pageSize: 200 },
+    ticketQueryFilters,
     { initialData: { items: [], total: 0 } }
   )
+  const { data: ticketTypes = [] } = useTicketTypesQuery(false, { initialData: [] })
   const { mutate: updateStatusMutation } = useAdminMutation(updateTicketStatus, {
     successMessage: 'Ticket status updated.',
   })
@@ -135,8 +149,8 @@ export default function Tickets() {
   })
   const tickets = ticketsData?.items || []
   const ticketTypeOptions = useMemo(
-    () => Array.from(new Set(tickets.map(ticket => ticket.ticketType).filter(Boolean))).sort(),
-    [tickets]
+    () => ticketTypes.map(type => type.name).filter(Boolean).sort(),
+    [ticketTypes]
   )
   const [qrTicket, setQrTicket] = useState(null)
   const [showExportConfirm, setShowExportConfirm] = useState(false)
@@ -175,21 +189,7 @@ export default function Tickets() {
     }))
   }
 
-  const filtered = useMemo(() => {
-    return tickets.filter(tk => {
-      if (filters.code && !tk.code.includes(filters.code)) return false
-      if (filters.orderId && !tk.orderId.includes(filters.orderId)) return false
-      if (filters.status !== 'all' && tk.status !== filters.status) return false
-      if (filters.slotDateFrom && tk.slotDate < filters.slotDateFrom) return false
-      if (filters.slotDateTo && tk.slotDate > filters.slotDateTo) return false
-      if (filters.verifiedFrom && (!tk.verifiedAt || tk.verifiedAt.slice(0, 10) < filters.verifiedFrom)) return false
-      if (filters.verifiedTo && (!tk.verifiedAt || tk.verifiedAt.slice(0, 10) > filters.verifiedTo)) return false
-      if (filters.types.length > 0 && !filters.types.includes(tk.ticketType)) return false
-      return true
-    })
-  }, [filters, tickets])
-
-  const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const paged = tickets
 
   function resetFilters() {
     setFilters({ code: '', orderId: '', status: 'all', slotDateFrom: '', slotDateTo: '', verifiedFrom: '', verifiedTo: '', types: [] })
@@ -285,50 +285,32 @@ export default function Tickets() {
         title={t.ticketsManagement}
         subtitle={t.manageTickets}
         actions={
-        <button className="btn-secondary btn-sm" onClick={() => setShowExportConfirm(true)} disabled={exporting}>
-          <i className="fa fa-file-export" /> {t.exportCSV}
-        </button>
+        <Button variant="outlined" size="small" onClick={() => setShowExportConfirm(true)} disabled={exporting} startIcon={<i className="fa fa-file-export" />}>
+          {t.exportCSV}
+        </Button>
         }
       />
 
       {/* Filters */}
       <FilterCard>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr) auto', gap: 12, marginBottom: 12 }}>
-          <div>
-            <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>{t.verificationCode}</label>
-            <input className="form-input" placeholder="Enter verification code (last 4+ digits)..." value={filters.code} onChange={e => setFilters(f => ({ ...f, code: e.target.value }))} />
-          </div>
-          <div>
-            <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>{t.orderID}</label>
-            <input className="form-input" placeholder="Enter order ID..." value={filters.orderId} onChange={e => setFilters(f => ({ ...f, orderId: e.target.value }))} />
-          </div>
-          <div>
-            <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>{t.ticketStatus}</label>
-            <select className="form-select" value={filters.status} onChange={e => setFilters(f => ({ ...f, status: e.target.value }))} style={{ width: '100%' }}>
-              <option value="all">{t.allStatus}</option>
-              <option value="not_used">{t.notUsed}</option>
-              <option value="used">{t.used}</option>
-              <option value="voided">{t.voided}</option>
-            </select>
-          </div>
-          <div>
-            <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>{t.slotDateRange}</label>
-            <div style={{ display: 'flex', gap: 4 }}>
-              <input className="form-input" type="date" value={filters.slotDateFrom} onChange={e => setFilters(f => ({ ...f, slotDateFrom: e.target.value }))} />
-              <input className="form-input" type="date" value={filters.slotDateTo} onChange={e => setFilters(f => ({ ...f, slotDateTo: e.target.value }))} />
-            </div>
-          </div>
-          <div>
-            <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>{t.verifiedDateRange}</label>
-            <div style={{ display: 'flex', gap: 4 }}>
-              <input className="form-input" type="date" value={filters.verifiedFrom} onChange={e => setFilters(f => ({ ...f, verifiedFrom: e.target.value }))} />
-              <input className="form-input" type="date" value={filters.verifiedTo} onChange={e => setFilters(f => ({ ...f, verifiedTo: e.target.value }))} />
-            </div>
-          </div>
+        <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1fr_1fr_1fr_1.4fr_1.4fr_auto] mb-3">
+          <TextFilter label={t.verificationCode} placeholder="Enter verification code..." value={filters.code} onChange={value => { setFilters(f => ({ ...f, code: value })); setPage(1) }} />
+          <TextFilter label={t.orderID} placeholder="Enter order ID..." value={filters.orderId} onChange={value => { setFilters(f => ({ ...f, orderId: value })); setPage(1) }} />
+          <SelectFilter
+            label={t.ticketStatus}
+            value={filters.status}
+            onChange={value => { setFilters(f => ({ ...f, status: value })); setPage(1) }}
+            options={[
+              { value: 'all', label: t.allStatus },
+              { value: 'not_used', label: t.notUsed },
+              { value: 'used', label: t.used },
+              { value: 'voided', label: t.voided },
+            ]}
+          />
+          <DateRangeFilter label={t.slotDateRange} from={filters.slotDateFrom} to={filters.slotDateTo} onFromChange={value => { setFilters(f => ({ ...f, slotDateFrom: value })); setPage(1) }} onToChange={value => { setFilters(f => ({ ...f, slotDateTo: value })); setPage(1) }} />
+          <DateRangeFilter label={t.verifiedDateRange} from={filters.verifiedFrom} to={filters.verifiedTo} onFromChange={value => { setFilters(f => ({ ...f, verifiedFrom: value })); setPage(1) }} onToChange={value => { setFilters(f => ({ ...f, verifiedTo: value })); setPage(1) }} />
           <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-            <button className="btn-secondary btn-sm" onClick={resetFilters}>
-              <i className="fa fa-redo" /> {t.reset}
-            </button>
+            <ResetFiltersButton onClick={resetFilters} label={t.reset} />
           </div>
         </div>
       </FilterCard>
@@ -337,12 +319,12 @@ export default function Tickets() {
       <FilterCard className="py-3">
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 13, fontWeight: 500, color: '#374151' }}>{t.quickFilter}:</span>
-          <button className="btn-sm" onClick={setTodaySlotFilter} style={{ background: THEME.primary, color: '#fff', border: 'none', borderRadius: 4, padding: '5px 12px', cursor: 'pointer', fontSize: 13 }}>
-            <i className="fa fa-calendar" /> {t.todayScreeningSlots}
-          </button>
-          <button className="btn-sm" onClick={setTodayVerifiedFilter} style={{ background: THEME.primary, color: '#fff', border: 'none', borderRadius: 4, padding: '5px 12px', cursor: 'pointer', fontSize: 13 }}>
-            <i className="fa fa-check-circle" /> {t.todayVerifiedTickets}
-          </button>
+          <Button size="small" variant="contained" onClick={setTodaySlotFilter} startIcon={<i className="fa fa-calendar" />}>
+            {t.todayScreeningSlots}
+          </Button>
+          <Button size="small" variant="contained" onClick={setTodayVerifiedFilter} startIcon={<i className="fa fa-check-circle" />}>
+            {t.todayVerifiedTickets}
+          </Button>
         </div>
       </FilterCard>
 
@@ -351,13 +333,15 @@ export default function Tickets() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 13, fontWeight: 500, color: '#374151' }}>{t.ticketType}:</span>
           {ticketTypeOptions.map(type => (
-            <label key={type} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, cursor: 'pointer', fontSize: 13, background: THEME.primarySoft, border: `1px solid ${THEME.primaryBorder}`, borderRadius: 8, padding: '8px 10px', maxWidth: '100%' }}>
-              <input type="checkbox" checked={filters.types.includes(type)} onChange={() => toggleType(type)} style={{ width: 14, height: 14 }} />
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0, whiteSpace: 'nowrap', color: THEME.primaryText, fontWeight: 600 }}>
-                <i className="fa fa-ticket" style={{ color: THEME.primary, fontSize: 10 }} />
-                {type}
-              </span>
-            </label>
+            <Chip
+              key={type}
+              label={type}
+              color={filters.types.includes(type) ? 'primary' : 'default'}
+              variant={filters.types.includes(type) ? 'filled' : 'outlined'}
+              icon={<i className="fa fa-ticket" />}
+              onClick={() => toggleType(type)}
+              sx={{ fontWeight: 700 }}
+            />
           ))}
         </div>
       </FilterCard>
@@ -497,7 +481,7 @@ export default function Tickets() {
             </tbody>
           </table>
         </div>
-        <Pagination page={page} total={filtered.length} pageSize={PAGE_SIZE} onPage={setPage} />
+      <Pagination page={page} total={ticketsData?.total || 0} pageSize={PAGE_SIZE} onPage={setPage} />
       </TableShell>
     </div>
   )

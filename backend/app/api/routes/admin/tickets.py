@@ -2,12 +2,12 @@ from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import Response
 
 from app.api.deps import client_ip
-from app.schemas.admin import TicketStatusUpdate
-from app.schemas.admin.responses import TicketPage, TicketRead
-from app.services.admin.security import require_admin
+from app.schemas.admin import TicketBatchStatusUpdate, TicketRegenerateRequest, TicketStatusUpdate
+from app.schemas.admin.responses import BatchActionResponse, TicketPage, TicketRead
+from app.services.admin.security import require_permission
 from app.services.admin.ticket_service import ticket_service
 
-router = APIRouter(prefix="/tickets", tags=["tickets"], dependencies=[Depends(require_admin)])
+router = APIRouter(prefix="/tickets", tags=["tickets"])
 
 
 def _ticket_filters(
@@ -37,7 +37,10 @@ def _ticket_filters(
 
 
 @router.get("", response_model=TicketPage)
-async def list_tickets(filters: dict = Depends(_ticket_filters)) -> TicketPage:
+async def list_tickets(
+    filters: dict = Depends(_ticket_filters),
+    _: dict = Depends(require_permission("tickets:read")),
+) -> TicketPage:
     return await ticket_service.list_tickets(filters)
 
 
@@ -45,7 +48,7 @@ async def list_tickets(filters: dict = Depends(_ticket_filters)) -> TicketPage:
 async def export_tickets(
     request: Request,
     filters: dict = Depends(_ticket_filters),
-    actor: dict = Depends(require_admin),
+    actor: dict = Depends(require_permission("tickets:export")),
 ) -> Response:
     csv_body = await ticket_service.export_tickets_csv(filters, actor, client_ip(request))
     return Response(
@@ -55,11 +58,38 @@ async def export_tickets(
     )
 
 
+@router.get("/{ticket_id}", response_model=TicketRead)
+async def get_ticket(
+    ticket_id: str,
+    _: dict = Depends(require_permission("tickets:read")),
+) -> TicketRead:
+    return await ticket_service.get_ticket(ticket_id)
+
+
+@router.patch("/batch/status", response_model=BatchActionResponse)
+async def batch_update_ticket_status(
+    payload: TicketBatchStatusUpdate,
+    request: Request,
+    actor: dict = Depends(require_permission("tickets:write")),
+) -> BatchActionResponse:
+    return BatchActionResponse.model_validate(await ticket_service.batch_update_status(payload, actor, client_ip(request)))
+
+
 @router.patch("/{ticket_id}/status", response_model=TicketRead)
 async def update_ticket_status(
     ticket_id: str,
     payload: TicketStatusUpdate,
     request: Request,
-    actor: dict = Depends(require_admin),
+    actor: dict = Depends(require_permission("tickets:write")),
 ) -> TicketRead:
     return await ticket_service.update_ticket_status(ticket_id, payload, actor, client_ip(request))
+
+
+@router.post("/{ticket_id}/regenerate-qr", response_model=TicketRead)
+async def regenerate_ticket_qr(
+    ticket_id: str,
+    payload: TicketRegenerateRequest,
+    request: Request,
+    actor: dict = Depends(require_permission("tickets:write")),
+) -> TicketRead:
+    return await ticket_service.regenerate_ticket_qr(ticket_id, payload, actor, client_ip(request))

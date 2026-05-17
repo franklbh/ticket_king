@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import jsQR from 'jsqr'
-import { useLang } from '../context/AuthContext'
+import { useLang } from '../context/authHooks'
 import { useT } from '../i18n/translations'
 import { checkInTicket } from '../api/adminApi'
 import { useAdminMutation } from '../hooks/useAdminApi'
-import { useRecentScansQuery } from '../hooks/queries'
+import { useRecentScansQuery } from '../hooks/scanner'
 import { ScannerActionButton, ScannerCard, ScannerSectionTitle, ScannerStat } from '../components/ScannerUI'
 
 function playBeep(valid) {

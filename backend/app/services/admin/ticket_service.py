@@ -2,24 +2,23 @@ from __future__ import annotations
 
 import csv
 import io
+import secrets
 from datetime import timedelta
 from typing import Any
 
 from fastapi import HTTPException, status
 
 from app.core.config import settings
-from app.schemas.admin import TicketCheckInRequest, TicketStatusUpdate
+from app.schemas.admin import TicketBatchStatusUpdate, TicketCheckInRequest, TicketOverrideCheckInRequest, TicketRegenerateRequest, TicketStatusUpdate
 from app.schemas.admin.mappers import paginate, to_model, to_models
 from app.schemas.admin.responses import CheckInResponse, TicketPage, TicketRead
 from app.services.admin.audit import write_audit_log
 from app.services.admin.enrichment import (
-    load_enriched_tickets,
     merge_ticket_order,
     orders_by_id,
     slots_by_id,
     users_by_id,
 )
-from app.services.admin.filters import filter_tickets
 from app.services.admin.normalizers import (
     db_ticket_status,
     normalize_ticket,
@@ -31,10 +30,22 @@ from app.utils.datetime import utc_now, utc_now_iso_seconds
 
 class TicketService:
     async def list_tickets(self, filters: dict[str, Any]) -> TicketPage:
-        tickets = await load_enriched_tickets()
-        tickets = filter_tickets(tickets, filters)
-        tickets.sort(key=lambda row: row.get("createdAt") or "", reverse=True)
-        return paginate(TicketRead, tickets, page=filters.get("page", 1), page_size=filters.get("page_size", 25))
+        rows, total = await admin_repository.list_tickets(filters)
+        tickets = [normalize_ticket(row) for row in rows]
+        return paginate(
+            TicketRead,
+            tickets,
+            page=filters.get("page", 1),
+            page_size=filters.get("page_size", 25),
+            total=total,
+            already_paginated=True,
+        )
+
+    async def get_ticket(self, ticket_id: str) -> TicketRead:
+        row = await admin_repository.get_ticket(ticket_id)
+        if not row:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found.")
+        return to_model(TicketRead, normalize_ticket(row))
 
     async def export_tickets_csv(
         self,
@@ -103,6 +114,42 @@ class TicketService:
         merged = merge_ticket_order(rows[0], order)
         return to_model(TicketRead, normalize_ticket(merged, slot=slot, customer=customer))
 
+    async def batch_update_status(
+        self,
+        payload: TicketBatchStatusUpdate,
+        actor: dict[str, Any],
+        client_ip: str | None = None,
+    ) -> dict[str, Any]:
+        updated_ids: list[str] = []
+        for ticket_id in payload.ticket_ids:
+            await self.update_ticket_status(ticket_id, TicketStatusUpdate(status=payload.status), actor, client_ip)
+            updated_ids.append(ticket_id)
+        await write_audit_log(actor, "Batch Update", "Ticket", None, {"ids": updated_ids, "status": payload.status}, client_ip)
+        return {"ok": True, "updated": len(updated_ids), "ids": updated_ids}
+
+    async def regenerate_ticket_qr(
+        self,
+        ticket_id: str,
+        payload: TicketRegenerateRequest,
+        actor: dict[str, Any],
+        client_ip: str | None = None,
+    ) -> TicketRead:
+        code = self._verification_code()
+        rows = await admin_repository.update(
+            settings.admin_tickets_table,
+            match_column=settings.admin_ticket_id_column,
+            match_value=ticket_id,
+            values={
+                "verification_code": code,
+                "qr_payload": f"ticket:{code}",
+                "updated_at": utc_now_iso_seconds(),
+            },
+        )
+        if not rows:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found.")
+        await write_audit_log(actor, "Regenerate", "Ticket", ticket_id, {"verification_code": code, "reason": payload.reason}, client_ip)
+        return await self.get_ticket(ticket_id)
+
     async def check_in_ticket(
         self,
         payload: TicketCheckInRequest,
@@ -110,16 +157,7 @@ class TicketService:
         client_ip: str | None = None,
     ) -> CheckInResponse:
         code = payload.code.strip()
-        rows = await admin_repository.select(settings.admin_tickets_table)
-        match = next(
-            (
-                row for row in rows
-                if str(row.get("verification_code") or "") == code
-                or str(row.get("qr_payload") or "") == code
-                or str(row.get("qr_payload") or "").endswith(f":{code}")
-            ),
-            None,
-        )
+        match = await admin_repository.get_ticket_by_code(code)
         if not match:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found.")
 
@@ -149,17 +187,34 @@ class TicketService:
         )
         return CheckInResponse(result="checked_in", ticket=to_model(TicketRead, normalized))
 
+    async def override_check_in_ticket(
+        self,
+        payload: TicketOverrideCheckInRequest,
+        actor: dict[str, Any],
+        client_ip: str | None = None,
+    ) -> CheckInResponse:
+        try:
+            result = await self.check_in_ticket(TicketCheckInRequest(code=payload.code), actor, client_ip)
+        except HTTPException:
+            raise
+        await write_audit_log(
+            actor,
+            "Override Check In",
+            "Ticket",
+            str(result.ticket.id or ""),
+            {"code": payload.code, "reason": payload.reason, "result": result.result},
+            client_ip,
+        )
+        return result
+
     async def recent_scans(self, minutes: int = 20) -> list[TicketRead]:
         cutoff = utc_now() - timedelta(minutes=minutes)
-        rows = await admin_repository.select(settings.admin_tickets_table)
-        tickets = [
-            normalize_ticket(row)
-            for row in rows
-            if row.get("checked_in_at")
-            and str(row.get("checked_in_at")).replace("T", " ")[:19] >= cutoff.strftime("%Y-%m-%d %H:%M:%S")
-        ]
-        tickets.sort(key=lambda row: row.get("verifiedAt") or "", reverse=True)
-        return to_models(TicketRead, tickets[:100])
+        rows = await admin_repository.recent_checked_in_tickets(cutoff, limit=100)
+        return to_models(TicketRead, [normalize_ticket(row) for row in rows])
+
+    @staticmethod
+    def _verification_code() -> str:
+        return f"{utc_now():%y%m%d}{secrets.randbelow(9000000) + 1000000}"
 
 
 ticket_service = TicketService()
