@@ -1,9 +1,11 @@
 import { useState, useMemo } from 'react'
+import Button from '@mui/material/Button'
 import { useLang } from '../context/AuthContext'
 import { useT } from '../i18n/translations'
 import { createTicketType, updateTicketType } from '../api/adminApi'
 import { AdminAlert, EmptyTableRow, FilterCard, PageHeader, TableShell } from '../components/AdminUI'
 import LoadingIndicator from '../components/LoadingIndicator'
+import { ResetFiltersButton, SelectFilter, TextFilter } from '../components/FilterControls'
 import { adminQueryKeys } from '../hooks/queries'
 import { useEventsQuery, useTicketTypesQuery } from '../hooks/catalog'
 import { useAdminMutation } from '../hooks/useAdminApi'
@@ -396,9 +398,9 @@ export default function TicketTypes() {
         title={t.ticketTypesManagement}
         subtitle="Click any price to edit inline"
         actions={
-        <button className="btn-primary" onClick={() => setModal('create')}>
-          {t.createTicketType}
-        </button>
+          <Button variant="contained" onClick={() => setModal('create')} startIcon={<i className="fa fa-plus" />}>
+            {t.createTicketType}
+          </Button>
         }
       />
 
@@ -421,22 +423,24 @@ export default function TicketTypes() {
 
       {/* Filters */}
       <FilterCard className="mb-3">
-        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end' }}>
-          <div style={{ flex: 1 }}>
-            <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>Search</label>
-            <input className="form-input" placeholder="Search ticket type..." value={filters.search} onChange={e => setFilters(f => ({ ...f, search: e.target.value }))} />
-          </div>
-          <div>
-            <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>{t.status}</label>
-            <select className="form-select" value={filters.status} onChange={e => setFilters(f => ({ ...f, status: e.target.value }))}>
-              <option value="all">{t.allStatus}</option>
-              <option value="enabled">{t.enabled}</option>
-              <option value="disabled">{t.disabled}</option>
-            </select>
-          </div>
-          <button className="btn-secondary btn-sm" onClick={() => setFilters({ search: '', status: 'all' })}>
-            <i className="fa fa-redo" /> {t.reset}
-          </button>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(260px, 1fr) minmax(180px, 240px) auto', gap: 12, alignItems: 'end' }}>
+          <TextFilter
+            label="Search"
+            placeholder="Search ticket type..."
+            value={filters.search}
+            onChange={value => setFilters(f => ({ ...f, search: value }))}
+          />
+          <SelectFilter
+            label={t.status}
+            value={filters.status}
+            onChange={value => setFilters(f => ({ ...f, status: value }))}
+            options={[
+              { value: 'all', label: t.allStatus },
+              { value: 'enabled', label: t.enabled },
+              { value: 'disabled', label: t.disabled },
+            ]}
+          />
+          <ResetFiltersButton label={t.reset} onClick={() => setFilters({ search: '', status: 'all' })} />
         </div>
       </FilterCard>
 
@@ -526,17 +530,18 @@ export default function TicketTypes() {
                 {/* Actions */}
                 <td style={{ padding: '13px 18px', textAlign: 'center', borderLeft: '1px solid #e5e7eb' }}>
                   <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
-                    <button className="btn-primary btn-sm" onClick={() => setModal(row.firstRow)}>
-                      <i className="fa fa-edit" /> {t.edit}
-                    </button>
-                    <button onClick={() => toggleStatus(row.name)} className="btn-sm" style={{
-                      background: row.anyEnabled ? '#f59e0b' : '#10b981', color: '#fff',
-                      border: 'none', borderRadius: 4, padding: '5px 10px', cursor: 'pointer', fontWeight: 600,
-                      display: 'inline-flex', alignItems: 'center', gap: 4,
-                    }}>
-                      <i className={`fa fa-${row.anyEnabled ? 'ban' : 'check'}`} />
+                    <Button variant="contained" size="small" onClick={() => setModal(row.firstRow)} startIcon={<i className="fa fa-edit" />}>
+                      {t.edit}
+                    </Button>
+                    <Button
+                      onClick={() => toggleStatus(row.name)}
+                      size="small"
+                      variant="contained"
+                      color={row.anyEnabled ? 'warning' : 'success'}
+                      startIcon={<i className={`fa fa-${row.anyEnabled ? 'ban' : 'check'}`} />}
+                    >
                       {row.anyEnabled ? t.disable : t.enable}
-                    </button>
+                    </Button>
                   </div>
                 </td>
               </tr>

@@ -1,4 +1,9 @@
 import { useEffect, useState } from 'react'
+import Button from '@mui/material/Button'
+import Chip from '@mui/material/Chip'
+import Switch from '@mui/material/Switch'
+import ToggleButton from '@mui/material/ToggleButton'
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup'
 import { useNavigate } from 'react-router-dom'
 import { updateMarketingSettings } from '../api/adminApi'
 import { AdminCard, AdminPagination, EmptyTableRow, PageHeader, TableShell } from '../components/AdminUI'
@@ -23,19 +28,7 @@ const DEFAULT_MARKETING_SETTINGS = {
 
 function Toggle({ checked, onChange }) {
   return (
-    <div
-      onClick={onChange}
-      style={{
-        width: 46, height: 24, borderRadius: 12, position: 'relative', cursor: 'pointer', flexShrink: 0,
-        background: checked ? '#10b981' : '#d1d5db', transition: 'background 0.2s',
-      }}
-    >
-      <div style={{
-        position: 'absolute', top: 2, left: checked ? 22 : 2, width: 20, height: 20,
-        borderRadius: '50%', background: '#fff', transition: 'left 0.2s',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-      }} />
-    </div>
+    <Switch checked={checked} onChange={onChange} color="success" size="small" />
   )
 }
 
@@ -177,14 +170,15 @@ export default function Marketing() {
             <div style={{ marginBottom: 16 }}>
               <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 8 }}>{t.discountSetting}</label>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <button
-                  onClick={() => setSettings(s => ({ ...s, discountType: 'percent' }))}
-                  style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid #e5e7eb', cursor: 'pointer', background: settings.discountType === 'percent' ? '#6366f1' : '#fff', color: settings.discountType === 'percent' ? '#fff' : '#374151', fontWeight: 600 }}
-                >%</button>
-                <button
-                  onClick={() => setSettings(s => ({ ...s, discountType: 'fixed' }))}
-                  style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid #e5e7eb', cursor: 'pointer', background: settings.discountType === 'fixed' ? '#6366f1' : '#fff', color: settings.discountType === 'fixed' ? '#fff' : '#374151', fontWeight: 600 }}
-                >$</button>
+                <ToggleButtonGroup
+                  exclusive
+                  size="small"
+                  value={settings.discountType}
+                  onChange={(_, value) => value && setSettings(s => ({ ...s, discountType: value }))}
+                >
+                  <ToggleButton value="percent">%</ToggleButton>
+                  <ToggleButton value="fixed">$</ToggleButton>
+                </ToggleButtonGroup>
                 <input
                   className="form-input"
                   type="number"
@@ -193,9 +187,7 @@ export default function Marketing() {
                   onChange={e => setSettings(s => ({ ...s, discountValue: Number(e.target.value) }))}
                   style={{ width: 80 }}
                 />
-                <span style={{ background: '#d1fae5', color: '#065f46', padding: '6px 14px', borderRadius: 6, fontWeight: 700, fontSize: 13 }}>
-                  <i className="fa fa-tag" /> {discountPreview}
-                </span>
+                <Chip color="success" size="small" icon={<i className="fa fa-tag" />} label={discountPreview} sx={{ fontWeight: 800 }} />
               </div>
               <p style={{ margin: '4px 0 0', fontSize: 12, color: '#9ca3af' }}>E.g. 10 means 10% discount</p>
             </div>
@@ -259,9 +251,9 @@ export default function Marketing() {
         </div>
 
         <div style={{ marginTop: 20 }}>
-          <button className="btn-primary" onClick={handleSaveSettings} style={{ gap: 6 }}>
-            {saved ? <><i className="fa fa-check" /> Saved!</> : <><i className="fa fa-save" /> {t.saveSettings}</>}
-          </button>
+          <Button variant="contained" onClick={handleSaveSettings} startIcon={<i className={`fa fa-${saved ? 'check' : 'save'}`} />}>
+            {saved ? 'Saved!' : t.saveSettings}
+          </Button>
         </div>
       </AdminCard>
 
@@ -297,23 +289,29 @@ export default function Marketing() {
                   <td>
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
                       <span style={{ fontFamily: 'monospace', fontWeight: 600, color: '#6366f1', fontSize: 13 }}>{r.couponCode}</span>
-                      <button
+                      <Button
                         onClick={() => navigate(`/coupons?search=${encodeURIComponent(r.couponCode)}`)}
-                        style={{ background: '#eef2ff', border: '1px solid #c7d2fe', color: '#4f46e5', borderRadius: 4, padding: '2px 8px', fontSize: 11, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 3, fontWeight: 600 }}
+                        variant="outlined"
+                        size="small"
+                        startIcon={<i className="fa fa-external-link-alt" />}
+                        sx={{ minHeight: 24, py: 0, fontSize: 11 }}
                       >
-                        <i className="fa fa-external-link-alt" style={{ fontSize: 10 }} /> {t.view}
-                      </button>
+                        {t.view}
+                      </Button>
                     </div>
                   </td>
                   <td>
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
                       <span style={{ fontFamily: 'monospace', fontWeight: 600, color: '#374151', fontSize: 13 }}>#{r.orderId}</span>
-                      <button
+                      <Button
                         onClick={() => navigate(`/orders?orderId=${encodeURIComponent(r.orderId)}`)}
-                        style={{ background: '#eef2ff', border: '1px solid #c7d2fe', color: '#4f46e5', borderRadius: 4, padding: '2px 8px', fontSize: 11, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 3, fontWeight: 600 }}
+                        variant="outlined"
+                        size="small"
+                        startIcon={<i className="fa fa-external-link-alt" />}
+                        sx={{ minHeight: 24, py: 0, fontSize: 11 }}
                       >
-                        <i className="fa fa-external-link-alt" style={{ fontSize: 10 }} /> {t.view}
-                      </button>
+                        {t.view}
+                      </Button>
                     </div>
                   </td>
                   <td>

@@ -1,5 +1,16 @@
 import { useState, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import Button from '@mui/material/Button'
+import Checkbox from '@mui/material/Checkbox'
+import Dialog from '@mui/material/Dialog'
+import DialogActions from '@mui/material/DialogActions'
+import DialogContent from '@mui/material/DialogContent'
+import DialogTitle from '@mui/material/DialogTitle'
+import FormControlLabel from '@mui/material/FormControlLabel'
+import MenuItem from '@mui/material/MenuItem'
+import Select from '@mui/material/Select'
+import Stack from '@mui/material/Stack'
+import TextField from '@mui/material/TextField'
 import { useLang } from '../context/AuthContext'
 import { useT } from '../i18n/translations'
 import { createSlot, updateSlot } from '../api/adminApi'
@@ -9,6 +20,7 @@ import { adminQueryKeys } from '../hooks/queries'
 import { useEventsQuery, useSlotsQuery } from '../hooks/catalog'
 import { useAdminMutation } from '../hooks/useAdminApi'
 import { addDays, formatDateWithDay, todayIso } from '../utils/date'
+import { DateRangeFilter, ResetFiltersButton, SelectFilter } from '../components/FilterControls'
 
 const PAGE_SIZE = 15
 const TODAY = todayIso()
@@ -38,57 +50,33 @@ function SlotModal({ slot, events, onClose, onSave }) {
     event: events[0]?.id || 1, date: '', startTime: '', endTime: '', price: 37.95, totalSeats: 20, status: 'active'
   })
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-box" onClick={e => e.stopPropagation()}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <h3 style={{ margin: 0, fontWeight: 700 }}>{slot ? 'Edit Slot' : 'Create Slot'}</h3>
-          <button onClick={onClose} style={{ border: 'none', background: 'transparent', fontSize: 20, cursor: 'pointer', color: '#6b7280' }}>×</button>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div>
-            <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Event</label>
-            <select className="form-select" value={form.event} onChange={e => setForm(f => ({ ...f, event: Number(e.target.value) }))} style={{ width: '100%' }}>
-              {events.map(ev => <option key={ev.id} value={ev.id}>{ev.name}</option>)}
-            </select>
+    <Dialog open onClose={onClose} maxWidth="sm" fullWidth>
+      <DialogTitle>{slot ? 'Edit Slot' : 'Create Slot'}</DialogTitle>
+      <DialogContent>
+        <Stack spacing={2} sx={{ pt: 1 }}>
+          <Select size="small" value={form.event} onChange={e => setForm(f => ({ ...f, event: Number(e.target.value) }))}>
+            {events.map(ev => <MenuItem key={ev.id} value={ev.id}>{ev.name}</MenuItem>)}
+          </Select>
+          <TextField size="small" type="date" label="Date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} InputLabelProps={{ shrink: true }} />
+          <div className="grid grid-cols-2 gap-3">
+            <TextField size="small" type="time" label="Start Time" value={form.startTime} onChange={e => setForm(f => ({ ...f, startTime: e.target.value }))} InputLabelProps={{ shrink: true }} />
+            <TextField size="small" type="time" label="End Time" value={form.endTime} onChange={e => setForm(f => ({ ...f, endTime: e.target.value }))} InputLabelProps={{ shrink: true }} />
           </div>
-          <div>
-            <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Date</label>
-            <input className="form-input" type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
+          <div className="grid grid-cols-2 gap-3">
+            <TextField size="small" type="number" label="Price ($)" value={form.price} onChange={e => setForm(f => ({ ...f, price: Number(e.target.value) }))} />
+            <TextField size="small" type="number" label="Total Seats" value={form.totalSeats} onChange={e => setForm(f => ({ ...f, totalSeats: Number(e.target.value) }))} />
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div>
-              <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Start Time</label>
-              <input className="form-input" type="time" value={form.startTime} onChange={e => setForm(f => ({ ...f, startTime: e.target.value }))} />
-            </div>
-            <div>
-              <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>End Time</label>
-              <input className="form-input" type="time" value={form.endTime} onChange={e => setForm(f => ({ ...f, endTime: e.target.value }))} />
-            </div>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div>
-              <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Price ($)</label>
-              <input className="form-input" type="number" step="0.01" value={form.price} onChange={e => setForm(f => ({ ...f, price: Number(e.target.value) }))} />
-            </div>
-            <div>
-              <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Total Seats</label>
-              <input className="form-input" type="number" value={form.totalSeats} onChange={e => setForm(f => ({ ...f, totalSeats: Number(e.target.value) }))} />
-            </div>
-          </div>
-          <div>
-            <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Status</label>
-            <select className="form-select" value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))} style={{ width: '100%' }}>
-              <option value="active">Active</option>
-              <option value="disabled">Disabled</option>
-            </select>
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20 }}>
-          <button className="btn-secondary" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" onClick={() => onSave(form)}>Save</button>
-        </div>
-      </div>
-    </div>
+          <Select size="small" value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
+            <MenuItem value="active">Active</MenuItem>
+            <MenuItem value="disabled">Disabled</MenuItem>
+          </Select>
+        </Stack>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>{'Cancel'}</Button>
+        <Button variant="contained" onClick={() => onSave(form)}>Save</Button>
+      </DialogActions>
+    </Dialog>
   )
 }
 
@@ -194,58 +182,27 @@ export default function Slots() {
         title={t.timeSlotsManagement}
         subtitle="Manage all event slots"
         actions={
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button className="btn-secondary">
-            <i className="fa fa-edit" /> {t.batchEdit}
-          </button>
-          <button className="btn-primary" onClick={() => setModal('create')}>
-            {t.createSlot}
-          </button>
-        </div>
+        <Stack direction="row" spacing={1}>
+          <Button variant="outlined" size="small" startIcon={<i className="fa fa-edit" />}>{t.batchEdit}</Button>
+          <Button variant="contained" size="small" onClick={() => setModal('create')}>{t.createSlot}</Button>
+        </Stack>
         }
       />
 
       {/* Filters */}
       <FilterCard>
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr auto', gap: 12, marginBottom: 12 }}>
-          <div>
-            <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>{t.event}</label>
-            <select className="form-select" value={filters.event} onChange={e => setFilters(f => ({ ...f, event: e.target.value }))} style={{ width: '100%' }}>
-              <option value="all">{t.allEvents}</option>
-              {events.map(ev => <option key={ev.id} value={ev.id}>{ev.name}</option>)}
-            </select>
-          </div>
-          <div>
-            <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>Date Range</label>
-            <input className="form-input" type="date" value={filters.dateFrom} onChange={e => setFilters(f => ({ ...f, dateFrom: e.target.value }))} />
-          </div>
-          <div style={{ marginTop: 20 }}>
-            <input className="form-input" type="date" value={filters.dateTo} onChange={e => setFilters(f => ({ ...f, dateTo: e.target.value }))} />
-          </div>
-          <div>
-            <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>{t.status}</label>
-            <select className="form-select" value={filters.status} onChange={e => setFilters(f => ({ ...f, status: e.target.value }))} style={{ width: '100%' }}>
-              <option value="all">{t.allStatus}</option>
-              <option value="active">{t.active}</option>
-              <option value="disabled">{t.disabled}</option>
-            </select>
-          </div>
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-[2fr_2fr_1fr_auto] mb-3">
+          <SelectFilter label={t.event} value={filters.event} onChange={value => setFilters(f => ({ ...f, event: value }))} options={[{ value: 'all', label: t.allEvents }, ...events.map(ev => ({ value: String(ev.id), label: ev.name }))]} />
+          <DateRangeFilter label="Date Range" from={filters.dateFrom} to={filters.dateTo} onFromChange={value => setFilters(f => ({ ...f, dateFrom: value }))} onToChange={value => setFilters(f => ({ ...f, dateTo: value }))} />
+          <SelectFilter label={t.status} value={filters.status} onChange={value => setFilters(f => ({ ...f, status: value }))} options={[{ value: 'all', label: t.allStatus }, { value: 'active', label: t.active }, { value: 'disabled', label: t.disabled }]} />
           <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-            <button className="btn-secondary btn-sm" onClick={() => setFilters({ event: 'all', dateFrom: '', dateTo: '', status: 'all', todayOnly: false, hideUnsold: false })}>
-              <i className="fa fa-redo" /> {t.reset}
-            </button>
+            <ResetFiltersButton onClick={() => setFilters({ event: 'all', dateFrom: '', dateTo: '', status: 'all', todayOnly: false, hideUnsold: false })} label={t.reset} />
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 16 }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
-            <input type="checkbox" checked={filters.todayOnly} onChange={e => setFilters(f => ({ ...f, todayOnly: e.target.checked }))} style={{ width: 14, height: 14 }} />
-            {t.todaySlotsOnly}
-          </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
-            <input type="checkbox" checked={filters.hideUnsold} onChange={e => setFilters(f => ({ ...f, hideUnsold: e.target.checked }))} style={{ width: 14, height: 14 }} />
-            {t.hideUnsoldSlots}
-          </label>
-        </div>
+        <Stack direction="row" spacing={2}>
+          <FormControlLabel control={<Checkbox checked={filters.todayOnly} onChange={e => setFilters(f => ({ ...f, todayOnly: e.target.checked }))} />} label={t.todaySlotsOnly} />
+          <FormControlLabel control={<Checkbox checked={filters.hideUnsold} onChange={e => setFilters(f => ({ ...f, hideUnsold: e.target.checked }))} />} label={t.hideUnsoldSlots} />
+        </Stack>
       </FilterCard>
 
       {/* Table */}
@@ -288,25 +245,15 @@ export default function Slots() {
                       <SeatBar website={s.websiteSeats} inStore={s.inStoreSeats} total={s.totalSeats} />
                       <div style={{ fontSize: 12, color: '#374151', marginTop: 4, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                         <span>{sold}/{s.totalSeats}</span>
-                        <button
+                        <Button
                           onClick={() => navigate(`/orders?slotDate=${encodeURIComponent(s.date)}&slotStart=${encodeURIComponent(s.startTime)}`)}
-                          style={{
-                            background: '#eef2ff',
-                            border: '1px solid #c7d2fe',
-                            color: '#4f46e5',
-                            borderRadius: 4,
-                            padding: '1px 6px',
-                            fontSize: 11,
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 3,
-                            fontWeight: 600,
-                            whiteSpace: 'nowrap',
-                          }}
+                          size="small"
+                          variant="outlined"
+                          sx={{ minWidth: 0, px: 0.75, py: 0, fontSize: 11 }}
+                          startIcon={<i className="fa fa-eye" />}
                         >
-                          <i className="fa fa-eye" /> View
-                        </button>
+                          View
+                        </Button>
                       </div>
                     </td>
                     <td>
@@ -317,29 +264,16 @@ export default function Slots() {
                     </td>
                     <td>
                       <div style={{ display: 'flex', gap: 6 }}>
-                        <button className="btn-primary btn-sm" onClick={() => setModal(s)}>
-                          <i className="fa fa-edit" /> {t.edit}
-                        </button>
-                        <button
+                        <Button variant="contained" size="small" onClick={() => setModal(s)} startIcon={<i className="fa fa-edit" />}>{t.edit}</Button>
+                        <Button
                           onClick={() => toggleSlotStatus(s)}
-                          className="btn-sm"
-                          style={{
-                            background: s.status === 'active' ? '#f59e0b' : '#10b981',
-                            color: '#fff',
-                            border: 'none',
-                            borderRadius: 4,
-                            padding: '5px 10px',
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 4,
-                            fontWeight: 600,
-                            whiteSpace: 'nowrap',
-                          }}
+                          variant="contained"
+                          color={s.status === 'active' ? 'warning' : 'success'}
+                          size="small"
+                          startIcon={<i className={`fa fa-${s.status === 'active' ? 'ban' : 'check'}`} />}
                         >
-                          <i className={`fa fa-${s.status === 'active' ? 'ban' : 'check'}`} />
                           {s.status === 'active' ? t.disable : t.enable}
-                        </button>
+                        </Button>
                       </div>
                     </td>
                   </tr>

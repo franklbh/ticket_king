@@ -1,5 +1,8 @@
 import { useState, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import Button from '@mui/material/Button'
+import Checkbox from '@mui/material/Checkbox'
+import FormControlLabel from '@mui/material/FormControlLabel'
 import { useLang } from '../context/AuthContext'
 import { useT } from '../i18n/translations'
 import { createCoupon, updateCoupon } from '../api/adminApi'
@@ -7,6 +10,7 @@ import { AdminPagination, EmptyTableRow, FilterCard, PageHeader, TableShell } fr
 import LoadingIndicator from '../components/LoadingIndicator'
 import { adminQueryKeys, useCouponsQuery } from '../hooks/queries'
 import { useAdminMutation } from '../hooks/useAdminApi'
+import { ResetFiltersButton, SelectFilter, TextFilter } from '../components/FilterControls'
 
 const PAGE_SIZE = 10
 
@@ -247,43 +251,24 @@ export default function Coupons() {
         title={t.coupons}
         subtitle={t.manageCoupons}
         actions={
-        <button className="btn-primary" onClick={() => setModal('create')}>
+        <Button variant="contained" size="small" onClick={() => setModal('create')}>
           {t.createCoupon}
-        </button>
+        </Button>
         }
       />
 
       {/* Filters */}
       <FilterCard>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end' }}>
-          <div style={{ flex: 1 }}>
-            <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>{t.search}</label>
-            <input className="form-input" placeholder={t.searchCoupon} value={filters.search} onChange={e => setFilters(f => ({ ...f, search: e.target.value }))} />
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-[2fr_1fr_1fr_auto_auto]">
+          <TextFilter label={t.search} placeholder={t.searchCoupon} value={filters.search} onChange={value => setFilters(f => ({ ...f, search: value }))} />
+          <SelectFilter label={t.status} value={filters.status} onChange={value => setFilters(f => ({ ...f, status: value }))} options={[{ value: 'all', label: t.allStatus }, { value: 'active', label: t.active }, { value: 'expired', label: t.expired }, { value: 'disabled', label: t.disabled }]} />
+          <SelectFilter label={t.source} value={filters.source} onChange={value => setFilters(f => ({ ...f, source: value }))} options={[{ value: 'all', label: t.allSources }, { value: 'manual', label: t.manual }, { value: 'marketing', label: t.marketing }]} />
+          <div className="flex items-end">
+            <FormControlLabel control={<Checkbox checked={filters.hideUnused} onChange={e => setFilters(f => ({ ...f, hideUnused: e.target.checked }))} />} label={t.hideUnused} />
           </div>
-          <div>
-            <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>{t.status}</label>
-            <select className="form-select" value={filters.status} onChange={e => setFilters(f => ({ ...f, status: e.target.value }))}>
-              <option value="all">{t.allStatus}</option>
-              <option value="active">{t.active}</option>
-              <option value="expired">{t.expired}</option>
-              <option value="disabled">{t.disabled}</option>
-            </select>
+          <div className="flex items-end">
+            <ResetFiltersButton onClick={() => setFilters({ search: '', status: 'all', source: 'manual', hideUnused: false })} label={t.reset} />
           </div>
-          <div>
-            <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>{t.source}</label>
-            <select className="form-select" value={filters.source} onChange={e => setFilters(f => ({ ...f, source: e.target.value }))}>
-              <option value="all">{t.allSources}</option>
-              <option value="manual">{t.manual}</option>
-              <option value="marketing">{t.marketing}</option>
-            </select>
-          </div>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-            <input type="checkbox" checked={filters.hideUnused} onChange={e => setFilters(f => ({ ...f, hideUnused: e.target.checked }))} style={{ width: 14, height: 14 }} />
-            {t.hideUnused}
-          </label>
-          <button className="btn-secondary btn-sm" onClick={() => setFilters({ search: '', status: 'all', source: 'manual', hideUnused: false })}>
-            <i className="fa fa-redo" /> {t.reset}
-          </button>
         </div>
       </FilterCard>
 
@@ -313,12 +298,10 @@ export default function Coupons() {
                   <td>
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}>
                       <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#6366f1', fontSize: 13 }}>{c.code}</span>
-                      <button onClick={() => copyCode(c.code)} title="Copy" style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: 2, lineHeight: 1 }}>
+                      <Button onClick={() => copyCode(c.code)} title="Copy" size="small" sx={{ minWidth: 0, p: 0.25 }}>
                         <i className="fa fa-copy" />
-                      </button>
-                      <button style={{ background: '#eef2ff', border: '1px solid #c7d2fe', color: '#4f46e5', borderRadius: 4, padding: '2px 8px', fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3, fontWeight: 600 }}>
-                        <i className="fa fa-qrcode" style={{ fontSize: 11 }} /> Generate QR Code
-                      </button>
+                      </Button>
+                      <Button variant="outlined" size="small" startIcon={<i className="fa fa-qrcode" />} sx={{ fontSize: 11, py: 0 }}>Generate QR Code</Button>
                     </div>
                   </td>
                   <td>
@@ -327,12 +310,15 @@ export default function Coupons() {
                   <td>
                     <div style={{ fontSize: 13 }}>Used {c.usedCount} / {c.maxUses ?? '∞'} times</div>
                     <div style={{ fontSize: 12, color: '#6b7280' }}>Total ${c.totalAmount.toFixed(2)}</div>
-                    <button
+                    <Button
                       onClick={() => navigate(`/orders?couponCode=${encodeURIComponent(c.code)}`)}
-                      style={{ background: '#eef2ff', border: '1px solid #c7d2fe', color: '#4f46e5', borderRadius: 4, padding: '2px 8px', fontSize: 11, cursor: 'pointer', marginTop: 3, display: 'inline-flex', alignItems: 'center', gap: 3, fontWeight: 600 }}
+                      variant="outlined"
+                      size="small"
+                      sx={{ mt: 0.5, fontSize: 11, py: 0 }}
+                      startIcon={<i className="fa fa-external-link-alt" />}
                     >
-                      <i className="fa fa-external-link-alt" style={{ fontSize: 10 }} /> {t.view}
-                    </button>
+                      {t.view}
+                    </Button>
                   </td>
                   <td style={{ fontWeight: 600, fontSize: 13 }}>
                     {c.discountType === 'percent' ? `${c.discountValue}%` : `$${c.discountValue}`}
@@ -351,18 +337,17 @@ export default function Coupons() {
                   <td style={{ fontSize: 12, whiteSpace: 'nowrap', color: '#6b7280' }}>{c.createdAt}</td>
                   <td>
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
-                      <button className="btn-primary btn-sm" onClick={() => setModal(c)} style={{ padding: '5px 9px', minWidth: 0 }}>
-                        <i className="fa fa-edit" /> {t.edit}
-                      </button>
+                      <Button variant="contained" size="small" onClick={() => setModal(c)} startIcon={<i className="fa fa-edit" />}>{t.edit}</Button>
                       {c.status !== 'expired' && (
-                        <button
+                        <Button
                           onClick={() => toggleCouponStatus(c)}
-                          className="btn-sm"
-                          style={{ background: c.status === 'active' ? '#f59e0b' : '#10b981', color: '#fff', border: 'none', borderRadius: 4, padding: '5px 9px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 600 }}
+                          variant="contained"
+                          color={c.status === 'active' ? 'warning' : 'success'}
+                          size="small"
+                          startIcon={<i className={`fa fa-${c.status === 'active' ? 'ban' : 'check'}`} />}
                         >
-                          <i className={`fa fa-${c.status === 'active' ? 'ban' : 'check'}`} />
                           {c.status === 'active' ? t.disable : t.enable}
-                        </button>
+                        </Button>
                       )}
                     </div>
                   </td>

@@ -1,9 +1,17 @@
 import { useState, useMemo } from 'react'
+import Button from '@mui/material/Button'
+import Chip from '@mui/material/Chip'
+import Dialog from '@mui/material/Dialog'
+import DialogContent from '@mui/material/DialogContent'
+import DialogTitle from '@mui/material/DialogTitle'
+import IconButton from '@mui/material/IconButton'
+import Stack from '@mui/material/Stack'
 import { useLang } from '../context/AuthContext'
 import { useT } from '../i18n/translations'
 import { useLogsQuery } from '../hooks/queries'
 import LoadingIndicator from '../components/LoadingIndicator'
-import { AdminAlert, EmptyTableRow, FilterCard, PageHeader, TableShell } from '../components/AdminUI'
+import { AdminAlert, AdminPagination, EmptyTableRow, FilterCard, PageHeader, TableShell } from '../components/AdminUI'
+import { DateRangeFilter, ResetFiltersButton, SelectFilter, TextFilter } from '../components/FilterControls'
 
 const ACTION_TYPES = ['Login', 'Create', 'Update', 'Batch Update', 'Check In', 'Restock', 'Void', 'Activate', 'Deactivate', 'Export', 'Other']
 const ACTION_COLORS = {
@@ -18,17 +26,19 @@ const PAGE_SIZE = 10
 
 function IPModal({ ip, onClose }) {
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-box" style={{ maxWidth: 360 }} onClick={e => e.stopPropagation()}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <h3 style={{ margin: 0, fontWeight: 700 }}>IP Location Lookup</h3>
-          <button onClick={onClose} style={{ border: 'none', background: 'transparent', fontSize: 20, cursor: 'pointer', color: '#6b7280' }}>×</button>
-        </div>
+    <Dialog open onClose={onClose} maxWidth="xs" fullWidth>
+      <DialogTitle sx={{ fontWeight: 800, pr: 6 }}>
+        IP Location Lookup
+        <IconButton aria-label="Close" onClick={onClose} sx={{ position: 'absolute', right: 12, top: 10 }}>
+          <i className="fa fa-times" />
+        </IconButton>
+      </DialogTitle>
+      <DialogContent>
         <div style={{ fontSize: 13, lineHeight: 1.8 }}>
           <div><strong>IP Address:</strong> {ip}</div>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -85,7 +95,6 @@ export default function Logs() {
   }, [filters, logs])
 
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
-  const pages = Math.ceil(filtered.length / PAGE_SIZE)
 
   if (loadingLogs) {
     return <LoadingIndicator label="Loading live activity logs..." />
@@ -100,17 +109,19 @@ export default function Logs() {
         </AdminAlert>
       )}
       {detailLog && (
-        <div className="modal-overlay" onClick={() => setDetailLog(null)}>
-          <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: 560 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <h3 style={{ margin: 0, fontWeight: 700 }}>Log #{detailLog.id} Details</h3>
-              <button onClick={() => setDetailLog(null)} style={{ border: 'none', background: 'transparent', fontSize: 20, cursor: 'pointer', color: '#6b7280' }}>×</button>
-            </div>
+        <Dialog open onClose={() => setDetailLog(null)} maxWidth="sm" fullWidth>
+          <DialogTitle sx={{ fontWeight: 800, pr: 6 }}>
+            Log #{detailLog.id} Details
+            <IconButton aria-label="Close" onClick={() => setDetailLog(null)} sx={{ position: 'absolute', right: 12, top: 10 }}>
+              <i className="fa fa-times" />
+            </IconButton>
+          </DialogTitle>
+          <DialogContent>
             <pre style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 6, padding: 12, fontSize: 12, overflow: 'auto', maxHeight: 300 }}>
               {typeof detailLog.actionDetails === 'string' ? detailLog.actionDetails : JSON.stringify(detailLog.actionDetails || {}, null, 2)}
             </pre>
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
 
       <PageHeader
@@ -121,55 +132,64 @@ export default function Logs() {
 
       {/* Filters */}
       <FilterCard>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr auto', gap: 12, marginBottom: 12 }}>
-          <div>
-            <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>{t.admin}</label>
-            <select className="form-select" value={filters.admin} onChange={e => setFilters(f => ({ ...f, admin: e.target.value }))} style={{ width: '100%' }}>
-              {adminNames.map(a => <option key={a} value={a}>{a === 'all' ? t.allAdmins : a}</option>)}
-            </select>
-          </div>
-          <div>
-            <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>Search Action Details</label>
-            <input className="form-input" placeholder="Search action details..." value={filters.search} onChange={e => setFilters(f => ({ ...f, search: e.target.value }))} />
-          </div>
-          <div>
-            <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>Date From</label>
-            <input className="form-input" type="date" value={filters.dateFrom} onChange={e => setFilters(f => ({ ...f, dateFrom: e.target.value }))} />
-          </div>
-          <div>
-            <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>Date To</label>
-            <input className="form-input" type="date" value={filters.dateTo} onChange={e => setFilters(f => ({ ...f, dateTo: e.target.value }))} />
-          </div>
-          <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-            <button className="btn-secondary btn-sm" onClick={() => { setFilters({ admin: 'all', search: '', dateFrom: '', dateTo: '', actionTypes: ACTION_TYPES.slice(), targetTypes: TARGET_TYPES.slice() }); setPage(1) }}>
-              <i className="fa fa-redo" /> {t.reset}
-            </button>
-          </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(160px, 0.8fr) minmax(220px, 1.2fr) minmax(310px, 1fr) auto', gap: 12, alignItems: 'end', marginBottom: 14 }}>
+          <SelectFilter
+            label={t.admin}
+            value={filters.admin}
+            onChange={value => { setFilters(f => ({ ...f, admin: value })); setPage(1) }}
+            options={adminNames.map(a => ({ value: a, label: a === 'all' ? t.allAdmins : a }))}
+          />
+          <TextFilter
+            label="Search Action Details"
+            placeholder="Search action details..."
+            value={filters.search}
+            onChange={value => { setFilters(f => ({ ...f, search: value })); setPage(1) }}
+          />
+          <DateRangeFilter
+            label="Date Range"
+            from={filters.dateFrom}
+            to={filters.dateTo}
+            onFromChange={value => { setFilters(f => ({ ...f, dateFrom: value })); setPage(1) }}
+            onToChange={value => { setFilters(f => ({ ...f, dateTo: value })); setPage(1) }}
+          />
+          <ResetFiltersButton
+            label={t.reset}
+            onClick={() => { setFilters({ admin: 'all', search: '', dateFrom: '', dateTo: '', actionTypes: ACTION_TYPES.slice(), targetTypes: TARGET_TYPES.slice() }); setPage(1) }}
+          />
         </div>
 
         {/* Action Type filter */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+        <Stack direction="row" useFlexGap flexWrap="wrap" alignItems="center" gap={1} sx={{ mb: 1.25 }}>
           <span style={{ fontSize: 13, fontWeight: 500, color: '#374151', minWidth: 90 }}>Action Type:</span>
           {ACTION_TYPES.map(at => (
-            <label key={at} style={{ display: 'flex', alignItems: 'center', gap: 3, cursor: 'pointer', fontSize: 12 }}>
-              <input type="checkbox" checked={filters.actionTypes.includes(at)} onChange={() => toggleActionType(at)} style={{ width: 13, height: 13 }} />
-              <span className={`badge ${ACTION_COLORS[at] || 'badge-gray'}`} style={{ fontSize: 11 }}>{at}</span>
-            </label>
+            <Chip
+              key={at}
+              label={at}
+              size="small"
+              color={filters.actionTypes.includes(at) ? 'primary' : 'default'}
+              variant={filters.actionTypes.includes(at) ? 'filled' : 'outlined'}
+              onClick={() => toggleActionType(at)}
+              sx={{ fontWeight: 700 }}
+            />
           ))}
-        </div>
+        </Stack>
 
         {/* Target Type filter */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+        <Stack direction="row" useFlexGap flexWrap="wrap" alignItems="center" gap={1}>
           <span style={{ fontSize: 13, fontWeight: 500, color: '#374151', minWidth: 90 }}>Target Type:</span>
           {TARGET_TYPES.map(tt => (
-            <label key={tt} style={{ display: 'flex', alignItems: 'center', gap: 3, cursor: 'pointer', fontSize: 12 }}>
-              <input type="checkbox" checked={filters.targetTypes.includes(tt)} onChange={() => toggleTargetType(tt)} style={{ width: 13, height: 13 }} />
-              <span className="badge badge-gray" style={{ fontSize: 11 }}>
-                <i className={`fa ${TARGET_ICONS[tt] || 'fa-circle'}`} style={{ marginRight: 3 }} />{tt}
-              </span>
-            </label>
+            <Chip
+              key={tt}
+              label={tt}
+              size="small"
+              icon={<i className={`fa ${TARGET_ICONS[tt] || 'fa-circle'}`} />}
+              color={filters.targetTypes.includes(tt) ? 'primary' : 'default'}
+              variant={filters.targetTypes.includes(tt) ? 'filled' : 'outlined'}
+              onClick={() => toggleTargetType(tt)}
+              sx={{ fontWeight: 700 }}
+            />
           ))}
-        </div>
+        </Stack>
       </FilterCard>
 
       {/* Table */}
@@ -206,18 +226,15 @@ export default function Logs() {
                   </td>
                   <td style={{ fontSize: 13, color: '#6b7280' }}>{log.targetId ?? '-'}</td>
                   <td>
-                    <button
+                    <Button
                       onClick={() => setDetailLog(log)}
-                      style={{
-                        background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 4,
-                        padding: '3px 8px', cursor: 'pointer', fontSize: 12, fontFamily: 'monospace',
-                        maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                        display: 'block', textAlign: 'left',
-                      }}
+                      variant="outlined"
+                      size="small"
+                      sx={{ maxWidth: 180, justifyContent: 'flex-start', fontFamily: 'monospace', fontSize: 12, textTransform: 'none' }}
                       title="Click to view full details"
                     >
                       {(typeof log.actionDetails === 'string' ? log.actionDetails : JSON.stringify(log.actionDetails || {})).slice(0, 40)}...
-                    </button>
+                    </Button>
                   </td>
                   <td>
                     {log.loginInfo ? (
@@ -225,12 +242,14 @@ export default function Logs() {
                         <span style={{ fontSize: 11, fontFamily: 'monospace', color: '#6b7280', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {log.loginInfo}
                         </span>
-                        <button
+                        <Button
                           onClick={() => setIpModal(log.loginInfo)}
-                          style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 3, padding: '1px 5px', fontSize: 11, cursor: 'pointer', flexShrink: 0 }}
+                          variant="contained"
+                          size="small"
+                          sx={{ minWidth: 28, px: 0.75, py: 0.25 }}
                         >
                           <i className="fa fa-search" />
-                        </button>
+                        </Button>
                       </div>
                     ) : '-'}
                   </td>
@@ -240,15 +259,7 @@ export default function Logs() {
             </tbody>
           </table>
         </div>
-        {pages > 1 && (
-          <div className="pagination">
-            <button className="page-btn" disabled={page === 1} onClick={() => setPage(p => p - 1)}>‹</button>
-            {Array.from({ length: Math.min(pages, 7) }, (_, i) => (
-              <button key={i + 1} className={`page-btn ${i + 1 === page ? 'active' : ''}`} onClick={() => setPage(i + 1)}>{i + 1}</button>
-            ))}
-            <button className="page-btn" disabled={page === pages} onClick={() => setPage(p => p + 1)}>›</button>
-          </div>
-        )}
+        <AdminPagination page={page} total={filtered.length} pageSize={PAGE_SIZE} onPage={setPage} />
       </TableShell>
     </div>
   )

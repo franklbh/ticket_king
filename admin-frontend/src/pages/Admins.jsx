@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import Button from '@mui/material/Button'
 import { useLang } from '../context/AuthContext'
 import { useT } from '../i18n/translations'
 import { createAdminAccount, updateStaffProfile } from '../api/adminApi'
@@ -6,6 +7,7 @@ import { adminQueryKeys, useUsersQuery } from '../hooks/queries'
 import { useAdminMutation } from '../hooks/useAdminApi'
 import LoadingIndicator from '../components/LoadingIndicator'
 import { AdminAlert, EmptyTableRow, FilterCard, PageHeader, TableShell } from '../components/AdminUI'
+import { ResetFiltersButton, SelectFilter } from '../components/FilterControls'
 
 const ROLE_FILTERS = ['owner', 'administrator']
 const ROLE_COLORS = { owner: 'badge-red', administrator: 'badge-blue' }
@@ -164,31 +166,18 @@ export default function Admins() {
         title={t.administratorsManagement}
         subtitle={t.manageAdmins}
         actions={
-        <button className="btn-primary" onClick={() => setModal('create')}>{t.createAdmin}</button>
+        <Button variant="contained" size="small" onClick={() => setModal('create')}>{t.createAdmin}</Button>
         }
       />
 
       {/* Filters */}
       <FilterCard>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end' }}>
-          <div>
-            <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>{t.role}</label>
-            <select className="form-select" value={filters.role} onChange={e => setFilters(f => ({ ...f, role: e.target.value }))}>
-              <option value="all">{t.allRoles}</option>
-              {ROLE_FILTERS.map(r => <option key={r} value={r}>{r}</option>)}
-            </select>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-[220px_220px_auto]">
+          <SelectFilter label={t.role} value={filters.role} onChange={value => setFilters(f => ({ ...f, role: value }))} options={[{ value: 'all', label: t.allRoles }, ...ROLE_FILTERS.map(role => ({ value: role, label: role }))]} />
+          <SelectFilter label={t.status} value={filters.status} onChange={value => setFilters(f => ({ ...f, status: value }))} options={[{ value: 'all', label: t.allStatus }, { value: 'active', label: t.active }, { value: 'inactive', label: t.inactive }]} />
+          <div className="flex items-end">
+            <ResetFiltersButton onClick={() => setFilters({ role: 'all', status: 'all' })} label={t.reset} />
           </div>
-          <div>
-            <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>{t.status}</label>
-            <select className="form-select" value={filters.status} onChange={e => setFilters(f => ({ ...f, status: e.target.value }))}>
-              <option value="all">{t.allStatus}</option>
-              <option value="active">{t.active}</option>
-              <option value="inactive">{t.inactive}</option>
-            </select>
-          </div>
-          <button className="btn-secondary btn-sm" onClick={() => setFilters({ role: 'all', status: 'all' })}>
-            <i className="fa fa-redo" /> {t.reset}
-          </button>
         </div>
       </FilterCard>
 
@@ -229,12 +218,14 @@ export default function Admins() {
                         {(a.ip || a.lastLoginIp) && <div style={{ fontSize: 11, color: '#9ca3af', fontFamily: 'monospace' }}>{a.ip || a.lastLoginIp}</div>}
                       </div>
                       {(a.ip || a.lastLoginIp) && (
-                        <button
+                        <Button
                           onClick={() => setIpModal(a.ip || a.lastLoginIp)}
-                          style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 3, padding: '2px 6px', fontSize: 11, cursor: 'pointer' }}
+                          variant="contained"
+                          size="small"
+                          sx={{ minWidth: 0, px: 0.75, py: 0.25 }}
                         >
                           <i className="fa fa-search" />
-                        </button>
+                        </Button>
                       )}
                     </div>
                   </td>
@@ -246,22 +237,17 @@ export default function Admins() {
                   </td>
                   <td>
                     <div style={{ display: 'flex', gap: 6 }}>
-                      <button className="btn-primary btn-sm" onClick={() => setModal(a)}>
-                        <i className="fa fa-edit" /> {t.edit}
-                      </button>
+                      <Button variant="contained" size="small" onClick={() => setModal(a)} startIcon={<i className="fa fa-edit" />}>{t.edit}</Button>
                       {a.canDisable && (
-                        <button
+                        <Button
                           onClick={() => toggleAdminStatus(a)}
-                          className="btn-sm"
-                          style={{
-                            background: a.status === 'active' ? '#f59e0b' : '#10b981',
-                            color: '#fff', border: 'none', borderRadius: 4, padding: '5px 10px', cursor: 'pointer',
-                            display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 600, whiteSpace: 'nowrap',
-                          }}
+                          variant="contained"
+                          color={a.status === 'active' ? 'warning' : 'success'}
+                          size="small"
+                          startIcon={<i className={`fa fa-${a.status === 'active' ? 'ban' : 'check'}`} />}
                         >
-                          <i className={`fa fa-${a.status === 'active' ? 'ban' : 'check'}`} />
                           {a.status === 'active' ? t.disable : t.enable}
-                        </button>
+                        </Button>
                       )}
                     </div>
                   </td>
