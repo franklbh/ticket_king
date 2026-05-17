@@ -1077,6 +1077,10 @@ function App() {
             return updated
           })}
           onClose={() => setShowCart(false)}
+          onBrowseExperiences={() => {
+            setShowCart(false)
+            navigateToMainSection('experiences')
+          }}
           onPaymentSuccess={() => {
             setCartItems([])
             localStorage.removeItem('wearevr_cart')

@@ -208,6 +208,7 @@ export default function Cart({
   onUpdateTicketType,
   onRemove,
   onClose,
+  onBrowseExperiences,
   onPaymentSuccess,
   onManageBooking,
   resetAuthForm,
@@ -338,6 +339,11 @@ export default function Cart({
     releaseReservation()
     onClose?.()
   }, [onClose, releaseReservation])
+
+  const browseExperiences = useCallback(() => {
+    releaseReservation()
+    onBrowseExperiences?.()
+  }, [onBrowseExperiences, releaseReservation])
 
   useEffect(() => {
     if (!currentUser) return
@@ -590,7 +596,6 @@ export default function Cart({
           <h3>Order Summary</h3>
           <div className="crt-side-count">
             <strong>{summaryItems.reduce((s, item) => s + item.quantity, 0)} items</strong>
-            <button type="button">View details ›</button>
           </div>
           {step !== 'review' && summaryItems.slice(0, 4).map((item) => (
             <div className="crt-side-item" key={item.id}>
@@ -657,15 +662,14 @@ export default function Cart({
             <div className="crt-empty-icon"><CartIcon /></div>
             <p className="crt-empty-title">Your shopping cart is empty</p>
             <p className="crt-empty-sub">Add tickets from any show or game to get started.</p>
-            <button className="crt-browse-btn" onClick={onClose} type="button">Browse Experiences</button>
+            <button className="crt-browse-btn" onClick={browseExperiences} type="button">Browse Experiences</button>
           </div>
         ) : (
           <div className="crt-workspace">
             {step === 'review' && (
               <main className="crt-main">
                 <div className="crt-review-tools">
-                  <button className="crt-outline" onClick={onClose} type="button">+ Add another experience</button>
-                  <div className="crt-info-strip">Combine multiple experiences and showtimes in one payment. <strong>Learn more</strong></div>
+                  <button className="crt-outline" onClick={browseExperiences} type="button">+ Add another experience</button>
                 </div>
                 {paymentError && <div className="crt-warning">{paymentError}</div>}
                 <div className="crt-table">

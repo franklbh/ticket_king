@@ -3,6 +3,16 @@ import BrandLogo from '../components/BrandLogo'
 import HeaderActions from '../components/HeaderActions'
 import { GOOGLE_MAPS_URL } from '../constants/venue'
 import { mapInstructionPdf } from '../data/showData'
+
+function HeroChevron({ direction }) {
+  const points = direction === 'left' ? '15 18 9 12 15 6' : '9 18 15 12 9 6'
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <polyline points={points} />
+    </svg>
+  )
+}
+
 /* ── Experience Card ── */
 function ExperienceCard({ exp, onSelect, onBook, t }) {
   return (
@@ -164,7 +174,7 @@ function MarketingPage({
           type="button"
           aria-label="Previous featured experience"
         >
-          ‹
+          <HeroChevron direction="left" />
         </button>
         <button
           className="mkt-hero-nav mkt-hero-nav-next"
@@ -172,7 +182,7 @@ function MarketingPage({
           type="button"
           aria-label="Next featured experience"
         >
-          ›
+          <HeroChevron direction="right" />
         </button>
         <div className="mkt-hero-inner">
           <span className="mkt-hero-eyebrow">We Are VR</span>
