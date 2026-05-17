@@ -71,6 +71,7 @@ class StaffProfileUpdate(BaseModel):
 
 
 class SlotUpsert(BaseModel):
+    event: int = 1
     business_date: str = Field(alias="date")
     start_time: str = Field(alias="startTime")
     end_time: str | None = Field(default=None, alias="endTime")

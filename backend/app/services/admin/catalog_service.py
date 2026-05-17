@@ -106,6 +106,7 @@ class CatalogService:
     ) -> dict[str, Any]:
         now = utc_now_iso_seconds()
         row: dict[str, Any] = {
+            "event_id": payload.event,
             "business_date": payload.business_date,
             "start_time": payload.start_time,
             "end_time": payload.end_time,
