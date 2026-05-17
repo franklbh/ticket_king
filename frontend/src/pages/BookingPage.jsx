@@ -8,6 +8,7 @@ import { badge, currency } from '../utils/format'
 function BookingPage({
   alphapayLoading,
   applyCoupon,
+  appliedCoupon,
   availableSlots,
   availableSlotsLoading,
   bookingExperience,
@@ -44,6 +45,7 @@ function BookingPage({
   setCounts,
   setCouponCode,
   setCouponMessage,
+  setAppliedCoupon,
   setRawCounts,
   setSelectedDate,
   setSelectedTime,
@@ -137,6 +139,7 @@ function BookingPage({
         <PaymentStep
           alphapayLoading={alphapayLoading}
           applyCoupon={applyCoupon}
+          appliedCoupon={appliedCoupon}
           contact={contact}
           counts={counts}
           couponCode={couponCode}
@@ -151,11 +154,13 @@ function BookingPage({
           selectedTime={selectedTime}
           setCouponCode={setCouponCode}
           setCouponMessage={setCouponMessage}
+          setAppliedCoupon={setAppliedCoupon}
           setStep={setStep}
           startAlphapayCheckout={startAlphapayCheckout}
           startStripeCheckout={startStripeCheckout}
           t={t}
           totals={totals}
+          bookingExperience={bookingExperience}
           vipQty={vipQty}
         />
       )}
@@ -387,6 +392,8 @@ function TicketsStep({
   t,
   totals,
 }) {
+  const invalidGroup = counts.group > 0 && counts.group < 6
+  const invalidFamily = counts.family > 0 && counts.family < 3
   return (
     <div className="panel">
       <div className="panel-title"><div className="title-accent" /><h3>{t('selectTickets')}</h3></div>
@@ -431,6 +438,12 @@ function TicketsStep({
           </div>
         ))}
       </div>
+      {(invalidGroup || invalidFamily) && (
+        <div className="ticket-validation-warning">
+          {invalidGroup && <div>Group tickets require at least 6 tickets.</div>}
+          {invalidFamily && <div>Family bundle requires at least 3 tickets.</div>}
+        </div>
+      )}
       <div className="summary-row"><div>{t('totalAmount')}</div><div className="summary-val">{currency(totals.ticketTotal)}</div></div>
       <div className="tickets-actions-row">
         <div className="actions" style={{ marginBottom: 0 }}>
@@ -491,6 +504,8 @@ function ContactStep({
 function PaymentStep({
   alphapayLoading,
   applyCoupon,
+  bookingExperience,
+  appliedCoupon,
   contact,
   counts,
   couponCode,
@@ -505,6 +520,7 @@ function PaymentStep({
   selectedTime,
   setCouponCode,
   setCouponMessage,
+  setAppliedCoupon,
   setStep,
   startAlphapayCheckout,
   startStripeCheckout,
@@ -533,7 +549,11 @@ function PaymentStep({
       <div className="timer-banner">{t('completeWithin')} <strong>{minutes}:{seconds}</strong> {t('secureReservation')}</div>
       <div className="panel-title"><div className="title-accent" /><h3>{t('orderSummary')}</h3></div>
       <div className="order-block">
-        <div className="order-date"><div className="order-label">{selectedDate ? fullDateDisplay(selectedDate.date) : t('dateTbd')} · {selectedTime?.time}</div><div className="order-sub">{t('duration')}</div></div>
+        <div className="order-date">
+          <div className="order-label">{bookingExperience?.title || 'Selected experience'}</div>
+          <div className="order-sub">{selectedDate ? fullDateDisplay(selectedDate.date) : t('dateTbd')} · {selectedTime?.time || selectedTime?.label}</div>
+          <div className="order-sub">{t('duration')}</div>
+        </div>
         <div className="line-items">
           {localizedTicketTypes.map((ticket) => counts[ticket.id] > 0 && (
             <div key={ticket.id} className="line">
@@ -545,6 +565,12 @@ function PaymentStep({
         </div>
         <div className="totals">
           <div className="totals-row"><span>{t('subtotal')}</span><span>{currency(totals.subtotal)}</span></div>
+          {appliedCoupon && totals.couponDiscount > 0 && (
+            <div className="totals-row coupon-discount-row">
+              <span>Coupon discount ({appliedCoupon.code})</span>
+              <span>-{currency(totals.couponDiscount)}</span>
+            </div>
+          )}
           <div className="totals-row fees-row">
             <span className="fees-label">
               {t('feesTaxes')}
@@ -563,7 +589,7 @@ function PaymentStep({
         <div className="warning">{t('warningNonRefund')}</div>
       </div>
       <div className="coupon-row">
-        <input type="text" placeholder={t('couponCode')} value={couponCode} onChange={(event) => { setCouponCode(event.target.value); setCouponMessage('') }} />
+        <input type="text" placeholder={t('couponCode')} value={couponCode} onChange={(event) => { setCouponCode(event.target.value); setCouponMessage(''); setAppliedCoupon(null) }} />
         <button className="coupon-btn" onClick={applyCoupon} type="button">{t('apply')}</button>
       </div>
       {couponMessage && <div className="coupon-message">{couponMessage}</div>}

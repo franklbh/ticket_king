@@ -77,9 +77,9 @@ class PaymentIntentRequest(BaseModel):
 @router.post("/payment-intent")
 async def create_payment_intent(req: PaymentIntentRequest):
     s = _stripe()
-    order: dict[str, Any] | None = None
-    if req.order:
-        order = await _create_pending_order(req)
+    if not req.order:
+        raise HTTPException(status_code=400, detail="Checkout order is required.")
+    order = await _create_pending_order(req)
 
     intent = s.PaymentIntent.create(
         amount=req.amount,
@@ -91,18 +91,20 @@ async def create_payment_intent(req: PaymentIntentRequest):
         },
         payment_method_types=["card"],
     )
-    if order:
-        updated = await admin_repository.update(
-            settings.admin_orders_table,
-            match_column="id",
-            match_value=order["id"],
-            values={
-                "provider_reference": intent.id,
-                "updated_at": utc_now_iso_seconds(),
-            },
-        )
-        if updated:
-            order["providerReference"] = updated[0].get("provider_reference")
+    update_values = {
+        "provider_reference": intent.id,
+        "updated_at": utc_now_iso_seconds(),
+    }
+    if "payment_intent_id" in await admin_repository.columns(settings.admin_orders_table):
+        update_values["payment_intent_id"] = intent.id
+    updated = await admin_repository.update(
+        settings.admin_orders_table,
+        match_column="id",
+        match_value=order["id"],
+        values=update_values,
+    )
+    if updated:
+        order["providerReference"] = updated[0].get("provider_reference")
 
     return {
         "client_secret": intent.client_secret,

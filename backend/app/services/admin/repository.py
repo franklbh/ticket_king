@@ -51,6 +51,9 @@ class AdminRepository:
     ) -> list[dict[str, Any]]:
         return await asyncio.to_thread(self._select_where_sync, table_name, column, value, limit)
 
+    async def columns(self, table_name: str) -> set[str]:
+        return await asyncio.to_thread(self._columns_sync, table_name)
+
     async def dashboard(self, *, start_date: date | None, days: int | None) -> dict[str, Any]:
         return await asyncio.to_thread(self._dashboard_sync, start_date, days)
 
@@ -95,6 +98,11 @@ class AdminRepository:
                 raise HTTPException(status_code=400, detail=f"Invalid SQL column: {column}")
             rows = db.execute(select(table).where(table.c[column] == value).limit(query_limit)).mappings().all()
             return [dict(row) for row in rows]
+
+    def _columns_sync(self, table_name: str) -> set[str]:
+        with self._session() as db:
+            table = self._table(db, table_name)
+            return set(table.c.keys())
 
     def _dashboard_sync(self, start_date: date | None, days: int | None) -> dict[str, Any]:
         today = date.today()

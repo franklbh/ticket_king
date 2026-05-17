@@ -57,6 +57,7 @@ def normalize_order_status(value: Any) -> str:
     aliases = {
         "completed": "completed",
         "paid": "paid",
+        "failed": "failed",
         "pending": "pending",
         "payment_pending": "pending",
         "cancelled": "cancelled",
@@ -74,6 +75,7 @@ def db_order_status(value: str) -> str:
     aliases = {
         "completed": "Completed",
         "paid": "Paid",
+        "failed": "Failed",
         "pending": "Pending",
         "cancelled": "Cancelled",
         "refunded": "Refunded",

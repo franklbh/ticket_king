@@ -14,11 +14,12 @@ import {
   newsItems,
   ticketTypes,
 } from './data/showData'
-import { vrExperiences } from './data/experiences'
+import { allExperiences, vrExperiences } from './data/experiences'
 import AuthPage from './pages/AuthPage'
 import BookingPage from './pages/BookingPage'
 import ExperienceDetailPage from './pages/ExperienceDetailPage'
 import MarketingPage from './pages/MarketingPage'
+import { getDisplayName } from './api/auth'
 import { useCustomerAuth } from './hooks/useCustomerAuth'
 import { currency } from './utils/format'
 import { isReasonableName, isReasonablePhone, isStrictEmail } from './utils/validation'
@@ -79,8 +80,10 @@ function App() {
   const [showCart, setShowCart] = useState(false)
   const [showCartCheckout, setShowCartCheckout] = useState(false)
   const [cartCheckoutContact, setCartCheckoutContact] = useState({ first: '', last: '', email: '', phone: '' })
+  const [pendingBookingExperience, setPendingBookingExperience] = useState(null)
   const [couponCode, setCouponCode] = useState('')
   const [couponMessage, setCouponMessage] = useState('')
+  const [appliedCoupon, setAppliedCoupon] = useState(null)
   const bookingRef = useRef(null)
   const t = useCallback((key, params = {}) => {
     const template = translations[selectedLang.code]?.[key] ?? translations.en[key] ?? key
@@ -109,6 +112,30 @@ function App() {
     onShowAuth: showAuthView,
     t,
   })
+
+  useEffect(() => {
+    if (!currentUser) return
+    const displayName = getDisplayName(currentUser)
+    const parts = displayName.split(' ').filter(Boolean)
+    const first = parts[0] || currentUser.email?.split('@')[0] || ''
+    const last = parts.slice(1).join(' ')
+    const email = currentUser.email || ''
+    const phone = currentUser.user_metadata?.phone || ''
+    setContact((previous) => ({
+      ...previous,
+      first: previous.first || first,
+      last: previous.last || last,
+      email: previous.email || email,
+      phone: previous.phone || phone,
+    }))
+    setCartCheckoutContact((previous) => ({
+      first: previous.first || first,
+      last: previous.last || last,
+      email: previous.email || email,
+      phone: previous.phone || phone,
+    }))
+  }, [currentUser])
+
   const ticketCopyKeys = {
     adult:  ['ticketTypeRegular', null, null],
     child:  ['ticketTypeChild',   null, 'childInfo'],
@@ -148,11 +175,12 @@ function App() {
     const ticketTotal = ticketTypes.reduce((sum, tk) => sum + counts[tk.id] * prices[tk.id], 0)
     const vipTotal = vipQty * 20
     const subtotal = ticketTotal + vipTotal
+    const couponDiscount = Math.min(appliedCoupon?.discountAmount || 0, subtotal)
     const processingFee = numTickets > 0 ? 1.8 * numTickets + 0.04 * ticketTotal : 0
     const tax = numTickets > 0 ? 0.05 * ticketTotal : 0
     const fees = processingFee + tax
-    return { numTickets, ticketTotal, vipTotal, subtotal, fees, processingFee, tax, grand: subtotal + fees }
-  }, [counts, vipQty, isPeak, bookingExperience])
+    return { numTickets, ticketTotal, vipTotal, subtotal, couponDiscount, fees, processingFee, tax, grand: Math.max(0, subtotal - couponDiscount) + fees }
+  }, [counts, vipQty, isPeak, bookingExperience, appliedCoupon])
 
   const contactErrors = useMemo(() => {
     const errors = {}
@@ -305,13 +333,129 @@ function App() {
     window.scrollTo({ top: 0, behavior: 'instant' })
   }
 
+  useEffect(() => {
+    if (!currentUser || !pendingBookingExperience) return
+    const nextExperience = pendingBookingExperience
+    setPendingBookingExperience(null)
+    revealBooking(nextExperience)
+  }, [currentUser, pendingBookingExperience])
+
+  const startBookingWithAuth = (experience = null) => {
+    if (currentUser) {
+      revealBooking(experience)
+      return
+    }
+    setPendingBookingExperience(experience && experience.id ? experience : null)
+    openAuth('login')
+  }
+
   const backToMain = () => { setShowBooking(false); setSelectedExperience(null); setView('main'); window.scrollTo({ top: 0, behavior: 'smooth' }) }
   const openExperience = (exp) => { setSelectedExperience(exp); setView('experience'); window.scrollTo({ top: 0, behavior: 'instant' }) }
+  const backToExperienceSection = () => {
+    const sectionId = selectedExperience?.category === 'arcade' ? 'games' : 'experiences'
+    setSelectedExperience(null)
+    setView('main')
+    setShowBooking(false)
+    setTimeout(() => {
+      document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 80)
+  }
 
   const cartCount = cartItems.reduce((s, i) => s + i.quantity, 0)
 
+  const addExperienceTicketsToCart = ({
+    experience,
+    selectedDate,
+    selectedTime,
+    ticketOptions = [],
+    tickets = [],
+    openCart = false,
+  }) => {
+    if (!experience || !selectedDate || !selectedTime) return
+    const sessionDateKey = isoDate(selectedDate)
+    const sessionDate = selectedDate.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    })
+    const sessionTime = typeof selectedTime === 'string' ? selectedTime : selectedTime.label || selectedTime.time
+    const nextItems = tickets.map((ticket) => {
+      const option = ticketOptions.find((item) => item.id === ticket.id) || ticket
+      return {
+        id: [experience.id, sessionDateKey, sessionTime, ticket.id].join('__'),
+        show_id: experience.id,
+        show_title: experience.title,
+        session_date_key: sessionDateKey,
+        session_date: sessionDate,
+        session_time: sessionTime,
+        slot_id: typeof selectedTime === 'object' ? selectedTime.id : null,
+        event_id: typeof selectedTime === 'object' ? selectedTime.eventId : null,
+        ticket_type_id: ticket.id,
+        ticket_type_label: ticket.label,
+        ticket_options: ticketOptions,
+        quantity: ticket.quantity,
+        unit_price: option.price ?? ticket.price,
+        experience_category: experience.category,
+        experience_accent: experience.accent,
+        experience_gradient: experience.cardGradient,
+        experience_image: experience.heroImg,
+      }
+    })
+
+    setCartItems((previous) => {
+      const nextById = new Map(previous.map((item) => [item.id, item]))
+      Array.from(nextById.values()).forEach((item) => {
+        if (item.show_id === experience.id && item.session_date_key === sessionDateKey && item.session_time === sessionTime) {
+          nextById.delete(item.id)
+        }
+      })
+      nextItems.forEach((item) => {
+        if (item.quantity <= 0) {
+          return
+        }
+        nextById.set(item.id, item)
+      })
+      const updated = Array.from(nextById.values())
+      localStorage.setItem('wearevr_cart', JSON.stringify(updated))
+      return updated
+    })
+    if (openCart) setShowCart(true)
+  }
+
+  const buildCartCheckoutOrder = (checkoutContact = cartCheckoutContact) => {
+    const items = cartItems
+      .filter((item) => item.slot_id && item.event_id && item.quantity > 0)
+      .map((item) => ({
+        eventId: item.event_id,
+        slotId: item.slot_id,
+        ticketTypeId: null,
+        eventName: item.show_title,
+        slotDate: item.session_date_key,
+        slotTime: item.session_time,
+        ticketType: item.ticket_type_label,
+        quantity: item.quantity,
+        unitPrice: item.unit_price,
+      }))
+    if (items.length !== cartItems.length || items.length === 0) return undefined
+    const subtotal = cartItems.reduce((sum, item) => sum + item.unit_price * item.quantity, 0)
+    const numTickets = cartItems.reduce((sum, item) => sum + item.quantity, 0)
+    const processingFee = numTickets > 0 ? 1.8 * numTickets + 0.04 * subtotal : 0
+    const gst = numTickets > 0 ? 0.05 * subtotal : 0
+    return {
+      customer: {
+        name: [checkoutContact.first, checkoutContact.last].filter(Boolean).join(' '),
+        email: checkoutContact.email,
+        phone: checkoutContact.phone,
+      },
+      items,
+      paymentFee: processingFee,
+      gst,
+      totalAmount: subtotal + processingFee + gst,
+    }
+  }
+
   const switchBookingExperience = (experienceId) => {
-    const nextExperience = vrExperiences.find((experience) => experience.id === experienceId)
+    const nextExperience = allExperiences.find((experience) => experience.id === experienceId)
     if (!nextExperience || nextExperience.id === bookingExperience.id) return
     setBookingExperience(nextExperience)
     setSelectedDate(null)
@@ -319,8 +463,9 @@ function App() {
     setCounts(ticketTypes.reduce((acc, t) => ({ ...acc, [t.id]: 0 }), {}))
     setRawCounts({})
     setVipQty(0)
-    setCouponCode('')
-    setCouponMessage('')
+        setCouponCode('')
+        setCouponMessage('')
+        setAppliedCoupon(null)
     setTimeLeft(300)
     setStep('date')
     const n = new Date(); setCalendarMonth(new Date(n.getFullYear(), n.getMonth(), 1))
@@ -358,9 +503,38 @@ function App() {
   const updateContact = (field, value) => {
     setContact((prev) => ({ ...prev, [field]: value }))
   }
-  const applyCoupon = () => {
+  const applyCoupon = async () => {
     const code = couponCode.trim()
-    setCouponMessage(code ? t('couponUnavailable', { code }) : t('couponFirst'))
+    if (!code) {
+      setAppliedCoupon(null)
+      setCouponMessage(t('couponFirst'))
+      return
+    }
+    try {
+      const backendBase = import.meta.env.VITE_BACKEND_BASE || 'http://localhost:8000'
+      const res = await fetch(`${backendBase}/api/v1/coupons/validate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, subtotal: totals.subtotal }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.valid) {
+        setAppliedCoupon(null)
+        setCouponMessage(data.detail || 'Invalid coupon code.')
+        return
+      }
+      setAppliedCoupon({
+        code: data.code,
+        discountAmount: Number(data.discountAmount || 0),
+        discountType: data.discountType,
+        discountValue: Number(data.discountValue || 0),
+      })
+      setCouponMessage(data.message || `Coupon ${data.code} applied.`)
+    } catch (error) {
+      console.error(error)
+      setAppliedCoupon(null)
+      setCouponMessage('Unable to validate coupon. Please try again.')
+    }
   }
   const cancelQrPayment = () => {
     if (window.confirm(t('cancelConfirm'))) {
@@ -385,7 +559,9 @@ function App() {
   const canProceedTime = Boolean(selectedTime)
   const effectiveCount = (id) => rawCounts[id] !== undefined ? Math.max(0, parseInt(rawCounts[id]) || 0) : counts[id]
   const effectiveSubtotal = ticketTypes.reduce((sum, tk) => sum + effectiveCount(tk.id) * activePrices[tk.id], 0)
-  const canProceedTickets = effectiveSubtotal > 0
+  const hasInvalidBundleCount = (effectiveCount('group') > 0 && effectiveCount('group') < 6)
+    || (effectiveCount('family') > 0 && effectiveCount('family') < 3)
+  const canProceedTickets = effectiveSubtotal > 0 && !hasInvalidBundleCount
   const canProceedContact = Object.keys(contactErrors).length === 0
   const minutes = String(Math.floor(timeLeft / 60)).padStart(2, '0')
   const seconds = String(timeLeft % 60).padStart(2, '0')
@@ -422,12 +598,18 @@ function App() {
         })),
       paymentFee: totals.processingFee,
       gst: totals.tax,
+      couponCode: appliedCoupon?.code || null,
+      couponDiscount: totals.couponDiscount,
       totalAmount: totals.grand,
     }
   }
 
   const startStripeCheckout = () => {
     if (paymentExpired) return
+    if (!buildCheckoutOrder()) {
+      alert('Unable to start checkout because the selected session is missing a live booking slot. Please choose a date and time again.')
+      return
+    }
     setShowStripeCheckout(true)
   }
 
@@ -438,11 +620,16 @@ function App() {
       const backendBase = import.meta.env.VITE_BACKEND_BASE || 'http://localhost:8000'
       const totalCents = Math.round(totals.grand * 100)
       const order = buildCheckoutOrder()
+      if (!order) {
+        alert('Unable to start checkout because the selected session is missing a live booking slot. Please choose a date and time again.')
+        return
+      }
       const payload = {
         method,
         amount: totalCents,
         description: bookingExperience.title,
-        ...(order ? { order } : { payment_request_id: `order_${Date.now()}_${Math.random().toString(36).slice(2, 8)}` }),
+        order,
+        payment_request_id: `order_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       }
       const res = await fetch(`${backendBase}/api/v1/alphapay/qr`, {
         method: 'POST',
@@ -538,10 +725,11 @@ function App() {
         <ExperienceDetailPage
           authReady={authReady}
           cartCount={cartCount}
+          cartItems={cartItems}
           currentUser={currentUser}
           experience={selectedExperience}
-          onBack={backToMain}
-          onBuyTicket={revealBooking}
+          onBack={backToExperienceSection}
+          onBuyTicket={addExperienceTicketsToCart}
           onLogout={logout}
           onOpenAuth={() => openAuthScreen('login')}
           onOpenCart={() => setShowCart(true)}
@@ -565,7 +753,7 @@ function App() {
               localizedNewsItems={localizedNewsItems}
               newsletterEmail={newsletterEmail}
               newsletterMessage={newsletterMessage}
-              onBuyTicket={revealBooking}
+              onBuyTicket={startBookingWithAuth}
               onGoHome={() => { setView('main'); setShowBooking(false) }}
               onLogout={logout}
               onOpenAuth={() => openAuthScreen('login')}
@@ -586,10 +774,11 @@ function App() {
             <BookingPage
               alphapayLoading={alphapayLoading}
               applyCoupon={applyCoupon}
+              appliedCoupon={appliedCoupon}
               availableSlots={availableSlots}
               availableSlotsLoading={availableSlotsLoading}
               bookingExperience={bookingExperience}
-              bookingExperiences={vrExperiences}
+              bookingExperiences={allExperiences}
               bookingRef={bookingRef}
               bookingSteps={bookingSteps}
               calendarMonth={calendarMonth}
@@ -622,6 +811,7 @@ function App() {
               setCounts={setCounts}
               setCouponCode={setCouponCode}
               setCouponMessage={setCouponMessage}
+              setAppliedCoupon={setAppliedCoupon}
               setRawCounts={setRawCounts}
               setSelectedDate={setSelectedDate}
               setSelectedTime={setSelectedTime}
@@ -662,7 +852,7 @@ function App() {
       )}
 
       {showMapModal && <MapModal onClose={() => setShowMapModal(false)} />}
-      {showNavMenu && <NavMenu onClose={() => setShowNavMenu(false)} onBuyTicket={revealBooking} onNavigateToSection={navigateToMainSection} t={t} />}
+      {showNavMenu && <NavMenu onClose={() => setShowNavMenu(false)} onBuyTicket={startBookingWithAuth} onNavigateToSection={navigateToMainSection} t={t} />}
 
       {showStripeCheckout && (
         <StripeCheckout
@@ -682,6 +872,14 @@ function App() {
 
       {showCart && (
         <Cart
+          authForm={authForm}
+          authMessage={authMessage}
+          authMode={authMode}
+          authReady={authReady}
+          currentUser={currentUser}
+          getDisplayName={getDisplayName}
+          handleLogin={handleLogin}
+          handleSignup={handleSignup}
           items={cartItems}
           onUpdateQty={(id, qty) => setCartItems(prev => {
             const updated = qty <= 0
@@ -696,7 +894,7 @@ function App() {
             if (!source || !option) return prev
             const nextId = [
               source.show_id,
-              source.session_date || '',
+              source.session_date_key || source.session_date || '',
               source.session_time || '',
               option.id,
             ].join('__')
@@ -724,10 +922,17 @@ function App() {
           })}
           onClose={() => setShowCart(false)}
           onCheckout={(checkoutContact) => {
+            if (!buildCartCheckoutOrder(checkoutContact)) {
+              alert('Unable to start checkout because one or more cart items are missing a live booking slot. Please add tickets from the date/time booking flow again.')
+              return
+            }
             setCartCheckoutContact(checkoutContact)
             setShowCart(false)
             setShowCartCheckout(true)
           }}
+          resetAuthForm={resetAuthForm}
+          setAuthForm={setAuthForm}
+          setAuthMode={setAuthMode}
         />
       )}
 
@@ -743,6 +948,7 @@ function App() {
               description: `${n} ticket${n !== 1 ? 's' : ''} · WE ARE VR`,
               email: cartCheckoutContact.email || contact.email,
               customerName: [cartCheckoutContact.first, cartCheckoutContact.last].filter(Boolean).join(' '),
+              checkoutOrder: buildCartCheckoutOrder(cartCheckoutContact),
             }}
             onClose={() => setShowCartCheckout(false)}
             onSuccess={() => {
@@ -757,7 +963,7 @@ function App() {
 
       {view === 'main' && !showBooking && (
         <div className="floating-cta">
-          <button className="cta-pill" onClick={revealBooking} type="button">{t('buyTicket')}</button>
+          <button className="cta-pill" onClick={startBookingWithAuth} type="button">{t('buyTicket')}</button>
         </div>
       )}
 

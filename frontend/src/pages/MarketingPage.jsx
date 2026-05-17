@@ -211,7 +211,7 @@ function MarketingPage({
         </div>
         <div className="vr-exp-grid">
           {vrExperiences.map((exp) => (
-            <ExperienceCard key={exp.id} exp={exp} onSelect={onSelectExperience} onBook={onBuyTicket} />
+            <ExperienceCard key={exp.id} exp={exp} onSelect={onSelectExperience} onBook={onSelectExperience} />
           ))}
         </div>
       </section>
@@ -232,7 +232,7 @@ function MarketingPage({
         </div>
         <div className="vr-exp-grid">
           {arcadeGames.map((exp) => (
-            <ExperienceCard key={exp.id} exp={exp} onSelect={onSelectExperience} onBook={onBuyTicket} />
+            <ExperienceCard key={exp.id} exp={exp} onSelect={onSelectExperience} onBook={onSelectExperience} />
           ))}
         </div>
       </section>

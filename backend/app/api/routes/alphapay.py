@@ -103,9 +103,9 @@ class CheckoutOrder(BaseModel):
 @router.post("/qr")
 async def create_qr(req: QrRequest):
     payment_request_id = req.payment_request_id or _payment_request_id()
-    order: dict[str, Any] | None = None
-    if req.order:
-        order = await _create_pending_order(req, payment_request_id)
+    if not req.order:
+        raise HTTPException(status_code=400, detail="Checkout order is required.")
+    order = await _create_pending_order(req, payment_request_id)
 
     uri = "/api/v2.0/payments/pay"
     body = {
