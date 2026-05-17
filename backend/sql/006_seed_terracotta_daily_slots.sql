@@ -5,7 +5,7 @@
 --   start_date / end_date: which dates to create
 --   first_start / last_start: first and last sellable start time
 --   step_minutes: spacing between start times
---   duration_minutes: event length shown to customers
+--   slot_duration_minutes: event length shown to customers
 --   price: customer-facing base price
 --
 -- Safe to re-run. Existing event/date/start-time rows are updated, not duplicated.
@@ -13,11 +13,11 @@
 do $$
 declare
   start_date date := date '2026-05-17';
-  end_date date := date '2026-8-31';
+  end_date date := date '2026-08-31';
   first_start time := time '10:00';
   last_start time := time '21:00';
   step_minutes integer := 30;
-  duration_minutes integer := 45;
+  slot_duration_minutes integer := 45;
   price numeric := 45.95;
 begin
   insert into public.slots (
@@ -47,11 +47,11 @@ begin
     ),
     d.day,
     t.start_time,
-    t.start_time + make_interval(mins => duration_minutes),
+    t.start_time + make_interval(mins => slot_duration_minutes),
     concat(
       to_char(t.start_time, 'HH24:MI'),
       '-',
-      to_char(t.start_time + make_interval(mins => duration_minutes), 'HH24:MI')
+      to_char(t.start_time + make_interval(mins => slot_duration_minutes), 'HH24:MI')
     ),
     'America/Vancouver',
     20,
