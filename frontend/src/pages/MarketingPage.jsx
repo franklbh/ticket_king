@@ -3,10 +3,8 @@ import BrandLogo from '../components/BrandLogo'
 import HeaderActions from '../components/HeaderActions'
 import { GOOGLE_MAPS_URL } from '../constants/venue'
 import { mapInstructionPdf } from '../data/showData'
-import { vrExperiences, arcadeGames, allExperiences } from '../data/experiences'
-
 /* ── Experience Card ── */
-function ExperienceCard({ exp, onSelect, onBook }) {
+function ExperienceCard({ exp, onSelect, onBook, t }) {
   return (
     <div
       className="vr-exp-card"
@@ -22,13 +20,13 @@ function ExperienceCard({ exp, onSelect, onBook }) {
           ? <div className="vr-card-img" style={{ backgroundImage: `url(${exp.heroImg})` }} />
           : <div className="vr-card-img" style={{ background: exp.cardGradient }}><div className="vr-card-placeholder-glow" style={{ background: exp.accent }} /></div>}
 
-        {exp.featured && <span className="vr-card-featured-pill">Featured</span>}
+        {exp.featured && <span className="vr-card-featured-pill">{t('featured')}</span>}
 
         <div className="vr-card-play-overlay">
           <span className="vr-card-play-btn">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
           </span>
-          Watch Demo
+          {t('watchDemo')}
         </div>
         <div className="vr-card-hover-shine" />
       </div>
@@ -36,7 +34,7 @@ function ExperienceCard({ exp, onSelect, onBook }) {
       {/* Text */}
       <div className="vr-card-text">
         <div className="vr-card-top-meta">
-          <span className="vr-card-type-tag">{exp.category === 'arcade' ? 'Arcade' : 'VR'} · {exp.duration} min</span>
+          <span className="vr-card-type-tag">{exp.category === 'arcade' ? t('arcade') : 'VR'} · {exp.duration} min</span>
           <span className="vr-card-rating-tag">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
             {exp.rating} <span className="vr-card-review-ct">({exp.reviewCount})</span>
@@ -45,15 +43,15 @@ function ExperienceCard({ exp, onSelect, onBook }) {
         <h3 className="vr-card-title">{exp.title}</h3>
         <p className="vr-card-subtitle">{exp.subtitle}</p>
         <div className="vr-card-info-row">
-          <span>Ages {exp.minAge}+</span>
+          <span>{t('agesMin', { min: exp.minAge })}</span>
           <span className="vr-dot">·</span>
-          <span>{exp.groupSize} people</span>
+          <span>{exp.groupSize} {t('people')}</span>
           <span className="vr-dot">·</span>
           <span>{exp.difficulty}</span>
         </div>
         <div className="vr-card-footer">
           <div className="vr-card-price">
-            From <strong>${exp.priceFrom.toFixed(2)}</strong><span>/person</span>
+            {t('from')} <strong>${exp.priceFrom.toFixed(2)}</strong><span>{t('perPerson')}</span>
           </div>
           <button
             className="vr-card-book-btn"
@@ -61,7 +59,7 @@ function ExperienceCard({ exp, onSelect, onBook }) {
             type="button"
             style={{ '--btn-accent': exp.accent }}
           >
-            Book Now
+            {t('bookNow')}
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
           </button>
         </div>
@@ -75,6 +73,7 @@ function MarketingPage({
   cartCount,
   currentUser,
   faqOpen,
+  localizedExperiences,
   localizedFaqItems,
   localizedNewsItems,
   newsletterEmail,
@@ -83,6 +82,7 @@ function MarketingPage({
   onGoHome,
   onLogout,
   onOpenAuth,
+  onOpenBookings,
   onOpenCart,
   onOpenMap,
   onOpenNav,
@@ -96,18 +96,15 @@ function MarketingPage({
 }) {
   const experiencesRef = useRef(null)
   const [heroIndex, setHeroIndex] = useState(0)
-  const activeHero = allExperiences[heroIndex] || allExperiences[0]
+  const heroCount = localizedExperiences?.length || 6
+  const activeHero = (localizedExperiences || [])[heroIndex] || (localizedExperiences || [])[0] || {}
 
   useEffect(() => {
     const timer = window.setInterval(() => {
-      setHeroIndex((index) => (index + 1) % allExperiences.length)
+      setHeroIndex((index) => (index + 1) % heroCount)
     }, 3200)
     return () => window.clearInterval(timer)
-  }, [])
-
-  const scrollToExperiences = () => {
-    experiencesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }
+  }, [heroCount])
 
   return (
     <div className="mkt-page">
@@ -124,6 +121,7 @@ function MarketingPage({
             currentUser={currentUser}
             onLogout={onLogout}
             onOpenAuth={onOpenAuth}
+            onOpenBookings={onOpenBookings}
             onOpenCart={onOpenCart}
             onOpenNav={onOpenNav}
             renderLangSelect={renderLangSelect}
@@ -134,7 +132,7 @@ function MarketingPage({
 
       {/* ── Compact Hero ── */}
       <section className="mkt-hero">
-        {allExperiences.map((exp, index) => {
+        {(localizedExperiences || []).map((exp, index) => {
           const heroSrc = exp.heroImg || exp.gallery?.[0]
           return (
             <div
@@ -150,7 +148,7 @@ function MarketingPage({
           <span className="mkt-hero-eyebrow">We Are VR</span>
           <h1 className="mkt-hero-h1">{activeHero.title}</h1>
           <p className="mkt-hero-sub">
-            {activeHero.tagline}. {activeHero.duration} minutes · Ages {activeHero.minAge}+
+            {activeHero.tagline}. {activeHero.duration} minutes · {t('agesMin', { min: activeHero.minAge })}
           </p>
           <div className="mkt-hero-btns">
             <div className="mkt-hero-cta-stack">
@@ -160,7 +158,7 @@ function MarketingPage({
                 type="button"
                 style={{ background: activeHero.accent, boxShadow: `0 8px 28px ${activeHero.accentGlow || 'rgba(0,0,0,0.35)'}` }}
               >
-                Book Experience
+                {t('bookExperience')}
               </button>
               <div className="mkt-cta-note" aria-hidden="true">&nbsp;</div>
             </div>
@@ -168,11 +166,11 @@ function MarketingPage({
               <button className="mkt-hero-secondary" onClick={() => window.open('https://www.showpass.com/', '_blank', 'noopener,noreferrer')} type="button">
                 Showpass
               </button>
-              <div className="mkt-showpass-note">Tickets available on Showpass</div>
+              <div className="mkt-showpass-note">{t('showpassNote')}</div>
             </div>
           </div>
           <div className="mkt-hero-dots" aria-label="Featured experience carousel">
-            {allExperiences.map((exp, index) => (
+            {(localizedExperiences || []).map((exp, index) => (
               <button
                 key={exp.id}
                 className={`mkt-hero-dot ${index === heroIndex ? 'active' : ''}`}
@@ -199,19 +197,19 @@ function MarketingPage({
       <section ref={experiencesRef} className="vr-experiences-section" id="experiences">
         <div className="vr-exp-header">
           <div>
-            <div className="vr-exp-eyebrow">Cinematic VR Shows</div>
-            <h2 className="vr-exp-title">Immersive Experiences</h2>
-            <p className="vr-exp-subhead">Fully guided narrative journeys — no gaming experience needed. Sit back and be transported.</p>
+            <div className="vr-exp-eyebrow">{t('vrShowsEyebrow')}</div>
+            <h2 className="vr-exp-title">{t('vrShowsTitle')}</h2>
+            <p className="vr-exp-subhead">{t('vrShowsSubhead')}</p>
           </div>
           <div className="vr-exp-count-badges">
-            <span className="vr-exp-stat">3 shows</span>
-            <span className="vr-exp-stat">4.8 avg rating</span>
-            <span className="vr-exp-stat">10,000+ guests</span>
+            <span className="vr-exp-stat">{t('vrShowsStat1')}</span>
+            <span className="vr-exp-stat">{t('vrShowsStat2')}</span>
+            <span className="vr-exp-stat">{t('vrShowsStat3')}</span>
           </div>
         </div>
         <div className="vr-exp-grid">
-          {vrExperiences.map((exp) => (
-            <ExperienceCard key={exp.id} exp={exp} onSelect={onSelectExperience} onBook={onSelectExperience} />
+          {(localizedExperiences || []).filter((e) => e.category === 'vr-show').map((exp) => (
+            <ExperienceCard key={exp.id} exp={exp} onSelect={onSelectExperience} onBook={onSelectExperience} t={t} />
           ))}
         </div>
       </section>
@@ -220,19 +218,19 @@ function MarketingPage({
       <section className="vr-experiences-section arcade-section" id="games">
         <div className="vr-exp-header">
           <div>
-            <div className="vr-exp-eyebrow">Interactive Arcade Games</div>
-            <h2 className="vr-exp-title">VR Arcade Games</h2>
-            <p className="vr-exp-subhead">Competitive multiplayer fun — battle friends, explore space, dive into the deep. Pick up and play in minutes.</p>
+            <div className="vr-exp-eyebrow">{t('vrGamesEyebrow')}</div>
+            <h2 className="vr-exp-title">{t('vrGames')}</h2>
+            <p className="vr-exp-subhead">{t('vrGamesSubhead')}</p>
           </div>
           <div className="vr-exp-count-badges">
-            <span className="vr-exp-stat">3 games</span>
-            <span className="vr-exp-stat">Pick-up & play</span>
-            <span className="vr-exp-stat">Ages 6+</span>
+            <span className="vr-exp-stat">{t('vrGamesStat1')}</span>
+            <span className="vr-exp-stat">{t('vrGamesStat2')}</span>
+            <span className="vr-exp-stat">{t('vrGamesStat3')}</span>
           </div>
         </div>
         <div className="vr-exp-grid">
-          {arcadeGames.map((exp) => (
-            <ExperienceCard key={exp.id} exp={exp} onSelect={onSelectExperience} onBook={onSelectExperience} />
+          {(localizedExperiences || []).filter((e) => e.category === 'arcade').map((exp) => (
+            <ExperienceCard key={exp.id} exp={exp} onSelect={onSelectExperience} onBook={onSelectExperience} t={t} />
           ))}
         </div>
       </section>
@@ -242,7 +240,6 @@ function MarketingPage({
         <div className="faq-header">
           <div className="section-eyebrow faq-eyebrow">{t('faqEyebrow')}</div>
           <h2 className="faq-title">{t('faqTitle')}</h2>
-          <p className="faq-lede">Fast answers before you book your VR session.</p>
         </div>
         <div className="faq-list">
           {localizedFaqItems.map((item, index) => (

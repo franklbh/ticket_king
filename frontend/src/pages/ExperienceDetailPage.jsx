@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import BrandLogo from '../components/BrandLogo'
 import HeaderActions from '../components/HeaderActions'
 import { allExperiences } from '../data/experiences'
@@ -146,7 +146,7 @@ function BookingWidget({ experience, cartItems, onAddToCart }) {
   const ticketsFromQuantities = (quantities) => TICKET_TYPES
     .filter((ticket) => quantities[ticket.id] > 0)
     .map((ticket) => ({ ...ticket, quantity: quantities[ticket.id] }))
-  const getCartQuantitiesForSession = (sessionDateKey, slot) => {
+  const getCartQuantitiesForSession = useCallback((sessionDateKey, slot) => {
     const nextQty = TICKET_TYPES.reduce((acc, ticket) => ({ ...acc, [ticket.id]: 0 }), {})
     if (!sessionDateKey || !slot) return { nextQty, hasItems: false }
     const slotId = slot.id || slot.slot_id || slot.slotId
@@ -162,7 +162,7 @@ function BookingWidget({ experience, cartItems, onAddToCart }) {
       hasItems = true
     })
     return { nextQty, hasItems }
-  }
+  }, [TICKET_TYPES, cartItems, experience.id])
 
   const changeQty = (ticket, delta) => {
     const current = qty[ticket.id] || 0
@@ -223,7 +223,7 @@ function BookingWidget({ experience, cartItems, onAddToCart }) {
     setRawQty({})
     setAddedMessage('')
     cartSyncedSessionRef.current = hasItems ? sessionKey : null
-  }, [selectedDateKey, selTime, experience.id])
+  }, [selectedDateKey, selTime, experience.id, getCartQuantitiesForSession])
 
   useEffect(() => {
     if (!selectedDateKey || !selTime) return
@@ -234,7 +234,7 @@ function BookingWidget({ experience, cartItems, onAddToCart }) {
     setRawQty({})
     setAddedMessage('')
     cartSyncedSessionRef.current = hasItems ? sessionKey : null
-  }, [cartItems, selectedDateKey, selTime, experience.id])
+  }, [cartItems, selectedDateKey, selTime, experience.id, getCartQuantitiesForSession])
 
   useEffect(() => {
     const slug = BACKEND_EVENT_SLUGS[experience.id]
@@ -416,6 +416,7 @@ function ExperienceDetailPage({
   currentUser,
   onLogout,
   onOpenAuth,
+  onOpenBookings,
   onOpenCart,
   onOpenNav,
   renderLangSelect,
@@ -454,6 +455,7 @@ function ExperienceDetailPage({
           currentUser={currentUser}
           onLogout={onLogout}
           onOpenAuth={onOpenAuth}
+          onOpenBookings={onOpenBookings}
           onOpenCart={onOpenCart}
           onOpenNav={onOpenNav}
           renderLangSelect={renderLangSelect}
