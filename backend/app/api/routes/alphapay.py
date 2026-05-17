@@ -15,7 +15,13 @@ from pydantic import BaseModel, Field
 
 from app.core.config import settings
 from app.schemas.checkout import CheckoutOrder
-from app.services.reservations import attach_payment, create_reservation, get_active_reservation, mark_paid_by_provider_reference
+from app.services.reservations import (
+    PAYMENT_GRACE_SECONDS,
+    attach_payment,
+    create_reservation,
+    get_active_reservation,
+    mark_paid_by_provider_reference,
+)
 from app.utils.datetime import utc_now_millis_z
 from app.utils.datetime import utc_now
 
@@ -70,7 +76,11 @@ class QrRequest(BaseModel):
 async def create_qr(req: QrRequest):
     payment_request_id = req.payment_request_id or _payment_request_id()
     if req.reservation_id:
-        reservation = await get_active_reservation(req.reservation_id, req.amount)
+        reservation = await get_active_reservation(
+            req.reservation_id,
+            req.amount,
+            grace_seconds=PAYMENT_GRACE_SECONDS,
+        )
         order = {
             "id": str(reservation["id"]),
             "orderNumber": reservation.get("order_number"),

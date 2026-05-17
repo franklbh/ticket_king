@@ -14,6 +14,7 @@ from app.services.admin.repository import admin_repository
 from app.utils.datetime import utc_now, utc_now_iso_seconds
 
 RESERVATION_MINUTES = 5
+PAYMENT_GRACE_SECONDS = 30
 
 
 async def create_reservation(checkout: CheckoutOrder, amount_cents: int) -> dict[str, Any]:
@@ -113,13 +114,18 @@ async def create_reservation(checkout: CheckoutOrder, amount_cents: int) -> dict
     return _reservation_response(inserted)
 
 
-async def get_active_reservation(order_id: str, amount_cents: int | None = None) -> dict[str, Any]:
-    await expire_stale_reservations()
+async def get_active_reservation(
+    order_id: str,
+    amount_cents: int | None = None,
+    *,
+    grace_seconds: int = 0,
+) -> dict[str, Any]:
+    await expire_stale_reservations(grace_seconds=grace_seconds)
     rows = await admin_repository.select_where(settings.admin_orders_table, column="id", value=uuid.UUID(str(order_id)))
     if not rows:
         raise HTTPException(status_code=404, detail="Reservation not found.")
     order = rows[0]
-    if not _is_active_pending_reservation(order):
+    if not _is_active_pending_reservation(order, grace_seconds=grace_seconds):
         raise HTTPException(status_code=409, detail="Reservation expired or is no longer pending.")
     if amount_cents is not None:
         total_amount = _money(order.get("total_amount") or 0)
@@ -201,13 +207,13 @@ async def mark_paid_by_provider_reference(provider: str, provider_reference: str
     return None
 
 
-async def expire_stale_reservations() -> None:
+async def expire_stale_reservations(*, grace_seconds: int = 0) -> None:
     now = datetime.now(timezone.utc)
     for order in await admin_repository.select(settings.admin_orders_table):
         if str(order.get("payment_status") or "").lower() != "pending":
             continue
         expires_at = _reservation_expires_at(order)
-        if not expires_at or expires_at > now:
+        if not expires_at or expires_at + timedelta(seconds=grace_seconds) > now:
             continue
         await admin_repository.update(
             settings.admin_orders_table,
@@ -222,11 +228,11 @@ async def expire_stale_reservations() -> None:
         )
 
 
-def _is_active_pending_reservation(order: dict[str, Any]) -> bool:
+def _is_active_pending_reservation(order: dict[str, Any], *, grace_seconds: int = 0) -> bool:
     if str(order.get("payment_status") or "").lower() != "pending":
         return False
     expires_at = _reservation_expires_at(order)
-    return expires_at is None or expires_at > datetime.now(timezone.utc)
+    return expires_at is None or expires_at + timedelta(seconds=grace_seconds) > datetime.now(timezone.utc)
 
 
 async def _validate_capacity(checkout: CheckoutOrder) -> None:
@@ -243,13 +249,16 @@ async def _validate_capacity(checkout: CheckoutOrder) -> None:
 
 def _reservation_response(order: dict[str, Any]) -> dict[str, Any]:
     expires_at = _reservation_expires_at(order)
+    expires_in = RESERVATION_MINUTES * 60
+    if expires_at:
+        expires_in = max(0, int((expires_at - datetime.now(timezone.utc)).total_seconds()))
     return {
         "id": str(order["id"]),
         "orderNumber": order.get("order_number"),
         "paymentStatus": order.get("payment_status"),
         "providerReference": order.get("provider_reference"),
         "expiresAt": expires_at.isoformat() if hasattr(expires_at, "isoformat") else expires_at,
-        "expiresInSeconds": RESERVATION_MINUTES * 60,
+        "expiresInSeconds": expires_in,
     }
 
 

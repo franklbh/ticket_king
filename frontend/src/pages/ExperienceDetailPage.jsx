@@ -318,7 +318,7 @@ function BookingWidget({ experience, cartItems, onAddToCart }) {
               type="button"
             >
               {slot.label}
-              {slot.availableSeats != null && <span style={{ display: 'block', fontSize: 11, opacity: 0.7 }}>{slot.availableSeats} left</span>}
+              {slot.availableSeats != null && slot.availableSeats <= 5 && <span style={{ display: 'block', fontSize: 11, opacity: 0.7 }}>Only {slot.availableSeats} left</span>}
             </button>
           ))}
         </div>

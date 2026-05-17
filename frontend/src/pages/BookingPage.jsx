@@ -197,7 +197,7 @@ function BookingPage({
                       type="button"
                     >
                       <strong>{slot.time}</strong>
-                      <small>{slot.availableSeats ?? 0} left</small>
+                      {slot.availableSeats != null && slot.availableSeats <= 5 && <small>Only {slot.availableSeats} left</small>}
                       {selectedTime?.id === slot.id && <span>✓</span>}
                     </button>
                   ))}

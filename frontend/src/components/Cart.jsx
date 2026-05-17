@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js'
 import { loadStripe } from '@stripe/stripe-js'
 import BrandLogo from './BrandLogo'
@@ -10,6 +10,12 @@ const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || 
 function fmt(n) { return `CA$${Number(n || 0).toFixed(2)}` }
 function validEmail(value) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim()) }
 function validPhone(value) { return value.replace(/[^\d]/g, '').length >= 10 }
+function formatCountdown(seconds) {
+  const safe = Math.max(0, Number(seconds || 0))
+  const minutes = Math.floor(safe / 60)
+  const rest = safe % 60
+  return `${String(minutes).padStart(2, '0')}:${String(rest).padStart(2, '0')}`
+}
 
 function CartIcon() {
   return (
@@ -119,7 +125,7 @@ function contactFromUser(user, getDisplayName) {
   }
 }
 
-function InlineStripePayment({ clientSecret, amount, email, onPaid }) {
+function InlineStripePayment({ clientSecret, amount, email, onPaid, onBusyChange }) {
   if (!clientSecret) return null
   return (
     <Elements
@@ -138,12 +144,12 @@ function InlineStripePayment({ clientSecret, amount, email, onPaid }) {
         },
       }}
     >
-      <StripeForm amount={amount} email={email} onPaid={onPaid} />
+      <StripeForm amount={amount} email={email} onPaid={onPaid} onBusyChange={onBusyChange} />
     </Elements>
   )
 }
 
-function StripeForm({ amount, email, onPaid }) {
+function StripeForm({ amount, email, onPaid, onBusyChange }) {
   const stripe = useStripe()
   const elements = useElements()
   const [busy, setBusy] = useState(false)
@@ -153,6 +159,7 @@ function StripeForm({ amount, email, onPaid }) {
     event.preventDefault()
     if (!stripe || !elements) return
     setBusy(true)
+    onBusyChange?.(true)
     setError('')
     const { error: payError, paymentIntent } = await stripe.confirmPayment({
       elements,
@@ -165,12 +172,14 @@ function StripeForm({ amount, email, onPaid }) {
     if (payError) {
       setError(payError.message || 'Unable to confirm payment.')
       setBusy(false)
+      onBusyChange?.(false)
       return
     }
     if (paymentIntent?.status === 'succeeded') onPaid(paymentIntent)
     else {
       setError('Payment is still processing. Please wait a moment.')
       setBusy(false)
+      onBusyChange?.(false)
     }
   }
 
@@ -220,6 +229,12 @@ export default function Cart({
   const [qrOrder, setQrOrder] = useState(null)
   const [qrLoading, setQrLoading] = useState(false)
   const [confirmed, setConfirmed] = useState(null)
+  const [reservation, setReservation] = useState(null)
+  const [reservationLoading, setReservationLoading] = useState(false)
+  const [timeLeft, setTimeLeft] = useState(0)
+  const [paymentSubmitting, setPaymentSubmitting] = useState(false)
+  const releasedReservationRef = useRef(null)
+  const reservationCreatingRef = useRef(null)
 
   const subtotal = items.reduce((s, i) => s + i.unit_price * i.quantity, 0)
   const numTickets = items.reduce((s, i) => s + i.quantity, 0)
@@ -264,6 +279,66 @@ export default function Cart({
     totalAmount: grand,
   }), [appliedCoupon?.code, contact.email, contact.first, contact.last, contact.phone, contact.request, discount, grand, orderItems, procFee, tax])
 
+  const releaseReservation = useCallback((reservationId = reservation?.id, options = {}) => {
+    if (!reservationId || releasedReservationRef.current === reservationId) return
+    releasedReservationRef.current = reservationId
+    const url = `${BACKEND}/api/v1/reservations/${reservationId}/expire`
+    if (options.beacon && navigator.sendBeacon) {
+      navigator.sendBeacon(url, new Blob([], { type: 'application/json' }))
+    } else {
+      fetch(url, { method: 'POST' }).catch(() => {})
+    }
+    if (reservation?.id === reservationId) {
+      setReservation(null)
+      setTimeLeft(0)
+      setStripeClientSecret('')
+      setStripeOrder(null)
+      setQrImage('')
+      setQrOrder(null)
+      setPaymentSubmitting(false)
+    }
+  }, [reservation?.id])
+
+  const createCheckoutReservation = useCallback(async () => {
+    if (reservation?.id && timeLeft > 0) return reservation
+    if (reservationCreatingRef.current) return reservationCreatingRef.current
+    setReservationLoading(true)
+    setPaymentError('')
+    const request = (async () => {
+      const res = await fetch(`${BACKEND}/api/v1/reservations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: Math.round(grand * 100),
+          order: checkoutOrder,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.detail || 'Unable to reserve these seats.')
+      releasedReservationRef.current = null
+      setReservation(data)
+      setTimeLeft(data.expiresInSeconds || 300)
+      return data
+    })()
+    reservationCreatingRef.current = request
+    try {
+      return await request
+    } finally {
+      reservationCreatingRef.current = null
+      setReservationLoading(false)
+    }
+  }, [checkoutOrder, grand, reservation, timeLeft])
+
+  const leavePaymentStep = useCallback((nextStep) => {
+    releaseReservation()
+    setStep(nextStep)
+  }, [releaseReservation])
+
+  const closeCart = useCallback(() => {
+    releaseReservation()
+    onClose?.()
+  }, [onClose, releaseReservation])
+
   useEffect(() => {
     if (!currentUser) return
     setContact((previous) => {
@@ -279,7 +354,7 @@ export default function Cart({
   }, [currentUser, getDisplayName])
 
   useEffect(() => {
-    if (step !== 'payment' || paymentMethod !== 'card' || !contactReady || !liveSlotReady) return
+    if (step !== 'payment' || paymentMethod !== 'card' || !contactReady || !liveSlotReady || !reservation?.id) return
     const controller = new AbortController()
     setStripeLoading(true)
     setStripeClientSecret('')
@@ -292,8 +367,8 @@ export default function Cart({
       body: JSON.stringify({
         amount: Math.round(grand * 100),
         order_id: `WEAREVR-${Date.now()}`,
+        reservationId: reservation.id,
         description: `${numTickets} ticket${numTickets !== 1 ? 's' : ''} · WE ARE VR`,
-        order: checkoutOrder,
       }),
     })
       .then(async (res) => {
@@ -314,7 +389,31 @@ export default function Cart({
         if (!controller.signal.aborted) setStripeLoading(false)
       })
     return () => controller.abort()
-  }, [checkoutOrder, contactReady, grand, liveSlotReady, numTickets, paymentMethod, step])
+  }, [contactReady, grand, liveSlotReady, numTickets, paymentMethod, reservation?.id, step])
+
+  useEffect(() => {
+    if (step !== 'payment' || !reservation?.id) return undefined
+    const tick = () => {
+      const expiresAt = reservation.expiresAt ? new Date(reservation.expiresAt).getTime() : Date.now() + 300000
+      setTimeLeft(Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000)))
+    }
+    tick()
+    const interval = setInterval(tick, 1000)
+    return () => clearInterval(interval)
+  }, [reservation?.id, reservation?.expiresAt, step])
+
+  useEffect(() => {
+    if (step !== 'payment' || !reservation?.id || timeLeft !== 0 || confirmed || paymentSubmitting) return
+    releaseReservation(reservation.id)
+    setPaymentError('Your reservation expired. Please return to the cart and try again.')
+  }, [confirmed, paymentSubmitting, releaseReservation, reservation?.id, step, timeLeft])
+
+  useEffect(() => {
+    if (step !== 'payment' || !reservation?.id) return undefined
+    const releaseOnLeave = () => releaseReservation(reservation.id, { beacon: true })
+    window.addEventListener('beforeunload', releaseOnLeave)
+    return () => window.removeEventListener('beforeunload', releaseOnLeave)
+  }, [releaseReservation, reservation?.id, step])
 
   function finishPayment(order, providerReference, method) {
     const snapshot = {
@@ -332,6 +431,10 @@ export default function Cart({
       couponCode: appliedCoupon?.code || '',
     }
     setConfirmed(snapshot)
+    setReservation(null)
+    setTimeLeft(0)
+    setPaymentSubmitting(false)
+    releasedReservationRef.current = null
     setStep('confirm')
     onPaymentSuccess?.(snapshot)
   }
@@ -365,7 +468,7 @@ export default function Cart({
   }
 
   async function startQrPayment(method) {
-    if (!contactReady || !liveSlotReady) return
+    if (!contactReady || !liveSlotReady || !reservation?.id || timeLeft <= 0) return
     setPaymentMethod(method)
     setQrLoading(true)
     setPaymentError('')
@@ -381,7 +484,7 @@ export default function Cart({
           amount: Math.round(grand * 100),
           description: `${numTickets} ticket${numTickets !== 1 ? 's' : ''} · WE ARE VR`,
           payment_request_id: paymentRequestId,
-          order: checkoutOrder,
+          reservationId: reservation.id,
         }),
       })
       const data = await res.json().catch(() => ({}))
@@ -435,9 +538,15 @@ export default function Cart({
     setPaymentError('')
   }
 
-  function continueToPayment() {
+  async function continueToPayment() {
     setTouched({ first: true, last: true, email: true, phone: true })
-    if (contactReady) setStep('payment')
+    if (!contactReady) return
+    try {
+      await createCheckoutReservation()
+      setStep('payment')
+    } catch (err) {
+      setPaymentError(err.message || 'Unable to reserve these seats.')
+    }
   }
 
   function downloadReceipt() {
@@ -534,11 +643,11 @@ export default function Cart({
   }
 
   return (
-    <div className="crt-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-label="Shopping cart">
+    <div className="crt-overlay" onClick={closeCart} role="dialog" aria-modal="true" aria-label="Shopping cart">
       <div className="crt-panel" onClick={(e) => e.stopPropagation()}>
         <div className="crt-shell-top">
           <div className="crt-title-row"><CartIcon /><h2>{step === 'confirm' ? 'Your Cart' : 'Your Cart'}</h2><span>{numTickets || confirmed?.items?.reduce((s, item) => s + item.quantity, 0)} items</span></div>
-          <button className="crt-close" onClick={onClose} aria-label="Close cart" type="button">×</button>
+          <button className="crt-close" onClick={closeCart} aria-label="Close cart" type="button">×</button>
         </div>
 
         <Stepper step={step} />
@@ -615,14 +724,17 @@ export default function Cart({
                     <label className={touched.phone && !validPhone(contact.phone) ? 'crt-field-error' : ''}>Phone<input type="tel" value={contact.phone} onBlur={() => setTouched((p) => ({ ...p, phone: true }))} onChange={(e) => setContact((p) => ({ ...p, phone: e.target.value }))} /></label>
                     <label className="crt-field-wide"><span>Special requests (optional)</span><textarea value={contact.request} onChange={(e) => setContact((p) => ({ ...p, request: e.target.value }))} placeholder="Tell us anything we should know..." /></label>
                   </div>
-                  <div className="crt-contact-actions"><button className="crt-text-btn" onClick={() => setStep('review')} type="button">← Back to cart</button><button className="crt-primary" onClick={continueToPayment} disabled={!contactReady} type="button">Continue to Payment →</button></div>
+                  <div className="crt-contact-actions"><button className="crt-text-btn" onClick={() => setStep('review')} type="button">← Back to cart</button><button className="crt-primary" onClick={continueToPayment} disabled={!contactReady || reservationLoading} type="button">{reservationLoading ? 'Reserving seats...' : 'Continue to Payment →'}</button></div>
                 </div>
               </main>
             )}
 
             {step === 'payment' && (
               <main className="crt-main">
-                <div className="crt-contact-card"><h3>Contact details</h3><button onClick={() => setStep('contact')} type="button">Edit</button><strong>{[contact.first, contact.last].filter(Boolean).join(' ')}</strong><span>{contact.email} · {contact.phone}</span></div>
+                <div className="crt-info-strip">
+                  Complete payment within <strong>{formatCountdown(timeLeft)}</strong> to keep these seats reserved.
+                </div>
+                <div className="crt-contact-card"><h3>Contact details</h3><button onClick={() => leavePaymentStep('contact')} type="button">Edit</button><strong>{[contact.first, contact.last].filter(Boolean).join(' ')}</strong><span>{contact.email} · {contact.phone}</span></div>
                 <div className="crt-form-panel">
                   <h3>Payment method</h3>
                   <div className="crt-pay-tabs">
@@ -632,8 +744,9 @@ export default function Cart({
                   </div>
                   {paymentError && <div className="crt-warning">{paymentError}</div>}
                   {paymentMethod === 'card' && (
+                    reservationLoading ? <div className="crt-loading">Reserving your seats...</div> :
                     stripeLoading ? <div className="crt-loading">Initializing secure card payment...</div> :
-                      <InlineStripePayment clientSecret={stripeClientSecret} amount={grand} email={contact.email} onPaid={(pi) => finishPayment(stripeOrder, pi.id, 'card')} />
+                      <InlineStripePayment clientSecret={stripeClientSecret} amount={grand} email={contact.email} onPaid={(pi) => finishPayment(stripeOrder, pi.id, 'card')} onBusyChange={setPaymentSubmitting} />
                   )}
                   {(paymentMethod === 'wechat' || paymentMethod === 'alipay') && (
                     <div className="crt-qr-pay">
