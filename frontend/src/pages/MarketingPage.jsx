@@ -96,15 +96,29 @@ function MarketingPage({
 }) {
   const experiencesRef = useRef(null)
   const [heroIndex, setHeroIndex] = useState(0)
+  const [heroTimerResetKey, setHeroTimerResetKey] = useState(0)
   const heroCount = localizedExperiences?.length || 6
   const activeHero = (localizedExperiences || [])[heroIndex] || (localizedExperiences || [])[0] || {}
+  const resetHeroTimer = () => setHeroTimerResetKey((key) => key + 1)
+  const goToHero = (index) => {
+    setHeroIndex(index)
+    resetHeroTimer()
+  }
+  const goToPreviousHero = () => {
+    setHeroIndex((index) => (index - 1 + heroCount) % heroCount)
+    resetHeroTimer()
+  }
+  const goToNextHero = () => {
+    setHeroIndex((index) => (index + 1) % heroCount)
+    resetHeroTimer()
+  }
 
   useEffect(() => {
     const timer = window.setInterval(() => {
       setHeroIndex((index) => (index + 1) % heroCount)
     }, 3200)
     return () => window.clearInterval(timer)
-  }, [heroCount])
+  }, [heroCount, heroTimerResetKey])
 
   return (
     <div className="mkt-page">
@@ -144,6 +158,22 @@ function MarketingPage({
           )
         })}
         <div className="mkt-hero-gradient" />
+        <button
+          className="mkt-hero-nav mkt-hero-nav-prev"
+          onClick={goToPreviousHero}
+          type="button"
+          aria-label="Previous featured experience"
+        >
+          ‹
+        </button>
+        <button
+          className="mkt-hero-nav mkt-hero-nav-next"
+          onClick={goToNextHero}
+          type="button"
+          aria-label="Next featured experience"
+        >
+          ›
+        </button>
         <div className="mkt-hero-inner">
           <span className="mkt-hero-eyebrow">We Are VR</span>
           <h1 className="mkt-hero-h1">{activeHero.title}</h1>
@@ -174,7 +204,7 @@ function MarketingPage({
               <button
                 key={exp.id}
                 className={`mkt-hero-dot ${index === heroIndex ? 'active' : ''}`}
-                onClick={() => setHeroIndex(index)}
+                onClick={() => goToHero(index)}
                 type="button"
                 aria-label={`Show ${exp.title}`}
               />

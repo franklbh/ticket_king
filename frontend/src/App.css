@@ -6689,6 +6689,46 @@ body {
   background: #fff;
 }
 
+.mkt-hero-nav {
+  position: absolute;
+  top: 50%;
+  z-index: 3;
+  width: 54px;
+  height: 54px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.24);
+  background: rgba(3,10,18,0.42);
+  color: #fff;
+  font-size: 44px;
+  line-height: 0;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transform: translateY(-50%);
+  box-shadow: 0 18px 42px rgba(0,0,0,0.28);
+  backdrop-filter: blur(12px);
+  transition: background 180ms ease, border-color 180ms ease, transform 180ms ease;
+}
+
+.mkt-hero-nav:hover {
+  background: rgba(255,255,255,0.18);
+  border-color: rgba(255,255,255,0.46);
+  transform: translateY(-50%) scale(1.04);
+}
+
+.mkt-hero-nav:focus-visible {
+  outline: 3px solid rgba(255,255,255,0.78);
+  outline-offset: 4px;
+}
+
+.mkt-hero-nav-prev {
+  left: clamp(18px, 3vw, 48px);
+}
+
+.mkt-hero-nav-next {
+  right: clamp(18px, 3vw, 48px);
+}
+
 .mkt-hero-meta {
   bottom: 30px;
   color: rgba(235,244,255,0.88);
@@ -7142,6 +7182,27 @@ body {
   .mkt-hero {
     min-height: 700px;
     padding: 92px 16px 46px;
+  }
+
+  .mkt-hero-nav {
+    width: 42px;
+    height: 42px;
+    font-size: 34px;
+    top: auto;
+    bottom: 142px;
+    transform: none;
+  }
+
+  .mkt-hero-nav:hover {
+    transform: scale(1.04);
+  }
+
+  .mkt-hero-nav-prev {
+    left: 16px;
+  }
+
+  .mkt-hero-nav-next {
+    right: 16px;
   }
 
   .mkt-hero-h1 {
