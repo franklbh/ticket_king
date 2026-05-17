@@ -22,6 +22,7 @@ import {
 } from '../components/DashboardWidgets'
 import LoadingIndicator from '../components/LoadingIndicator'
 import { AdminAlert, AdminCard, PageHeader } from '../components/AdminUI'
+import { can } from '../auth/permissions'
 
 const RANGE_TO_API = { last7Days: '7d', last14Days: '14d', last30Days: '30d', last90Days: '90d', allTime: 'all' }
 
@@ -210,10 +211,10 @@ export default function Dashboard() {
           {t.quickActions}
         </div>
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-          <QuickActionCard icon="fa-shopping-cart" label={t.ordersManagement} onClick={() => navigate('/orders')} />
-          <QuickActionCard icon="fa-ticket" label={t.ticketsManagement} onClick={() => navigate('/tickets')} />
-          <QuickActionCard icon="fa-calendar" label={t.slotsManagement} onClick={() => navigate('/slots')} />
-          <QuickActionCard icon="fa-qrcode" label={t.scanVerify} onClick={() => window.open('/scanner', '_blank')} />
+          {can(admin, 'orders:read') && <QuickActionCard icon="fa-shopping-cart" label={t.ordersManagement} onClick={() => navigate('/orders')} />}
+          {can(admin, 'tickets:read') && <QuickActionCard icon="fa-ticket" label={t.ticketsManagement} onClick={() => navigate('/tickets')} />}
+          {can(admin, 'catalog:read') && <QuickActionCard icon="fa-calendar" label={t.slotsManagement} onClick={() => navigate('/slots')} />}
+          {can(admin, 'scanner:use') && <QuickActionCard icon="fa-qrcode" label={t.scanVerify} onClick={() => window.open('/scanner', '_blank')} />}
         </Stack>
       </AdminCard>
     </div>

@@ -3,7 +3,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 
-UserRole = Literal["owner", "administrator", "customer"]
+UserRole = Literal["owner", "admin", "customer"]
 
 
 class CustomerInput(BaseModel):
@@ -63,7 +63,7 @@ class AdminAccountCreate(BaseModel):
     department: str | None = None
     position: str | None = None
     staff_role: str | None = Field(default=None, alias="staffRole")
-    role: Literal["administrator"] = "administrator"
+    role: Literal["admin"] = "admin"
 
     model_config = {"populate_by_name": True}
 

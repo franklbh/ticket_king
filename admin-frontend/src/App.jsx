@@ -13,18 +13,36 @@ import CreateOrder from './pages/CreateOrder'
 import Scanner from './pages/Scanner'
 import Admins from './pages/Admins'
 import Logs from './pages/Logs'
+import { can, firstAllowedPath } from './auth/permissions'
 
-function ProtectedRoute({ children }) {
+function AccessDenied() {
+  return (
+    <div className="flex min-h-[50vh] flex-col items-center justify-center text-center">
+      <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-red-600">
+        <i className="fa fa-lock" />
+      </div>
+      <h1 className="text-xl font-bold text-slate-950">Access denied</h1>
+      <p className="mt-2 max-w-md text-sm text-slate-500">
+        Your authenticated admin role does not have permission to open this page.
+      </p>
+    </div>
+  )
+}
+
+function ProtectedRoute({ permission, children }) {
   const { admin } = useAuth()
-  return admin ? children : <Navigate to="/login" replace />
+  if (!admin) return <Navigate to="/login" replace />
+  if (permission && !can(admin, permission)) return <AccessDenied />
+  return children
 }
 
 function AppRoutes() {
   const { admin } = useAuth()
+  const defaultPath = admin ? firstAllowedPath(admin) : '/dashboard'
   return (
     <Routes>
-      <Route path="/login" element={admin ? <Navigate to="/dashboard" replace /> : <Login />} />
-      <Route path="/scanner" element={<Scanner />} />
+      <Route path="/login" element={admin ? <Navigate to={defaultPath} replace /> : <Login />} />
+      <Route path="/scanner" element={<ProtectedRoute permission="scanner:use"><Scanner /></ProtectedRoute>} />
       <Route
         path="/"
         element={
@@ -33,19 +51,19 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<Navigate to="/dashboard" replace />} />
-        <Route path="dashboard" element={<Dashboard />} />
-        <Route path="orders" element={<Orders />} />
-        <Route path="tickets" element={<Tickets />} />
-        <Route path="coupons" element={<Coupons />} />
-        <Route path="marketing" element={<Marketing />} />
-        <Route path="slots" element={<Slots />} />
-        <Route path="ticket-types" element={<TicketTypes />} />
-        <Route path="create-order" element={<CreateOrder />} />
-        <Route path="admins" element={<Admins />} />
-        <Route path="logs" element={<Logs />} />
+        <Route index element={<Navigate to={defaultPath} replace />} />
+        <Route path="dashboard" element={<ProtectedRoute permission="dashboard:read"><Dashboard /></ProtectedRoute>} />
+        <Route path="orders" element={<ProtectedRoute permission="orders:read"><Orders /></ProtectedRoute>} />
+        <Route path="tickets" element={<ProtectedRoute permission="tickets:read"><Tickets /></ProtectedRoute>} />
+        <Route path="coupons" element={<ProtectedRoute permission="coupons:read"><Coupons /></ProtectedRoute>} />
+        <Route path="marketing" element={<ProtectedRoute permission="marketing:read"><Marketing /></ProtectedRoute>} />
+        <Route path="slots" element={<ProtectedRoute permission="catalog:read"><Slots /></ProtectedRoute>} />
+        <Route path="ticket-types" element={<ProtectedRoute permission="catalog:read"><TicketTypes /></ProtectedRoute>} />
+        <Route path="create-order" element={<ProtectedRoute permission="orders:write"><CreateOrder /></ProtectedRoute>} />
+        <Route path="admins" element={<ProtectedRoute permission="users:read"><Admins /></ProtectedRoute>} />
+        <Route path="logs" element={<ProtectedRoute permission="logs:read"><Logs /></ProtectedRoute>} />
       </Route>
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      <Route path="*" element={<Navigate to={defaultPath} replace />} />
     </Routes>
   )
 }

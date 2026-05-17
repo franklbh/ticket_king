@@ -8,10 +8,11 @@ import { useNavigate } from 'react-router-dom'
 import { updateMarketingSettings } from '../api/adminApi'
 import { AdminCard, AdminPagination, EmptyTableRow, PageHeader, TableShell } from '../components/AdminUI'
 import LoadingIndicator from '../components/LoadingIndicator'
-import { useLang } from '../context/AuthContext'
+import { useAuth, useLang } from '../context/AuthContext'
 import { useT } from '../i18n/translations'
 import { adminQueryKeys, useMarketingRecordsQuery, useMarketingSettingsQuery } from '../hooks/queries'
 import { useAdminMutation } from '../hooks/useAdminApi'
+import { can } from '../auth/permissions'
 
 const PAGE_SIZE = 10
 const DEFAULT_MARKETING_SETTINGS = {
@@ -26,9 +27,9 @@ const DEFAULT_MARKETING_SETTINGS = {
   referralReward: 5,
 }
 
-function Toggle({ checked, onChange }) {
+function Toggle({ checked, disabled, onChange }) {
   return (
-    <Switch checked={checked} onChange={onChange} color="success" size="small" />
+    <Switch checked={checked} disabled={disabled} onChange={onChange} color="success" size="small" />
   )
 }
 
@@ -43,10 +44,12 @@ function StatBox({ value, label, color }) {
 
 export default function Marketing() {
   const { lang } = useLang()
+  const { admin } = useAuth()
   const t = useT(lang)
   const navigate = useNavigate()
   const [page, setPage] = useState(1)
   const [saved, setSaved] = useState(false)
+  const canWriteMarketing = can(admin, 'marketing:write')
 
   const { data: loadedSettings, loading: loadingSettings } = useMarketingSettingsQuery({
     initialData: DEFAULT_MARKETING_SETTINGS,
@@ -79,6 +82,7 @@ export default function Marketing() {
   }
 
   async function handleSaveSettings() {
+    if (!canWriteMarketing) return
     await saveSettings.mutate(settings)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
@@ -132,7 +136,7 @@ export default function Marketing() {
             <div style={{ marginBottom: 20 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
                 <span style={{ fontWeight: 600, fontSize: 14 }}>{t.enableMarketing}</span>
-                <Toggle checked={settings.enabled} onChange={() => setSettings(s => ({ ...s, enabled: !s.enabled }))} />
+                <Toggle disabled={!canWriteMarketing} checked={settings.enabled} onChange={() => setSettings(s => ({ ...s, enabled: !s.enabled }))} />
                 <span style={{ fontSize: 14, color: settings.enabled ? '#10b981' : '#6b7280', fontWeight: 500 }}>
                   {settings.enabled ? 'Enabled' : 'Disabled'}
                 </span>
@@ -147,6 +151,7 @@ export default function Marketing() {
                   className="form-input"
                   type="number"
                   value={settings.sendDelay}
+                  disabled={!canWriteMarketing}
                   onChange={e => setSettings(s => ({ ...s, sendDelay: Number(e.target.value) }))}
                 />
                 <p style={{ margin: '4px 0 0', fontSize: 12, color: '#9ca3af' }}>Time to wait after check-in before sending. Recommended: exhibition duration + 20 minutes</p>
@@ -157,6 +162,7 @@ export default function Marketing() {
                   className="form-input"
                   type="number"
                   value={settings.couponValidity}
+                  disabled={!canWriteMarketing}
                   onChange={e => setSettings(s => ({ ...s, couponValidity: Number(e.target.value) }))}
                 />
                 <p style={{ margin: '4px 0 0', fontSize: 12, color: '#9ca3af' }}>How long the coupon will be valid from creation date</p>
@@ -174,6 +180,7 @@ export default function Marketing() {
                   exclusive
                   size="small"
                   value={settings.discountType}
+                  disabled={!canWriteMarketing}
                   onChange={(_, value) => value && setSettings(s => ({ ...s, discountType: value }))}
                 >
                   <ToggleButton value="percent">%</ToggleButton>
@@ -184,6 +191,7 @@ export default function Marketing() {
                   type="number"
                   min="0"
                   value={settings.discountValue}
+                  disabled={!canWriteMarketing}
                   onChange={e => setSettings(s => ({ ...s, discountValue: Number(e.target.value) }))}
                   style={{ width: 80 }}
                 />
@@ -200,6 +208,7 @@ export default function Marketing() {
                   type="number"
                   min="0"
                   value={settings.minPurchase}
+                  disabled={!canWriteMarketing}
                   onChange={e => setSettings(s => ({ ...s, minPurchase: Number(e.target.value) }))}
                 />
                 <p style={{ margin: '4px 0 0', fontSize: 12, color: '#9ca3af' }}>Set to 0 for no minimum</p>
@@ -211,6 +220,7 @@ export default function Marketing() {
                   type="number"
                   min="1"
                   value={settings.maxUses}
+                  disabled={!canWriteMarketing}
                   onChange={e => setSettings(s => ({ ...s, maxUses: Number(e.target.value) }))}
                 />
                 <p style={{ margin: '4px 0 0', fontSize: 12, color: '#9ca3af' }}>How many times the coupon can be used</p>
@@ -229,7 +239,7 @@ export default function Marketing() {
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
                 <span style={{ fontWeight: 600, fontSize: 14 }}>{t.enableReferral}</span>
-                <Toggle checked={settings.referralEnabled} onChange={() => setSettings(s => ({ ...s, referralEnabled: !s.referralEnabled }))} />
+                <Toggle disabled={!canWriteMarketing} checked={settings.referralEnabled} onChange={() => setSettings(s => ({ ...s, referralEnabled: !s.referralEnabled }))} />
                 <span style={{ fontSize: 14, color: settings.referralEnabled ? '#10b981' : '#6b7280', fontWeight: 500 }}>
                   {settings.referralEnabled ? 'Enabled' : 'Disabled'}
                 </span>
@@ -243,6 +253,7 @@ export default function Marketing() {
                 type="number"
                 min="0"
                 value={settings.referralReward}
+                disabled={!canWriteMarketing}
                 onChange={e => setSettings(s => ({ ...s, referralReward: Number(e.target.value) }))}
               />
               <p style={{ margin: '4px 0 0', fontSize: 12, color: '#9ca3af' }}>Reward percentage when a friend uses the referral code</p>
@@ -251,7 +262,7 @@ export default function Marketing() {
         </div>
 
         <div style={{ marginTop: 20 }}>
-          <Button variant="contained" onClick={handleSaveSettings} startIcon={<i className={`fa fa-${saved ? 'check' : 'save'}`} />}>
+          <Button variant="contained" disabled={!canWriteMarketing} onClick={handleSaveSettings} startIcon={<i className={`fa fa-${saved ? 'check' : 'save'}`} />}>
             {saved ? 'Saved!' : t.saveSettings}
           </Button>
         </div>

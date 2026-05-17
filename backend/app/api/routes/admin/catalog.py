@@ -5,20 +5,22 @@ from fastapi import APIRouter, Depends, Query
 from app.schemas.admin import EventUpsert, SlotUpsert, TicketTypeUpsert
 from app.schemas.admin.responses import EventRead, SlotRead, TicketTypeRead
 from app.services.admin.catalog_service import catalog_service
-from app.services.admin.security import require_admin
+from app.services.admin.security import require_permission
 
-router = APIRouter(tags=["catalog"], dependencies=[Depends(require_admin)])
+router = APIRouter(tags=["catalog"])
 
 
 @router.get("/events", response_model=list[EventRead])
-async def list_events() -> list[EventRead]:
+async def list_events(
+    _: dict = Depends(require_permission("catalog:read")),
+) -> list[EventRead]:
     return await catalog_service.list_events()
 
 
 @router.post("/events", status_code=201, response_model=EventRead)
 async def create_event(
     payload: EventUpsert,
-    actor: dict = Depends(require_admin),
+    actor: dict = Depends(require_permission("catalog:write")),
 ) -> EventRead:
     return await catalog_service.create_event(payload, actor)
 
@@ -27,7 +29,7 @@ async def create_event(
 async def update_event(
     event_id: int,
     payload: EventUpsert,
-    actor: dict = Depends(require_admin),
+    actor: dict = Depends(require_permission("catalog:write")),
 ) -> EventRead:
     return await catalog_service.update_event(event_id, payload, actor)
 
@@ -36,6 +38,7 @@ async def update_event(
 async def list_slots(
     date_from: str | None = Query(None, alias="dateFrom"),
     date_to: str | None = Query(None, alias="dateTo"),
+    _: dict = Depends(require_permission("catalog:read")),
 ) -> list[SlotRead]:
     if date_from is None:
         date_from = date.today().isoformat()
@@ -47,7 +50,7 @@ async def list_slots(
 @router.post("/slots", status_code=201, response_model=SlotRead)
 async def create_slot(
     payload: SlotUpsert,
-    actor: dict = Depends(require_admin),
+    actor: dict = Depends(require_permission("catalog:write")),
 ) -> SlotRead:
     return await catalog_service.create_slot(payload, actor)
 
@@ -56,20 +59,23 @@ async def create_slot(
 async def update_slot(
     slot_id: str,
     payload: SlotUpsert,
-    actor: dict = Depends(require_admin),
+    actor: dict = Depends(require_permission("catalog:write")),
 ) -> SlotRead:
     return await catalog_service.update_slot(slot_id, payload, actor)
 
 
 @router.get("/ticket-types", response_model=list[TicketTypeRead])
-async def list_ticket_types(enabled_only: bool = Query(False, alias="enabledOnly")) -> list[TicketTypeRead]:
+async def list_ticket_types(
+    enabled_only: bool = Query(False, alias="enabledOnly"),
+    _: dict = Depends(require_permission("catalog:read")),
+) -> list[TicketTypeRead]:
     return await catalog_service.list_ticket_types(enabled_only)
 
 
 @router.post("/ticket-types", status_code=201, response_model=TicketTypeRead)
 async def create_ticket_type(
     payload: TicketTypeUpsert,
-    actor: dict = Depends(require_admin),
+    actor: dict = Depends(require_permission("catalog:write")),
 ) -> TicketTypeRead:
     return await catalog_service.create_ticket_type(payload, actor)
 
@@ -78,6 +84,6 @@ async def create_ticket_type(
 async def update_ticket_type(
     type_id: int,
     payload: TicketTypeUpsert,
-    actor: dict = Depends(require_admin),
+    actor: dict = Depends(require_permission("catalog:write")),
 ) -> TicketTypeRead:
     return await catalog_service.update_ticket_type(type_id, payload, actor)

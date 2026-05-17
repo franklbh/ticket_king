@@ -2,18 +2,19 @@ import { useState, useRef, useEffect } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth, useLang } from '../context/AuthContext'
 import { useT } from '../i18n/translations'
+import { can } from '../auth/permissions'
 
 const navItems = [
-  { path: '/dashboard', icon: 'fa-chart-line', key: 'dashboard' },
-  { path: '/orders', icon: 'fa-shopping-cart', key: 'orders' },
-  { path: '/tickets', icon: 'fa-ticket', key: 'tickets' },
-  { path: '/coupons', icon: 'fa-tag', key: 'coupons' },
-  { path: '/marketing', icon: 'fa-bullhorn', key: 'marketing' },
-  { path: '/slots', icon: 'fa-calendar', key: 'slots' },
-  { path: '/ticket-types', icon: 'fa-tags', key: 'ticketTypes' },
-  { path: '/create-order', icon: 'fa-cash-register', key: 'createOrder' },
-  { path: '/admins', icon: 'fa-users', key: 'admins' },
-  { path: '/logs', icon: 'fa-history', key: 'logs' },
+  { path: '/dashboard', icon: 'fa-chart-line', key: 'dashboard', permission: 'dashboard:read' },
+  { path: '/orders', icon: 'fa-shopping-cart', key: 'orders', permission: 'orders:read' },
+  { path: '/tickets', icon: 'fa-ticket', key: 'tickets', permission: 'tickets:read' },
+  { path: '/coupons', icon: 'fa-tag', key: 'coupons', permission: 'coupons:read' },
+  { path: '/marketing', icon: 'fa-bullhorn', key: 'marketing', permission: 'marketing:read' },
+  { path: '/slots', icon: 'fa-calendar', key: 'slots', permission: 'catalog:read' },
+  { path: '/ticket-types', icon: 'fa-tags', key: 'ticketTypes', permission: 'catalog:read' },
+  { path: '/create-order', icon: 'fa-cash-register', key: 'createOrder', permission: 'orders:write' },
+  { path: '/admins', icon: 'fa-users', key: 'admins', permission: 'users:read' },
+  { path: '/logs', icon: 'fa-history', key: 'logs', permission: 'logs:read' },
 ]
 
 
@@ -107,7 +108,7 @@ export default function Layout() {
         </div>
 
         <nav className="flex-1 py-2">
-          {navItems.map(item => (
+          {navItems.filter(item => can(admin, item.permission)).map(item => (
             <NavLink
               key={item.path}
               to={item.path}
@@ -117,16 +118,18 @@ export default function Layout() {
               <span>{t[item.key]}</span>
             </NavLink>
           ))}
-          <a
-            href="/scanner"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="sidebar-nav-item"
-          >
-            <i className="fa fa-qrcode w-[18px] text-center" />
-            <span className="flex-1">{t.scanner}</span>
-            <i className="fa fa-external-link-alt text-[11px] opacity-70" />
-          </a>
+          {can(admin, 'scanner:use') && (
+            <a
+              href="/scanner"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="sidebar-nav-item"
+            >
+              <i className="fa fa-qrcode w-[18px] text-center" />
+              <span className="flex-1">{t.scanner}</span>
+              <i className="fa fa-external-link-alt text-[11px] opacity-70" />
+            </a>
+          )}
         </nav>
 
         <div className="border-t border-white/10 px-4 py-3 text-xs text-white/75">

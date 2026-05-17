@@ -9,11 +9,11 @@ import LoadingIndicator from '../components/LoadingIndicator'
 import { AdminAlert, EmptyTableRow, FilterCard, PageHeader, TableShell } from '../components/AdminUI'
 import { ResetFiltersButton, SelectFilter } from '../components/FilterControls'
 
-const ROLE_FILTERS = ['owner', 'administrator']
-const ROLE_COLORS = { owner: 'badge-red', administrator: 'badge-blue' }
+const ROLE_FILTERS = ['owner', 'admin']
+const ROLE_COLORS = { owner: 'badge-red', admin: 'badge-blue' }
 
 function accountRole(admin) {
-  return admin?.role === 'admin' ? 'administrator' : admin?.role || 'administrator'
+  return admin?.role === 'administrator' ? 'admin' : admin?.role || 'admin'
 }
 
 function AdminModal({ admin, onClose, onSave, t }) {

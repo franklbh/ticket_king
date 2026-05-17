@@ -9,7 +9,7 @@ import httpx
 from app.core.config import settings
 from app.services.admin.repository import admin_repository
 from app.schemas.admin import AdminAccountCreate, OwnerBootstrapCreate, StaffProfileUpdate, UserRoleUpdate
-from app.services.admin.security import ADMINISTRATOR, ALL_ROLES, OWNER, normalize_role, now_utc, public_user
+from app.services.admin.security import ADMIN, ALL_ROLES, OWNER, normalize_role, now_utc, public_user
 
 
 class UserService:
@@ -29,7 +29,7 @@ class UserService:
         values = {
             "name": payload.name,
             "email": payload.email,
-            "role": ADMINISTRATOR,
+            "role": ADMIN,
             "staff_role": payload.staff_role,
             "department": payload.department,
             "position": payload.position,
@@ -50,7 +50,7 @@ class UserService:
             user_id=auth_user["id"],
             name=payload.name,
             email=payload.email,
-            role=ADMINISTRATOR,
+            role=ADMIN,
             staff_role=payload.staff_role,
             department=payload.department,
             position=payload.position,
@@ -193,7 +193,7 @@ class UserService:
                 "email": email,
                 "password": password,
                 "email_confirm": True,
-                "app_metadata": {"role": ADMINISTRATOR},
+                "app_metadata": {"role": ADMIN},
                 "user_metadata": {"name": name},
             },
         )
@@ -206,7 +206,7 @@ class UserService:
             payload={
                 "email": email,
                 "password": password,
-                "data": {"name": name, "role": ADMINISTRATOR},
+                "data": {"name": name, "role": ADMIN},
             },
         )
         return self._auth_user_from_response(response, email)

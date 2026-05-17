@@ -35,6 +35,20 @@ export async function loginAdminWithPassword(email, password) {
     throw new Error('Supabase did not return an access token.')
   }
 
+  const admin = await fetchCurrentAdmin(accessToken)
+
+  return {
+    admin: {
+      ...admin,
+      username: admin.username || admin.name || admin.email,
+    },
+    accessToken,
+    refreshToken: authData.refresh_token,
+    expiresAt: authData.expires_at,
+  }
+}
+
+export async function fetchCurrentAdmin(accessToken) {
   const adminResponse = await fetch(`${adminApiBase}/users/me`, {
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -45,15 +59,9 @@ export async function loginAdminWithPassword(email, password) {
   if (!adminResponse.ok) {
     throw new Error(admin?.detail || 'This account does not have admin access.')
   }
-
   return {
-    admin: {
-      ...admin,
-      username: admin.username || admin.name || admin.email,
-    },
-    accessToken,
-    refreshToken: authData.refresh_token,
-    expiresAt: authData.expires_at,
+    ...admin,
+    username: admin.username || admin.name || admin.email,
   }
 }
 

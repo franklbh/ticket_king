@@ -5,9 +5,9 @@ from app.api.deps import client_ip
 from app.schemas.admin import OrderCustomerUpdate, OrderSlotUpdate, OrderStatusUpdate, WalkInOrderCreate
 from app.schemas.admin.responses import OrderPage, OrderRead, WalkInOrderResponse
 from app.services.admin.order_service import order_service
-from app.services.admin.security import require_admin
+from app.services.admin.security import require_permission
 
-router = APIRouter(prefix="/orders", tags=["orders"], dependencies=[Depends(require_admin)])
+router = APIRouter(prefix="/orders", tags=["orders"])
 
 
 def _order_filters(
@@ -39,7 +39,10 @@ def _order_filters(
 
 
 @router.get("", response_model=OrderPage)
-async def list_orders(filters: dict = Depends(_order_filters)) -> OrderPage:
+async def list_orders(
+    filters: dict = Depends(_order_filters),
+    _: dict = Depends(require_permission("orders:read")),
+) -> OrderPage:
     return await order_service.list_orders(filters)
 
 
@@ -47,7 +50,7 @@ async def list_orders(filters: dict = Depends(_order_filters)) -> OrderPage:
 async def export_orders(
     request: Request,
     filters: dict = Depends(_order_filters),
-    actor: dict = Depends(require_admin),
+    actor: dict = Depends(require_permission("orders:export")),
 ) -> Response:
     csv_body = await order_service.export_orders_csv(filters, actor, client_ip(request))
     return Response(
@@ -61,13 +64,16 @@ async def export_orders(
 async def create_walk_in_order(
     payload: WalkInOrderCreate,
     request: Request,
-    actor: dict = Depends(require_admin),
+    actor: dict = Depends(require_permission("orders:write")),
 ) -> WalkInOrderResponse:
     return await order_service.create_walk_in_order(payload, actor, client_ip(request))
 
 
 @router.get("/{order_id}", response_model=OrderRead)
-async def get_order(order_id: str) -> OrderRead:
+async def get_order(
+    order_id: str,
+    _: dict = Depends(require_permission("orders:read")),
+) -> OrderRead:
     return await order_service.get_order(order_id)
 
 
@@ -76,7 +82,7 @@ async def update_order_status(
     order_id: str,
     payload: OrderStatusUpdate,
     request: Request,
-    actor: dict = Depends(require_admin),
+    actor: dict = Depends(require_permission("orders:write")),
 ) -> OrderRead:
     return await order_service.update_order_status(order_id, payload, actor, client_ip(request))
 
@@ -86,7 +92,7 @@ async def update_order_customer(
     order_id: str,
     payload: OrderCustomerUpdate,
     request: Request,
-    actor: dict = Depends(require_admin),
+    actor: dict = Depends(require_permission("orders:write")),
 ) -> OrderRead:
     return await order_service.update_order_customer(order_id, payload, actor, client_ip(request))
 
@@ -96,6 +102,6 @@ async def update_order_slot(
     order_id: str,
     payload: OrderSlotUpdate,
     request: Request,
-    actor: dict = Depends(require_admin),
+    actor: dict = Depends(require_permission("orders:write")),
 ) -> OrderRead:
     return await order_service.update_order_slot(order_id, payload, actor, client_ip(request))

@@ -2,9 +2,9 @@ from fastapi import APIRouter, Depends, Query
 
 from app.schemas.admin.responses import ActivityLogPage
 from app.services.admin.activity_service import activity_service
-from app.services.admin.security import require_admin
+from app.services.admin.security import require_permission
 
-router = APIRouter(prefix="/logs", tags=["logs"], dependencies=[Depends(require_admin)])
+router = APIRouter(prefix="/logs", tags=["logs"], dependencies=[Depends(require_permission("logs:read"))])
 
 
 def _log_filters(

@@ -2,7 +2,41 @@
 
 Base path: `/api/v1/admin`
 
-Authentication: all admin endpoints require `Authorization: Bearer <supabase_access_token>` unless marked otherwise. Role checks are enforced in `app.services.admin.security`.
+Authentication: all admin endpoints require `Authorization: Bearer <supabase_access_token>` unless marked otherwise. The backend validates the Supabase bearer token, loads the current user from the admin users table by authenticated user id, then enforces permissions from `app.services.admin.security`.
+
+RBAC model:
+
+- The frontend never sends a role or permission claim to authorize a request.
+- `/users/me` returns the authenticated admin profile plus effective `permissions[]` for UI gating.
+- Backend routes use permission dependencies such as `require_permission("orders:write")`.
+- Current roles:
+  - `owner`: full admin access, including users/admins, logs, and marketing settings writes.
+  - `admin`: operational access to dashboard, orders, tickets, scanner, catalog, coupons, and marketing reads.
+- Compatibility note: existing stored `administrator` role values are normalized to canonical `admin` during auth. Migrate stored rows to `admin` and then remove that compatibility alias.
+- Inactive admin accounts are rejected before permission checks.
+
+Permission map:
+
+| Permission | Owner | Admin | Used by |
+| --- | --- | --- | --- |
+| `dashboard:read` | Yes | Yes | Dashboard |
+| `orders:read` | Yes | Yes | Order list/detail |
+| `orders:write` | Yes | Yes | Walk-in orders and order mutations |
+| `orders:export` | Yes | Yes | Order CSV export |
+| `tickets:read` | Yes | Yes | Ticket list/detail |
+| `tickets:write` | Yes | Yes | Ticket status updates |
+| `tickets:export` | Yes | Yes | Ticket CSV export |
+| `scanner:use` | Yes | Yes | Scanner check-in and recent scans |
+| `catalog:read` | Yes | Yes | Events, slots, ticket types reads |
+| `catalog:write` | Yes | Yes | Events, slots, ticket types mutations |
+| `coupons:read` | Yes | Yes | Coupon list |
+| `coupons:write` | Yes | Yes | Coupon mutations |
+| `marketing:read` | Yes | Yes | Marketing settings/records reads |
+| `marketing:write` | Yes | No | Marketing settings updates |
+| `users:read` | Yes | No | Admin/user management page |
+| `users:write` | Yes | No | Admin creation, role/profile/status changes |
+| `logs:read` | Yes | No | Activity logs |
+| `health:read` | Yes | Yes | Admin health |
 
 Status legend:
 
@@ -14,11 +48,11 @@ Status legend:
 
 | Status | Method | Path | Purpose | Notes |
 | --- | --- | --- | --- | --- |
-| Complete | `GET` | `/health` | Admin backend/database health | Does not require admin auth in current router. Returns DB configured flag and table mapping. |
+| Complete | `GET` | `/health` | Admin backend/database health | Requires `health:read`. Returns DB configured flag and table mapping. |
 
 Needed next:
 
-- Add authenticated deep health if we want to verify admin role/session from the UI.
+- Add dependency checks for downstream services if we want more than DB/table mapping.
 
 ## Dashboard
 
@@ -41,15 +75,15 @@ Needed next:
 
 ## Orders
 
-| Status | Method | Path | Purpose | Query / Body |
-| --- | --- | --- | --- | --- |
-| Complete | `GET` | `/orders` | SQL-filtered paginated order list | `page`, `pageSize`, `orderId`, `userInfo`, `couponCode`, `orderDateFrom`, `orderDateTo`, `slotDateFrom`, `slotDateTo`, `slotStart`, `status` |
-| Complete | `GET` | `/orders/export` | CSV export | Same filters as `/orders` |
-| Complete | `POST` | `/orders/walk-in` | Create in-store/walk-in order and tickets | `WalkInOrderCreate` |
-| Complete | `GET` | `/orders/{order_id}` | Read one order | Path `order_id` |
-| Complete | `PATCH` | `/orders/{order_id}/status` | Update order status | `{ "status": string }` |
-| Complete | `PATCH` | `/orders/{order_id}/customer` | Update guest/customer fields on an order | `{ "name": string, "email": string, "phone": string }` |
-| Complete | `PATCH` | `/orders/{order_id}/slot` | Move order to another slot | `{ "slotId": string }` |
+| Status | Method | Path | Permission | Purpose | Query / Body |
+| --- | --- | --- | --- | --- | --- |
+| Complete | `GET` | `/orders` | `orders:read` | SQL-filtered paginated order list | `page`, `pageSize`, `orderId`, `userInfo`, `couponCode`, `orderDateFrom`, `orderDateTo`, `slotDateFrom`, `slotDateTo`, `slotStart`, `status` |
+| Complete | `GET` | `/orders/export` | `orders:export` | CSV export | Same filters as `/orders` |
+| Complete | `POST` | `/orders/walk-in` | `orders:write` | Create in-store/walk-in order and tickets | `WalkInOrderCreate` |
+| Complete | `GET` | `/orders/{order_id}` | `orders:read` | Read one order | Path `order_id` |
+| Complete | `PATCH` | `/orders/{order_id}/status` | `orders:write` | Update order status | `{ "status": string }` |
+| Complete | `PATCH` | `/orders/{order_id}/customer` | `orders:write` | Update guest/customer fields on an order | `{ "name": string, "email": string, "phone": string }` |
+| Complete | `PATCH` | `/orders/{order_id}/slot` | `orders:write` | Move order to another slot | `{ "slotId": string }` |
 
 Implemented request body for walk-in:
 
@@ -67,12 +101,12 @@ Missing / partial:
 
 ## Tickets
 
-| Status | Method | Path | Purpose | Query / Body |
-| --- | --- | --- | --- | --- |
-| Complete | `GET` | `/tickets` | Paginated ticket list | `page`, `pageSize`, `code`, `orderId`, `status`, `slotDateFrom`, `slotDateTo`, `verifiedFrom`, `verifiedTo`, `ticketType` |
-| Complete | `GET` | `/tickets/export` | CSV export | Same filters as `/tickets` |
-| Complete | `GET` | `/tickets/{ticket_id}` | Read one ticket | Path `ticket_id` |
-| Complete | `PATCH` | `/tickets/{ticket_id}/status` | Mark ticket `used`, `not_used`, or `voided` | `{ "status": string }` |
+| Status | Method | Path | Permission | Purpose | Query / Body |
+| --- | --- | --- | --- | --- | --- |
+| Complete | `GET` | `/tickets` | `tickets:read` | Paginated ticket list | `page`, `pageSize`, `code`, `orderId`, `status`, `slotDateFrom`, `slotDateTo`, `verifiedFrom`, `verifiedTo`, `ticketType` |
+| Complete | `GET` | `/tickets/export` | `tickets:export` | CSV export | Same filters as `/tickets` |
+| Complete | `GET` | `/tickets/{ticket_id}` | `tickets:read` | Read one ticket | Path `ticket_id` |
+| Complete | `PATCH` | `/tickets/{ticket_id}/status` | `tickets:write` | Mark ticket `used`, `not_used`, or `voided` | `{ "status": string }` |
 
 Missing / partial:
 
@@ -83,10 +117,10 @@ Missing / partial:
 
 ## Scanner
 
-| Status | Method | Path | Purpose | Query / Body |
-| --- | --- | --- | --- | --- |
-| Complete | `POST` | `/scanner/check-in` | Validate and mark ticket used | `{ "code": string }` |
-| Complete | `GET` | `/scanner/recent` | Recently checked-in tickets | `minutes` from `1` to `240` |
+| Status | Method | Path | Permission | Purpose | Query / Body |
+| --- | --- | --- | --- | --- | --- |
+| Complete | `POST` | `/scanner/check-in` | `scanner:use` | Validate and mark ticket used | `{ "code": string }` |
+| Complete | `GET` | `/scanner/recent` | `scanner:use` | Recently checked-in tickets | `minutes` from `1` to `240` |
 
 Missing / partial:
 
@@ -173,14 +207,14 @@ Missing / partial:
 
 ## Users / Admins
 
-| Status | Method | Path | Purpose | Auth |
+| Status | Method | Path | Permission / Auth | Purpose |
 | --- | --- | --- | --- | --- |
-| Complete | `GET` | `/users/me` | Current admin profile | Any admin |
-| Complete | `GET` | `/users` | List users/admins | Any admin, optional `role` |
-| Complete | `POST` | `/users/admins` | Create admin account | Owner only |
-| Complete | `POST` | `/users/bootstrap-owner` | Bootstrap initial owner | Bootstrap token if configured |
-| Complete | `PATCH` | `/users/{user_id}/role` | Change user app role | Owner only |
-| Complete | `PATCH` | `/users/{user_id}/staff-profile` | Update staff role/profile/status | Any admin currently |
+| Complete | `GET` | `/users/me` | Any active admin | Current admin profile with `permissions[]` |
+| Complete | `GET` | `/users` | `users:read` | List users/admins, optional `role` |
+| Complete | `POST` | `/users/admins` | `users:write` | Create admin account |
+| Complete | `POST` | `/users/bootstrap-owner` | Bootstrap token if configured | Bootstrap initial owner |
+| Complete | `PATCH` | `/users/{user_id}/role` | `users:write` | Change user app role |
+| Complete | `PATCH` | `/users/{user_id}/staff-profile` | `users:write` | Update staff role/profile/status |
 
 Missing / partial:
 
@@ -189,7 +223,6 @@ Missing / partial:
 - Missing user detail endpoint.
 - Missing login history endpoint.
 - Partial: admin creation depends on Supabase auth API configuration; if service role is unavailable it falls back to signup and may require project settings to allow that.
-- Security note: `staff-profile` can change `status`; decide whether status changes should require owner role.
 
 ## Activity Logs
 
