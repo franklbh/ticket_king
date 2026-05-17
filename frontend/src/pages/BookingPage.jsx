@@ -27,6 +27,7 @@ function BookingPage({
 }) {
   const [ticketLines, setTicketLines] = useState([{ key: 'ticket-1', ticketTypeId: 'adult', quantity: 1 }])
   const [added, setAdded] = useState(false)
+  const [showAddedModal, setShowAddedModal] = useState(false)
   const [showAllSlots, setShowAllSlots] = useState(false)
 
   const minQtyForType = (id) => id === 'family' ? 3 : id === 'group' ? 6 : 1
@@ -87,6 +88,7 @@ function BookingPage({
       openCart: false,
     })
     setAdded(true)
+    setShowAddedModal(true)
   }
 
   const updateTicketType = (key, ticketTypeId) => {
@@ -298,6 +300,29 @@ function BookingPage({
           </aside>
         </div>
       </div>
+      {showAddedModal && (
+        <div className="btk-added-overlay" role="dialog" aria-modal="true" aria-label="Added to cart">
+          <div className="btk-added-modal">
+            <button className="btk-added-close" onClick={() => setShowAddedModal(false)} type="button" aria-label="Close">×</button>
+            <div className="btk-added-icon"><CartIcon /></div>
+            <h3>Added to cart</h3>
+            <p>Your selected tickets have been added to your cart.</p>
+            <div className="btk-added-actions">
+              <button className="btk-secondary" onClick={() => setShowAddedModal(false)} type="button">Keep browsing</button>
+              <button
+                className="btk-primary"
+                onClick={() => {
+                  setShowAddedModal(false)
+                  onOpenCart?.()
+                }}
+                type="button"
+              >
+                View cart →
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

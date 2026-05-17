@@ -13032,6 +13032,79 @@ body:has(.btk-page) .topbar {
   color: #5b21d6;
 }
 
+.btk-added-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15,23,42,0.42);
+  backdrop-filter: blur(6px);
+}
+
+.btk-added-modal {
+  position: relative;
+  width: min(440px, 100%);
+  border: 1px solid #dbe4f0;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 30px 80px rgba(15,23,42,0.24);
+  padding: 30px;
+  text-align: center;
+}
+
+.btk-added-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 38px;
+  height: 38px;
+  border: 1px solid #d8deeb;
+  border-radius: 999px;
+  background: #fff;
+  color: #64748b;
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.btk-added-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 999px;
+  margin: 0 auto 16px;
+  display: grid;
+  place-items: center;
+  background: #f0fdf8;
+  color: #0f766e;
+}
+
+.btk-added-modal h3 {
+  margin: 0;
+  color: #111827;
+  font-size: 26px;
+  font-weight: 950;
+}
+
+.btk-added-modal p {
+  margin: 10px 0 0;
+  color: #64748b;
+  font-size: 15px;
+  font-weight: 750;
+}
+
+.btk-added-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 22px;
+}
+
+.btk-added-actions .btk-secondary {
+  margin-top: 0;
+}
+
 .btk-cart-callout {
   margin-top: 16px;
   padding: 12px;
@@ -13257,5 +13330,15 @@ body:has(.btk-page) .topbar {
   .btk-cart-bar {
     position: static;
     margin: 0 20px 20px;
+  }
+}
+
+@media (max-width: 640px) {
+  .btk-added-modal {
+    padding: 26px 18px 18px;
+  }
+
+  .btk-added-actions {
+    grid-template-columns: 1fr;
   }
 }
