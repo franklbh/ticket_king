@@ -67,6 +67,8 @@ function App() {
   const alphapayEventSourceRef = useRef(null)
   const [availableSlots, setAvailableSlots] = useState([])
   const [availableSlotsLoading, setAvailableSlotsLoading] = useState(false)
+  const [availableSlotsLoaded, setAvailableSlotsLoaded] = useState(false)
+  const availableSlotsCacheRef = useRef(new Map())
   const [faqOpen, setFaqOpen] = useState(0)
   const [newsletterEmail, setNewsletterEmail] = useState('')
   const [newsletterMessage, setNewsletterMessage] = useState('')
@@ -227,31 +229,47 @@ function App() {
   }, [step])
 
   useEffect(() => {
+    setSelectedTime(null)
     if (!selectedDate || !bookingExperience?.id) {
       setAvailableSlots([])
+      setAvailableSlotsLoaded(false)
       return undefined
     }
     const eventSlug = BACKEND_EVENT_SLUGS[bookingExperience.id]
     if (!eventSlug) {
       setAvailableSlots([])
+      setAvailableSlotsLoaded(false)
+      return undefined
+    }
+    const dateKey = isoDate(selectedDate.date)
+    const cacheKey = `${eventSlug}:${dateKey}`
+    if (availableSlotsCacheRef.current.has(cacheKey)) {
+      setAvailableSlots(availableSlotsCacheRef.current.get(cacheKey))
+      setAvailableSlotsLoaded(true)
+      setAvailableSlotsLoading(false)
       return undefined
     }
     const controller = new AbortController()
     const backendBase = import.meta.env.VITE_BACKEND_BASE || 'http://localhost:8000'
     setAvailableSlotsLoading(true)
-    fetch(`${backendBase}/api/v1/events/${eventSlug}/slots?date=${isoDate(selectedDate.date)}`, {
+    setAvailableSlotsLoaded(false)
+    fetch(`${backendBase}/api/v1/events/${eventSlug}/slots?date=${dateKey}`, {
       signal: controller.signal,
     })
       .then((res) => (res.ok ? res.json() : []))
       .then((slots) => {
         if (!controller.signal.aborted) {
-          setAvailableSlots(Array.isArray(slots) ? slots : [])
+          const nextSlots = Array.isArray(slots) ? slots : []
+          availableSlotsCacheRef.current.set(cacheKey, nextSlots)
+          setAvailableSlots(nextSlots)
+          setAvailableSlotsLoaded(true)
         }
       })
       .catch((err) => {
         if (err.name !== 'AbortError') {
           console.error(err)
           setAvailableSlots([])
+          setAvailableSlotsLoaded(true)
         }
       })
       .finally(() => {
@@ -776,6 +794,7 @@ function App() {
               applyCoupon={applyCoupon}
               appliedCoupon={appliedCoupon}
               availableSlots={availableSlots}
+              availableSlotsLoaded={availableSlotsLoaded}
               availableSlotsLoading={availableSlotsLoading}
               bookingExperience={bookingExperience}
               bookingExperiences={allExperiences}

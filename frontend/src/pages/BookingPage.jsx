@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import {
-  ALL_TIME_SLOTS,
   isDateTimePeak,
 } from '../data/showData'
 import { badge, currency } from '../utils/format'
@@ -10,6 +9,7 @@ function BookingPage({
   applyCoupon,
   appliedCoupon,
   availableSlots,
+  availableSlotsLoaded,
   availableSlotsLoading,
   bookingExperience,
   bookingExperiences,
@@ -98,6 +98,7 @@ function BookingPage({
         <TimeStep
           canProceedTime={canProceedTime}
           availableSlots={availableSlots}
+          availableSlotsLoaded={availableSlotsLoaded}
           availableSlotsLoading={availableSlotsLoading}
           experience={bookingExperience}
           selectedDate={selectedDate}
@@ -321,7 +322,18 @@ function DateStep({
   )
 }
 
-function TimeStep({ availableSlots = [], availableSlotsLoading = false, canProceedTime, experience, selectedDate, selectedTime, setSelectedTime, setStep, t }) {
+function TimeStep({
+  availableSlots = [],
+  availableSlotsLoaded = false,
+  availableSlotsLoading = false,
+  canProceedTime,
+  experience,
+  selectedDate,
+  selectedTime,
+  setSelectedTime,
+  setStep,
+  t,
+}) {
   const backendSlots = availableSlots.map((slot) => {
     const time = slot.label || [slot.startTime, slot.endTime].filter(Boolean).join('-')
     const peak = selectedDate ? isDateTimePeak(selectedDate.date, time) : false
@@ -337,25 +349,17 @@ function TimeStep({ availableSlots = [], availableSlotsLoading = false, canProce
       slotId: slot.id,
     }
   })
-  const legacySlots = ALL_TIME_SLOTS.map((time) => {
-    const peak = selectedDate ? isDateTimePeak(selectedDate.date, time) : false
-    const prices = experience ? (peak ? experience.peakPrices : experience.offPeakPrices) : {}
-    return {
-      id: time,
-      time,
-      label: time,
-      price: prices.adult ?? 0,
-      availableSeats: null,
-      peak,
-    }
-  })
-  const slots = availableSlotsLoading ? [] : (backendSlots.length ? backendSlots : legacySlots)
+  const slots = availableSlotsLoading ? [] : backendSlots
 
   return (
     <div className="panel">
       <div className="panel-title"><div className="title-accent" /><h3>{t('selectTime')}</h3></div>
       <div className="time-hint">{t('timeHint')}</div>
       <div className="slot-grid">
+        {availableSlotsLoading && <div className="time-hint">Loading available times...</div>}
+        {!availableSlotsLoading && availableSlotsLoaded && slots.length === 0 && (
+          <div className="time-hint">No available times for this date.</div>
+        )}
         {slots.map((slot) => {
           return (
             <button
