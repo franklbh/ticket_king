@@ -38,6 +38,7 @@ function BookingPage({
   paymentExpired,
   rawCounts,
   restartBooking,
+  reservationLoading,
   seconds,
   selectedDate,
   selectedTime,
@@ -130,6 +131,7 @@ function BookingPage({
           contactErrors={contactErrors}
           contactTouched={contactTouched}
           markContactTouched={markContactTouched}
+          reservationLoading={reservationLoading}
           setContact={setContact}
           setStep={setStep}
           t={t}
@@ -467,6 +469,7 @@ function ContactStep({
   contactErrors,
   contactTouched,
   markContactTouched,
+  reservationLoading,
   setContact,
   setStep,
   t,
@@ -501,7 +504,9 @@ function ContactStep({
       <p className="policy-copy">{t('policyCopy')}</p>
       <div className="actions">
         <button className="secondary" onClick={() => setStep('tickets')} type="button">{t('back')}</button>
-        <button className="primary" disabled={!canProceedContact} onClick={() => setStep('payment')} type="button">{t('continuePayment')}</button>
+        <button className="primary" disabled={!canProceedContact || reservationLoading} onClick={() => setStep('payment')} type="button">
+          {reservationLoading ? 'Reserving...' : t('continuePayment')}
+        </button>
       </div>
     </div>
   )

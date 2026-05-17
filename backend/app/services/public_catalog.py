@@ -1,86 +1,239 @@
 from __future__ import annotations
 
+import asyncio
 from collections import defaultdict
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
+from time import monotonic
 from typing import Any
 
 from fastapi import HTTPException, status
+from sqlalchemy import text
 
-from app.core.config import settings
+from app.core.database import SessionLocal
 from app.schemas.public import AvailableSlotRead
-from app.services.admin.repository import admin_repository
 
 ACTIVE_ORDER_STATUSES = {"pending", "paid", "completed"}
 ACTIVE_PAYMENT_STATUSES = {"pending", "paid", "processing", "authorized"}
+CATALOG_CACHE_SECONDS = 60
 
 
 class PublicCatalogService:
-    async def available_slots(self, event_id_or_slug: str, slot_date: str) -> list[AvailableSlotRead]:
-        target_date = self._parse_date(slot_date)
-        event = await self._event(event_id_or_slug)
-        slots = [
-            row for row in await admin_repository.select(settings.admin_slots_table)
-            if self._slot_matches(row, event["id"], target_date)
-        ]
-        if not slots:
-            return []
+    def __init__(self) -> None:
+        self._catalog_cache: dict[str, Any] | None = None
+        self._catalog_cache_at = 0.0
+        self._slot_cache: dict[tuple[str, str], tuple[float, list[dict[str, Any]]]] = {}
 
-        requirements = await self._requirements_by_event()
-        resources = await self._resources_by_id()
-        order_items = await admin_repository.select("order_items")
-        orders = {str(row.get("id")): row for row in await admin_repository.select(settings.admin_orders_table)}
-        events = {str(row.get("id")): row for row in await admin_repository.select(settings.admin_events_table)}
-        all_slots = {str(row.get("id")): row for row in await admin_repository.select(settings.admin_slots_table)}
+    async def available_slots(self, event_id_or_slug: str, slot_date: str) -> list[AvailableSlotRead]:
+        return await asyncio.to_thread(self._available_slots_sync, event_id_or_slug, slot_date)
+
+    def _available_slots_sync(self, event_id_or_slug: str, slot_date: str) -> list[AvailableSlotRead]:
+        if SessionLocal is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Database connection is not configured.",
+            )
+        target_date = self._parse_date(slot_date)
+        with SessionLocal() as db:
+            catalog = self._catalog_snapshot_sync(db)
+            event = self._event_from_catalog(catalog["events"], event_id_or_slug)
+            slots = self._slots_for_date_sync(db, event["id"], target_date)
+            if not slots:
+                return []
+
+            booked_items, booked_orders, booked_slots = self._booked_items_for_date_sync(db, target_date)
 
         booked_items = [
-            item for item in order_items
-            if self._active_order(orders.get(str(item.get("order_id"))))
+            item for item in booked_items
+            if self._active_order(booked_orders.get(str(item.get("order_id"))))
         ]
 
         available: list[AvailableSlotRead] = []
         for slot in slots:
-            event_requirements = requirements.get(str(event["id"]), [])
+            event_requirements = catalog["requirements"].get(str(event["id"]), [])
             availability = self._slot_availability(
                 slot=slot,
                 event=event,
                 requirements=event_requirements,
-                requirements_by_event=requirements,
-                resources=resources,
+                requirements_by_event=catalog["requirements"],
+                resources=catalog["resources"],
                 booked_items=booked_items,
-                events=events,
-                slots=all_slots,
+                events=catalog["events"],
+                slots=booked_slots,
             )
             if availability <= 0:
                 continue
-            capacity = self._effective_capacity(slot, event_requirements, resources)
+            capacity = self._effective_capacity(slot, event_requirements, catalog["resources"])
             available.append(self._slot_response(slot, event["id"], availability, capacity))
 
         available.sort(key=lambda item: (item.date, item.start_time))
         return available
 
-    async def _event(self, event_id_or_slug: str) -> dict[str, Any]:
-        events = await admin_repository.select(settings.admin_events_table)
+    def _catalog_snapshot_sync(self, db: Any) -> dict[str, Any]:
+        now = monotonic()
+        if self._catalog_cache and now - self._catalog_cache_at < CATALOG_CACHE_SECONDS:
+            return self._catalog_cache
+
+        events = self._events_by_id_sync(db)
+        requirements, resources = self._requirements_and_resources_sync(db)
+        self._catalog_cache = {
+            "events": events,
+            "requirements": requirements,
+            "resources": resources,
+        }
+        self._catalog_cache_at = now
+        return self._catalog_cache
+
+    def _event_from_catalog(self, events: dict[str, dict[str, Any]], event_id_or_slug: str) -> dict[str, Any]:
         needle = str(event_id_or_slug)
-        for event in events:
-            if str(event.get("id")) == needle or str(event.get("slug")) == needle:
-                if str(event.get("status") or "").lower() != "active":
-                    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event is not active.")
-                return event
+        for event in events.values():
+            if str(event.get("id")) != needle and str(event.get("slug")) != needle:
+                continue
+            if str(event.get("status") or "").lower() != "active":
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event is not active.")
+            return event
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found.")
 
-    async def _requirements_by_event(self) -> dict[str, list[dict[str, Any]]]:
-        rows = await admin_repository.select("event_resource_requirements")
-        grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
-        for row in rows:
-            grouped[str(row.get("event_id"))].append(row)
-        return dict(grouped)
+    def _slots_for_date_sync(self, db: Any, event_id: Any, target_date: date) -> list[dict[str, Any]]:
+        cache_key = (str(event_id), target_date.isoformat())
+        cached = self._slot_cache.get(cache_key)
+        now = monotonic()
+        if cached and now - cached[0] < CATALOG_CACHE_SECONDS:
+            return cached[1]
 
-    async def _resources_by_id(self) -> dict[str, dict[str, Any]]:
-        return {
-            str(row.get("id")): row
-            for row in await admin_repository.select("resources")
-            if row.get("id") is not None and str(row.get("status") or "").lower() == "active"
-        }
+        rows = db.execute(
+            text(
+                """
+                select id, event_id, slot_code, business_date, start_time, end_time,
+                       slot_time_label, timezone, capacity, status, base_price
+                from public.slots
+                where event_id = :event_id
+                  and business_date = :target_date
+                  and lower(status) = 'active'
+                order by start_time
+                """
+            ),
+            {"event_id": event_id, "target_date": target_date},
+        ).mappings().all()
+        slots = [dict(row) for row in rows]
+        self._slot_cache[cache_key] = (now, slots)
+        return slots
+
+    def _requirements_and_resources_sync(
+        self,
+        db: Any,
+    ) -> tuple[dict[str, list[dict[str, Any]]], dict[str, dict[str, Any]]]:
+        rows = db.execute(
+            text(
+                """
+                select
+                  err.event_id,
+                  err.resource_id,
+                  err.units_per_ticket,
+                  r.id as resource_row_id,
+                  r.code,
+                  r.name,
+                  r.resource_type,
+                  r.capacity,
+                  r.status
+                from public.event_resource_requirements err
+                join public.resources r on r.id = err.resource_id
+                where lower(r.status) = 'active'
+                """
+            )
+        ).mappings().all()
+        grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        resources: dict[str, dict[str, Any]] = {}
+        for row in rows:
+            row_dict = dict(row)
+            resource_id = row_dict["resource_id"]
+            grouped[str(row_dict["event_id"])].append(
+                {
+                    "event_id": row_dict["event_id"],
+                    "resource_id": resource_id,
+                    "units_per_ticket": row_dict["units_per_ticket"],
+                }
+            )
+            resources[str(resource_id)] = {
+                "id": resource_id,
+                "code": row_dict["code"],
+                "name": row_dict["name"],
+                "resource_type": row_dict["resource_type"],
+                "capacity": row_dict["capacity"],
+                "status": row_dict["status"],
+            }
+        return dict(grouped), resources
+
+    def _events_by_id_sync(self, db: Any) -> dict[str, dict[str, Any]]:
+        rows = db.execute(
+            text(
+                """
+                select id, name, slug, status, event_type, content_mode, headset_brand,
+                       vr_room_mode, duration_minutes
+                from public.events
+                """
+            )
+        ).mappings().all()
+        return {str(row["id"]): dict(row) for row in rows if row.get("id") is not None}
+
+    def _booked_items_for_date_sync(
+        self,
+        db: Any,
+        target_date: date,
+    ) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
+        rows = db.execute(
+            text(
+                """
+                select
+                  oi.order_id,
+                  oi.event_id as item_event_id,
+                  oi.slot_id as item_slot_id,
+                  oi.quantity,
+                  o.order_status,
+                  o.payment_status,
+                  o.created_at,
+                  to_jsonb(o) ->> 'reservation_expires_at' as reservation_expires_at,
+                  s.id as slot_id,
+                  s.business_date,
+                  s.start_time,
+                  s.end_time
+                from public.order_items oi
+                join public.orders o on o.id = oi.order_id
+                join public.slots s on s.id = oi.slot_id
+                where s.business_date = :target_date
+                  and lower(o.order_status) in ('pending', 'paid', 'completed')
+                  and lower(o.payment_status) in ('pending', 'paid', 'processing', 'authorized')
+                """
+            ),
+            {"target_date": target_date},
+        ).mappings().all()
+
+        booked_items: list[dict[str, Any]] = []
+        orders: dict[str, dict[str, Any]] = {}
+        slots: dict[str, dict[str, Any]] = {}
+        for row in rows:
+            item = {
+                "order_id": row["order_id"],
+                "event_id": row["item_event_id"],
+                "slot_id": row["item_slot_id"],
+                "quantity": row["quantity"],
+            }
+            order = {
+                "id": row["order_id"],
+                "order_status": row["order_status"],
+                "payment_status": row["payment_status"],
+                "created_at": row["created_at"],
+                "reservation_expires_at": row["reservation_expires_at"],
+            }
+            slot = {
+                "id": row["slot_id"],
+                "business_date": row["business_date"],
+                "start_time": row["start_time"],
+                "end_time": row["end_time"],
+            }
+            booked_items.append(item)
+            orders[str(row["order_id"])] = order
+            slots[str(row["slot_id"])] = slot
+        return booked_items, orders, slots
 
     def _slot_availability(
         self,
@@ -157,6 +310,10 @@ class PublicCatalogService:
             return False
         order_status = str(order.get("order_status") or "").lower()
         payment_status = str(order.get("payment_status") or "").lower()
+        if payment_status == "pending":
+            expires_at = PublicCatalogService._reservation_expires_at(order)
+            if expires_at and expires_at <= datetime.now(timezone.utc):
+                return False
         return order_status in ACTIVE_ORDER_STATUSES and payment_status in ACTIVE_PAYMENT_STATUSES
 
     @staticmethod
@@ -224,6 +381,28 @@ class PublicCatalogService:
         if isinstance(value, time):
             return value
         return time.fromisoformat(str(value)[:8])
+
+    @staticmethod
+    def _parse_datetime(value: Any) -> datetime | None:
+        if value in (None, ""):
+            return None
+        if isinstance(value, datetime):
+            parsed = value
+        else:
+            parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
+
+    @staticmethod
+    def _reservation_expires_at(order: dict[str, Any]) -> datetime | None:
+        explicit_expiry = PublicCatalogService._parse_datetime(order.get("reservation_expires_at"))
+        if explicit_expiry:
+            return explicit_expiry
+        created_at = PublicCatalogService._parse_datetime(order.get("created_at"))
+        if created_at:
+            return created_at + timedelta(minutes=5)
+        return None
 
     @staticmethod
     def _format_time(value: Any) -> str | None:

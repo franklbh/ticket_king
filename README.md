@@ -92,8 +92,11 @@ Current migration order:
 004_users_role_admin.sql
 005_resource_cart_schema.sql
 006_seed_terracotta_daily_slots.sql
+007_order_reservations.sql
 ```
 
 `005_resource_cart_schema.sql` adds event-based slots, resource capacity rules, and multi-item cart support.
 
 `006_seed_terracotta_daily_slots.sql` seeds bookable Terracotta Army VR slots for the customer booking API.
+
+`007_order_reservations.sql` adds the timed reservation columns used to hold seats during checkout.

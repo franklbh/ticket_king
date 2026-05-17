@@ -212,7 +212,7 @@ function PaymentForm({ orderData, onSuccess, onCancel }) {
 
 // ── Main exported checkout overlay ───────────────────────────────────────────
 
-export default function StripeCheckout({ orderData, onClose, onSuccess }) {
+export default function StripeCheckout({ orderData, onClose, onPaid, onSuccess }) {
   const [clientSecret, setClientSecret] = useState(null)
   const [fetchError, setFetchError] = useState(null)
   const [paid, setPaid] = useState(false)
@@ -224,6 +224,7 @@ export default function StripeCheckout({ orderData, onClose, onSuccess }) {
       body: JSON.stringify({
         amount: Math.round(orderData.amount * 100),
         order_id: orderData.orderId,
+        reservationId: orderData.reservationId,
         description: orderData.description,
         order: orderData.checkoutOrder,
       }),
@@ -234,7 +235,7 @@ export default function StripeCheckout({ orderData, onClose, onSuccess }) {
         else setFetchError('Unable to initialize payment.')
       })
       .catch(() => setFetchError('Unable to connect to payment server.'))
-  }, [orderData.amount, orderData.description, orderData.orderId, orderData.checkoutOrder])
+  }, [orderData.amount, orderData.description, orderData.orderId, orderData.reservationId, orderData.checkoutOrder])
 
   if (paid) {
     return <SuccessOverlay orderData={orderData} onClose={onSuccess ?? onClose} />
@@ -384,7 +385,10 @@ export default function StripeCheckout({ orderData, onClose, onSuccess }) {
               >
                 <PaymentForm
                   orderData={orderData}
-                  onSuccess={() => setPaid(true)}
+                  onSuccess={() => {
+                    onPaid?.()
+                    setPaid(true)
+                  }}
                   onCancel={onClose}
                 />
               </Elements>

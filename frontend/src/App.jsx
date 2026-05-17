@@ -32,6 +32,7 @@ const BACKEND_EVENT_SLUGS = {
   'space-odyssey': 'game-b',
   'ocean-quest': 'game-c',
 }
+const AVAILABILITY_CACHE_MS = 10000
 
 function isoDate(date) {
   if (!date) return ''
@@ -69,6 +70,11 @@ function App() {
   const [availableSlotsLoading, setAvailableSlotsLoading] = useState(false)
   const [availableSlotsLoaded, setAvailableSlotsLoaded] = useState(false)
   const availableSlotsCacheRef = useRef(new Map())
+  const [reservation, setReservation] = useState(null)
+  const [paymentReservationId, setPaymentReservationId] = useState(null)
+  const [checkoutOpening, setCheckoutOpening] = useState(false)
+  const [reservationLoading, setReservationLoading] = useState(false)
+  const releasedReservationRef = useRef(null)
   const [faqOpen, setFaqOpen] = useState(0)
   const [newsletterEmail, setNewsletterEmail] = useState('')
   const [newsletterMessage, setNewsletterMessage] = useState('')
@@ -223,10 +229,10 @@ function App() {
 
   useEffect(() => {
     if (step !== 'payment') return undefined
-    setTimeLeft(300)
+    setTimeLeft(reservation?.expiresInSeconds || 300)
     const timer = setInterval(() => setTimeLeft((t) => (t <= 1 ? 0 : t - 1)), 1000)
     return () => clearInterval(timer)
-  }, [step])
+  }, [step, reservation?.id, reservation?.expiresInSeconds])
 
   useEffect(() => {
     setSelectedTime(null)
@@ -243,8 +249,9 @@ function App() {
     }
     const dateKey = isoDate(selectedDate.date)
     const cacheKey = `${eventSlug}:${dateKey}`
-    if (availableSlotsCacheRef.current.has(cacheKey)) {
-      setAvailableSlots(availableSlotsCacheRef.current.get(cacheKey))
+    const cached = availableSlotsCacheRef.current.get(cacheKey)
+    if (cached && Date.now() - cached.cachedAt < AVAILABILITY_CACHE_MS) {
+      setAvailableSlots(cached.slots)
       setAvailableSlotsLoaded(true)
       setAvailableSlotsLoading(false)
       return undefined
@@ -260,7 +267,7 @@ function App() {
       .then((slots) => {
         if (!controller.signal.aborted) {
           const nextSlots = Array.isArray(slots) ? slots : []
-          availableSlotsCacheRef.current.set(cacheKey, nextSlots)
+          availableSlotsCacheRef.current.set(cacheKey, { slots: nextSlots, cachedAt: Date.now() })
           setAvailableSlots(nextSlots)
           setAvailableSlotsLoaded(true)
         }
@@ -573,6 +580,33 @@ function App() {
     }, 80)
   }
 
+  const releaseReservation = useCallback((reservationId = reservation?.id, options = {}) => {
+    if (!reservationId || releasedReservationRef.current === reservationId) return
+    releasedReservationRef.current = reservationId
+
+    const eventSlug = BACKEND_EVENT_SLUGS[bookingExperience.id]
+    if (eventSlug && selectedDate) {
+      availableSlotsCacheRef.current.delete(`${eventSlug}:${isoDate(selectedDate.date)}`)
+    }
+    alphapayEventSourceRef.current?.close()
+    alphapayEventSourceRef.current = null
+
+    const backendBase = import.meta.env.VITE_BACKEND_BASE || 'http://localhost:8000'
+    const url = `${backendBase}/api/v1/reservations/${reservationId}/expire`
+    if (options.beacon && navigator.sendBeacon) {
+      navigator.sendBeacon(url, new Blob([], { type: 'text/plain' }))
+    } else {
+      fetch(url, { method: 'POST', keepalive: Boolean(options.beacon) }).catch(console.error)
+    }
+
+    if (reservation?.id === reservationId) {
+      setReservation(null)
+      setPaymentReservationId(null)
+      setShowQr(null)
+      setAlphapayQrImage(null)
+    }
+  }, [bookingExperience.id, reservation?.id, selectedDate])
+
   const canProceedDate = Boolean(selectedDate)
   const canProceedTime = Boolean(selectedTime)
   const effectiveCount = (id) => rawCounts[id] !== undefined ? Math.max(0, parseInt(rawCounts[id]) || 0) : counts[id]
@@ -584,6 +618,30 @@ function App() {
   const minutes = String(Math.floor(timeLeft / 60)).padStart(2, '0')
   const seconds = String(timeLeft % 60).padStart(2, '0')
   const paymentExpired = step === 'payment' && timeLeft === 0
+
+  useEffect(() => {
+    if (!paymentReservationId) return
+    if (step === 'payment' && view === 'main' && showBooking) return
+    if (showStripeCheckout || showQr || checkoutOpening) return
+    releaseReservation(paymentReservationId)
+  }, [paymentReservationId, step, view, showBooking, showStripeCheckout, showQr, checkoutOpening, releaseReservation])
+
+  useEffect(() => {
+    if (!paymentReservationId) return undefined
+    const releaseOnLeave = () => releaseReservation(paymentReservationId, { beacon: true })
+    window.addEventListener('pagehide', releaseOnLeave)
+    window.addEventListener('beforeunload', releaseOnLeave)
+    return () => {
+      window.removeEventListener('pagehide', releaseOnLeave)
+      window.removeEventListener('beforeunload', releaseOnLeave)
+    }
+  }, [paymentReservationId, releaseReservation])
+
+  useEffect(() => {
+    if (!paymentExpired || !paymentReservationId) return
+    releaseReservation(paymentReservationId)
+  }, [paymentExpired, paymentReservationId, releaseReservation])
+
   const bookingSteps = [
     { id: 'date', label: t('date') },
     { id: 'time', label: t('time') },
@@ -622,10 +680,60 @@ function App() {
     }
   }
 
-  const startStripeCheckout = () => {
+  const createCheckoutReservation = async () => {
+    if (reservation?.id && timeLeft > 0) return reservation
+    const order = buildCheckoutOrder()
+    if (!order) {
+      alert('Unable to reserve this session because the selected time is missing a live booking slot. Please choose a date and time again.')
+      return null
+    }
+    setReservationLoading(true)
+    try {
+      const backendBase = import.meta.env.VITE_BACKEND_BASE || 'http://localhost:8000'
+      const res = await fetch(`${backendBase}/api/v1/reservations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: Math.round(totals.grand * 100),
+          order,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        alert(data.detail || 'Unable to reserve this time. Please choose another time.')
+        return null
+      }
+      setReservation(data)
+      setTimeLeft(data.expiresInSeconds || 300)
+      const eventSlug = BACKEND_EVENT_SLUGS[bookingExperience.id]
+      if (eventSlug && selectedDate) {
+        availableSlotsCacheRef.current.delete(`${eventSlug}:${isoDate(selectedDate.date)}`)
+      }
+      return data
+    } catch (error) {
+      console.error(error)
+      alert('Unable to reserve this time. Please try again.')
+      return null
+    } finally {
+      setReservationLoading(false)
+    }
+  }
+
+  const goToStep = async (nextStep) => {
+    if (nextStep === 'payment') {
+      setCheckoutOpening(true)
+      const nextReservation = await createCheckoutReservation()
+      setCheckoutOpening(false)
+      if (!nextReservation) return
+      setPaymentReservationId(nextReservation.id)
+    }
+    setStep(nextStep)
+  }
+
+  const startStripeCheckout = async () => {
     if (paymentExpired) return
-    if (!buildCheckoutOrder()) {
-      alert('Unable to start checkout because the selected session is missing a live booking slot. Please choose a date and time again.')
+    if (!reservation?.id) {
+      alert('Unable to start checkout because the reservation is missing. Please choose a date and time again.')
       return
     }
     setShowStripeCheckout(true)
@@ -635,18 +743,17 @@ function App() {
     if (paymentExpired) return
     try {
       setAlphapayLoading(true)
-      const backendBase = import.meta.env.VITE_BACKEND_BASE || 'http://localhost:8000'
-      const totalCents = Math.round(totals.grand * 100)
-      const order = buildCheckoutOrder()
-      if (!order) {
-        alert('Unable to start checkout because the selected session is missing a live booking slot. Please choose a date and time again.')
+      if (!reservation?.id) {
+        alert('Unable to start checkout because the reservation is missing. Please choose a date and time again.')
         return
       }
+      const backendBase = import.meta.env.VITE_BACKEND_BASE || 'http://localhost:8000'
+      const totalCents = Math.round(totals.grand * 100)
       const payload = {
         method,
         amount: totalCents,
         description: bookingExperience.title,
-        order,
+        reservationId: reservation.id,
         payment_request_id: `order_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       }
       const res = await fetch(`${backendBase}/api/v1/alphapay/qr`, {
@@ -666,6 +773,8 @@ function App() {
         if (payload.paid) {
           es.close()
           alphapayEventSourceRef.current = null
+          setPaymentReservationId(null)
+          setReservation(null)
           setShowQr(null)
           setAlphapayQrImage(null)
           window.location.href = `${import.meta.env.VITE_BASE_URL || ''}/success`
@@ -834,8 +943,9 @@ function App() {
               setRawCounts={setRawCounts}
               setSelectedDate={setSelectedDate}
               setSelectedTime={setSelectedTime}
-              setStep={setStep}
+              setStep={goToStep}
               setVipModal={setVipModal}
+              reservationLoading={reservationLoading}
               startAlphapayCheckout={startAlphapayCheckout}
               startStripeCheckout={startStripeCheckout}
               step={step}
@@ -876,16 +986,17 @@ function App() {
       {showStripeCheckout && (
         <StripeCheckout
           orderData={{
-            orderId: `WEAREVR-${Date.now().toString().slice(-12)}`,
+            orderId: reservation?.orderNumber || reservation?.id || 'WEAREVR',
             amount: totals.grand,
             description: `Tickets for ${bookingExperience.title}`,
             date: selectedDate ? fullDateDisplay(selectedDate.date) : null,
             time: selectedTime?.time || null,
             email: contact.email,
-            checkoutOrder: buildCheckoutOrder(),
+            reservationId: reservation?.id,
           }}
           onClose={() => setShowStripeCheckout(false)}
-          onSuccess={() => { setShowStripeCheckout(false); backToMain(); }}
+          onPaid={() => { setPaymentReservationId(null); setReservation(null) }}
+          onSuccess={() => { setShowStripeCheckout(false); setPaymentReservationId(null); setReservation(null); backToMain(); }}
         />
       )}
 
