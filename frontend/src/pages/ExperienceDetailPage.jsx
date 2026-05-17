@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import BrandLogo from '../components/BrandLogo'
 import HeaderActions from '../components/HeaderActions'
 import { allExperiences } from '../data/experiences'
@@ -113,6 +113,7 @@ function BookingWidget({ experience, cartItems, onAddToCart }) {
   const [addedMessage, setAddedMessage] = useState('')
   const [backendSlots, setBackendSlots] = useState([])
   const [slotsLoading, setSlotsLoading] = useState(false)
+  const cartSyncedSessionRef = useRef(null)
 
   const selectedMonth = monthOptions.find((month) => `${month.getFullYear()}-${month.getMonth()}` === selMonthKey) || monthOptions[0]
   const monthStartDay = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1).getDay()
@@ -145,6 +146,23 @@ function BookingWidget({ experience, cartItems, onAddToCart }) {
   const ticketsFromQuantities = (quantities) => TICKET_TYPES
     .filter((ticket) => quantities[ticket.id] > 0)
     .map((ticket) => ({ ...ticket, quantity: quantities[ticket.id] }))
+  const getCartQuantitiesForSession = (sessionDateKey, slot) => {
+    const nextQty = TICKET_TYPES.reduce((acc, ticket) => ({ ...acc, [ticket.id]: 0 }), {})
+    if (!sessionDateKey || !slot) return { nextQty, hasItems: false }
+    const slotId = slot.id || slot.slot_id || slot.slotId
+    const slotLabel = slot.label || slot.time || slot.startTime
+    let hasItems = false
+    cartItems.forEach((item) => {
+      const itemDateKey = item.session_date_key || item.id?.split('__')?.[1]
+      const itemSlotId = item.slot_id || item.slotId
+      const sameSlot = itemSlotId && slotId ? itemSlotId === slotId : item.session_time === slotLabel
+      if (item.show_id !== experience.id || itemDateKey !== sessionDateKey || !sameSlot) return
+      if (nextQty[item.ticket_type_id] === undefined) return
+      nextQty[item.ticket_type_id] += item.quantity
+      hasItems = true
+    })
+    return { nextQty, hasItems }
+  }
 
   const changeQty = (ticket, delta) => {
     const current = qty[ticket.id] || 0
@@ -196,6 +214,27 @@ function BookingWidget({ experience, cartItems, onAddToCart }) {
   useEffect(() => {
     if (selectedDate) setSelDateKey(dateKey(selectedDate))
   }, [selMonthKey, selectedDate])
+
+  useEffect(() => {
+    if (!selectedDateKey || !selTime) return
+    const { nextQty, hasItems } = getCartQuantitiesForSession(selectedDateKey, selTime)
+    const sessionKey = `${experience.id}__${selectedDateKey}__${selTime.id || selTime.label || selTime.time || ''}`
+    setQty(nextQty)
+    setRawQty({})
+    setAddedMessage('')
+    cartSyncedSessionRef.current = hasItems ? sessionKey : null
+  }, [selectedDateKey, selTime, experience.id])
+
+  useEffect(() => {
+    if (!selectedDateKey || !selTime) return
+    const sessionKey = `${experience.id}__${selectedDateKey}__${selTime.id || selTime.label || selTime.time || ''}`
+    const { nextQty, hasItems } = getCartQuantitiesForSession(selectedDateKey, selTime)
+    if (!hasItems && cartSyncedSessionRef.current !== sessionKey) return
+    setQty(nextQty)
+    setRawQty({})
+    setAddedMessage('')
+    cartSyncedSessionRef.current = hasItems ? sessionKey : null
+  }, [cartItems, selectedDateKey, selTime, experience.id])
 
   useEffect(() => {
     const slug = BACKEND_EVENT_SLUGS[experience.id]

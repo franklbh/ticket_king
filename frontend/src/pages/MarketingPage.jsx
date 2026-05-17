@@ -259,7 +259,7 @@ function MarketingPage({
 
       {/* ── News ── */}
       <div className="news-section-wrap">
-        <section className="news-section">
+        <section className="news-section" id="news">
           <div className="section-heading">
             <div className="section-eyebrow">{t('newsEyebrow')}</div>
             <h2>{t('newsTitle')}</h2>
