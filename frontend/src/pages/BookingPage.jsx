@@ -370,7 +370,9 @@ function TimeStep({
             >
               <span className="slot-time">{slot.time}</span>
               <span className="slot-price">{currency(slot.price)}</span>
-              {slot.availableSeats !== null && <span className="slot-price">{slot.availableSeats} left</span>}
+              {slot.availableSeats !== null && slot.availableSeats <= 5 && (
+                <span className="slot-price">{slot.availableSeats} left</span>
+              )}
             </button>
           )
         })}
