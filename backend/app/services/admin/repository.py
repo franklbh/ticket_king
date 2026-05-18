@@ -125,6 +125,9 @@ class AdminRepository:
     ) -> list[dict[str, Any]]:
         return await asyncio.to_thread(self._update_sync, table_name, match_column, match_value, values)
 
+    async def claim_order_fulfillment(self, order_id: Any, *, updated_at: str) -> list[dict[str, Any]]:
+        return await asyncio.to_thread(self._claim_order_fulfillment_sync, order_id, updated_at)
+
     def _select_sync(self, table_name: str, params: dict[str, Any] | None = None) -> list[dict[str, Any]]:
         limit = settings.max_table_rows
         if params and params.get("limit"):
@@ -706,6 +709,22 @@ class AdminRepository:
                 .where(table.c[match_column] == match_value)
                 .values(**values)
                 .returning(table)
+            )
+            result = db.execute(statement)
+            db.commit()
+            return [dict(row) for row in result.mappings().all()]
+
+    def _claim_order_fulfillment_sync(self, order_id: Any, updated_at: str) -> list[dict[str, Any]]:
+        with self._session() as db:
+            orders = self._table(db, settings.admin_orders_table)
+            order_id = self._coerce_column_value(orders, "id", order_id)
+            fulfillment_status = func.lower(cast(orders.c.fulfillment_status, String))
+            statement = (
+                update(orders)
+                .where(orders.c.id == order_id)
+                .where(~fulfillment_status.in_(["fulfilled", "completed", "processing"]))
+                .values(fulfillment_status="Processing", updated_at=updated_at)
+                .returning(orders)
             )
             result = db.execute(statement)
             db.commit()

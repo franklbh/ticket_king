@@ -193,6 +193,12 @@ async def mark_paid_by_provider_reference(provider: str, provider_reference: str
             continue
         if str(order.get("provider_reference") or "") != str(provider_reference):
             continue
+        current_fulfillment = str(order.get("fulfillment_status") or "").lower()
+        next_fulfillment = (
+            order.get("fulfillment_status")
+            if current_fulfillment in {"fulfilled", "completed", "processing"}
+            else "Pending"
+        )
         updated = await admin_repository.update(
             settings.admin_orders_table,
             match_column="id",
@@ -200,7 +206,7 @@ async def mark_paid_by_provider_reference(provider: str, provider_reference: str
             values={
                 "order_status": "Paid",
                 "payment_status": "Paid",
-                "fulfillment_status": "Pending",
+                "fulfillment_status": next_fulfillment,
                 "updated_at": utc_now_iso_seconds(),
             },
         )
@@ -224,6 +230,23 @@ async def fulfill_paid_order(order_id: str) -> dict[str, Any]:
     )
     if existing_tickets:
         await _mark_order_fulfilled(order_id)
+        return {
+            "orderId": str(order_id),
+            "created": False,
+            "ticketCount": len(existing_tickets),
+            "tickets": existing_tickets,
+        }
+
+    claimed = await admin_repository.claim_order_fulfillment(order_id, updated_at=utc_now_iso_seconds())
+    if not claimed:
+        existing_tickets = await admin_repository.select_where(
+            settings.admin_tickets_table,
+            column="order_id",
+            value=uuid.UUID(str(order_id)),
+            limit=settings.max_table_rows,
+        )
+        if existing_tickets:
+            await _mark_order_fulfilled(order_id)
         return {
             "orderId": str(order_id),
             "created": False,
