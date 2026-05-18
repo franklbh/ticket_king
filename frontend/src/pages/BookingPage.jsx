@@ -236,6 +236,7 @@ function BookingPage({
             <section className="btk-ticket-card">
               <div className="btk-ticket-head">
                 <StepLabel number="3" label="Choose tickets" />
+                <p className="btk-auto-cart-note">Your selected tickets are added to the shopping cart automatically.</p>
               </div>
               <div className="btk-ticket-lines">
                 {ticketLines.map((line) => {

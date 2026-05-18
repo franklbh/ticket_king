@@ -12669,6 +12669,13 @@ body:has(.btk-page) .topbar {
   margin-bottom: 14px;
 }
 
+.btk-auto-cart-note {
+  margin: -4px 0 14px;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 850;
+}
+
 .btk-ticket-lines {
   display: grid;
   gap: 10px;
