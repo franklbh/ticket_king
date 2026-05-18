@@ -13,7 +13,7 @@ import { exportLogs, getLog } from '../api/adminApi'
 import { useAdminMutation } from '../hooks/useAdminApi'
 import LoadingIndicator from '../components/LoadingIndicator'
 import { AdminAlert, AdminPagination, EmptyTableRow, FilterCard, PageHeader, TableShell } from '../components/AdminUI'
-import { DateRangeFilter, ResetFiltersButton, SelectFilter, TextFilter } from '../components/FilterControls'
+import { ApplyFiltersButton, DateRangeFilter, ResetFiltersButton, SelectFilter, TextFilter } from '../components/FilterControls'
 
 const ACTION_TYPES = ['Login', 'Create', 'Update', 'Batch Update', 'Check In', 'Restock', 'Void', 'Activate', 'Deactivate', 'Export', 'Other']
 const ACTION_COLORS = {
@@ -56,6 +56,14 @@ export default function Logs() {
     actionTypes: ACTION_TYPES.slice(),
     targetTypes: TARGET_TYPES.slice(),
   })
+  const [appliedFilters, setAppliedFilters] = useState({
+    admin: 'all',
+    search: '',
+    dateFrom: '',
+    dateTo: '',
+    actionTypes: ACTION_TYPES.slice(),
+    targetTypes: TARGET_TYPES.slice(),
+  })
   const [page, setPage] = useState(1)
   const [ipModal, setIpModal] = useState(null)
   const [detailLog, setDetailLog] = useState(null)
@@ -63,12 +71,12 @@ export default function Logs() {
     {
       page: 1,
       pageSize: 200,
-      admin: filters.admin,
-      search: filters.search,
-      dateFrom: filters.dateFrom,
-      dateTo: filters.dateTo,
-      actionType: filters.actionTypes.length === ACTION_TYPES.length ? undefined : filters.actionTypes,
-      targetType: filters.targetTypes.length === TARGET_TYPES.length ? undefined : filters.targetTypes,
+      admin: appliedFilters.admin,
+      search: appliedFilters.search,
+      dateFrom: appliedFilters.dateFrom,
+      dateTo: appliedFilters.dateTo,
+      actionType: appliedFilters.actionTypes.length === ACTION_TYPES.length ? undefined : appliedFilters.actionTypes,
+      targetType: appliedFilters.targetTypes.length === TARGET_TYPES.length ? undefined : appliedFilters.targetTypes,
     },
     { initialData: { items: [], total: 0 } }
   )
@@ -84,7 +92,6 @@ export default function Logs() {
       ...f,
       actionTypes: f.actionTypes.includes(at) ? f.actionTypes.filter(x => x !== at) : [...f.actionTypes, at]
     }))
-    setPage(1)
   }
 
   function toggleTargetType(tt) {
@@ -92,22 +99,21 @@ export default function Logs() {
       ...f,
       targetTypes: f.targetTypes.includes(tt) ? f.targetTypes.filter(x => x !== tt) : [...f.targetTypes, tt]
     }))
-    setPage(1)
   }
 
   const filtered = useMemo(() => {
     return logs.filter(log => {
-      if (filters.admin !== 'all' && log.admin !== filters.admin) return false
+      if (appliedFilters.admin !== 'all' && log.admin !== appliedFilters.admin) return false
       const detailsText = typeof log.actionDetails === 'string' ? log.actionDetails : JSON.stringify(log.actionDetails || {})
-      if (filters.search && !detailsText.toLowerCase().includes(filters.search.toLowerCase())) return false
-      if (filters.actionTypes.length > 0 && !filters.actionTypes.includes(log.actionType)) return false
-      if (filters.targetTypes.length > 0 && !filters.targetTypes.includes(log.targetType)) return false
+      if (appliedFilters.search && !detailsText.toLowerCase().includes(appliedFilters.search.toLowerCase())) return false
+      if (appliedFilters.actionTypes.length > 0 && !appliedFilters.actionTypes.includes(log.actionType)) return false
+      if (appliedFilters.targetTypes.length > 0 && !appliedFilters.targetTypes.includes(log.targetType)) return false
       const timestamp = log.timestamp || log.time || ''
-      if (filters.dateFrom && timestamp.slice(0, 10) < filters.dateFrom) return false
-      if (filters.dateTo && timestamp.slice(0, 10) > filters.dateTo) return false
+      if (appliedFilters.dateFrom && timestamp.slice(0, 10) < appliedFilters.dateFrom) return false
+      if (appliedFilters.dateTo && timestamp.slice(0, 10) > appliedFilters.dateTo) return false
       return true
     })
-  }, [filters, logs])
+  }, [appliedFilters, logs])
 
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
@@ -120,13 +126,25 @@ export default function Logs() {
     await exportLogsMutation({
       page: 1,
       pageSize: 200,
-      admin: filters.admin,
-      search: filters.search,
-      dateFrom: filters.dateFrom,
-      dateTo: filters.dateTo,
-      actionType: filters.actionTypes.length === ACTION_TYPES.length ? undefined : filters.actionTypes,
-      targetType: filters.targetTypes.length === TARGET_TYPES.length ? undefined : filters.targetTypes,
+      admin: appliedFilters.admin,
+      search: appliedFilters.search,
+      dateFrom: appliedFilters.dateFrom,
+      dateTo: appliedFilters.dateTo,
+      actionType: appliedFilters.actionTypes.length === ACTION_TYPES.length ? undefined : appliedFilters.actionTypes,
+      targetType: appliedFilters.targetTypes.length === TARGET_TYPES.length ? undefined : appliedFilters.targetTypes,
     })
+  }
+
+  function applyFilters() {
+    setAppliedFilters(filters)
+    setPage(1)
+  }
+
+  function resetFilters() {
+    const empty = { admin: 'all', search: '', dateFrom: '', dateTo: '', actionTypes: ACTION_TYPES.slice(), targetTypes: TARGET_TYPES.slice() }
+    setFilters(empty)
+    setAppliedFilters(empty)
+    setPage(1)
   }
 
   if (loadingLogs) {
@@ -174,26 +192,26 @@ export default function Logs() {
           <SelectFilter
             label={t.admin}
             value={filters.admin}
-            onChange={value => { setFilters(f => ({ ...f, admin: value })); setPage(1) }}
+            onChange={value => setFilters(f => ({ ...f, admin: value }))}
             options={adminNames.map(a => ({ value: a, label: a === 'all' ? t.allAdmins : a }))}
           />
           <TextFilter
             label="Search Action Details"
             placeholder="Search action details..."
             value={filters.search}
-            onChange={value => { setFilters(f => ({ ...f, search: value })); setPage(1) }}
+            onChange={value => setFilters(f => ({ ...f, search: value }))}
           />
           <DateRangeFilter
             label="Date Range"
             from={filters.dateFrom}
             to={filters.dateTo}
-            onFromChange={value => { setFilters(f => ({ ...f, dateFrom: value })); setPage(1) }}
-            onToChange={value => { setFilters(f => ({ ...f, dateTo: value })); setPage(1) }}
+            onFromChange={value => setFilters(f => ({ ...f, dateFrom: value }))}
+            onToChange={value => setFilters(f => ({ ...f, dateTo: value }))}
           />
-          <ResetFiltersButton
-            label={t.reset}
-            onClick={() => { setFilters({ admin: 'all', search: '', dateFrom: '', dateTo: '', actionTypes: ACTION_TYPES.slice(), targetTypes: TARGET_TYPES.slice() }); setPage(1) }}
-          />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <ApplyFiltersButton onClick={applyFilters} />
+            <ResetFiltersButton label={t.reset} onClick={resetFilters} />
+          </div>
         </div>
 
         {/* Action Type filter */}

@@ -20,7 +20,7 @@ import { adminQueryKeys } from '../hooks/queries'
 import { useEventsQuery, useSlotsQuery } from '../hooks/catalog'
 import { useAdminMutation } from '../hooks/useAdminApi'
 import { formatDateWithDay, todayIso } from '../utils/date'
-import { DateRangeFilter, ResetFiltersButton, SelectFilter } from '../components/FilterControls'
+import { ApplyFiltersButton, DateRangeFilter, ResetFiltersButton, SelectFilter } from '../components/FilterControls'
 
 const PAGE_SIZE = 15
 const TODAY = todayIso()
@@ -92,11 +92,16 @@ export default function Slots() {
     dateFrom: linkedDate || '', dateTo: linkedDate || '',
     status: 'all', todayOnly: false, hideUnsold: false
   })
+  const [appliedFilters, setAppliedFilters] = useState({
+    event: 'all',
+    dateFrom: linkedDate || '', dateTo: linkedDate || '',
+    status: 'all', todayOnly: false, hideUnsold: false
+  })
 
   const slotParams = useMemo(() => ({
-    dateFrom: filters.dateFrom || linkedDate || '',
-    dateTo: filters.dateTo || linkedDate || '',
-  }), [filters.dateFrom, filters.dateTo, linkedDate])
+    dateFrom: appliedFilters.dateFrom || linkedDate || '',
+    dateTo: appliedFilters.dateTo || linkedDate || '',
+  }), [appliedFilters.dateFrom, appliedFilters.dateTo, linkedDate])
 
   const { data: loadedSlots, error: loadError, loading: loadingSlots, reload } = useSlotsQuery(
     slotParams,
@@ -133,16 +138,16 @@ export default function Slots() {
 
   const filtered = useMemo(() => {
     return slots.filter(s => {
-      if (filters.event !== 'all' && s.event !== Number(filters.event)) return false
-      if (filters.dateFrom && s.date < filters.dateFrom) return false
-      if (filters.dateTo && s.date > filters.dateTo) return false
+      if (appliedFilters.event !== 'all' && s.event !== Number(appliedFilters.event)) return false
+      if (appliedFilters.dateFrom && s.date < appliedFilters.dateFrom) return false
+      if (appliedFilters.dateTo && s.date > appliedFilters.dateTo) return false
       if (linkedStart && s.startTime !== linkedStart) return false
-      if (filters.status !== 'all' && s.status !== filters.status) return false
-      if (filters.todayOnly && s.date !== TODAY) return false
-      if (filters.hideUnsold && s.websiteSeats === 0 && s.inStoreSeats === 0) return false
+      if (appliedFilters.status !== 'all' && s.status !== appliedFilters.status) return false
+      if (appliedFilters.todayOnly && s.date !== TODAY) return false
+      if (appliedFilters.hideUnsold && s.websiteSeats === 0 && s.inStoreSeats === 0) return false
       return true
     })
-  }, [slots, filters, linkedStart])
+  }, [slots, appliedFilters, linkedStart])
 
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
@@ -201,9 +206,21 @@ export default function Slots() {
   }
 
   async function archiveSelectedEvent() {
-    if (filters.event === 'all') return
+    if (appliedFilters.event === 'all') return
     if (!window.confirm('Archive this event?')) return
-    await eventAction.mutate(() => archiveEvent(filters.event))
+    await eventAction.mutate(() => archiveEvent(appliedFilters.event))
+  }
+
+  function applyFilters() {
+    setAppliedFilters(filters)
+    setPage(1)
+  }
+
+  function resetFilters() {
+    const empty = { event: 'all', dateFrom: '', dateTo: '', status: 'all', todayOnly: false, hideUnsold: false }
+    setFilters(empty)
+    setAppliedFilters(empty)
+    setPage(1)
   }
 
   return (
@@ -228,7 +245,7 @@ export default function Slots() {
         actions={
         <Stack direction="row" spacing={1}>
           <Button variant="outlined" size="small" onClick={batchCreateSlots} startIcon={<i className="fa fa-layer-group" />}>Batch Create</Button>
-          <Button variant="outlined" size="small" disabled={filters.event === 'all'} onClick={archiveSelectedEvent} startIcon={<i className="fa fa-archive" />}>Archive Event</Button>
+          <Button variant="outlined" size="small" disabled={appliedFilters.event === 'all'} onClick={archiveSelectedEvent} startIcon={<i className="fa fa-archive" />}>Archive Event</Button>
           <Button variant="contained" size="small" onClick={() => setModal('create')}>{t.createSlot}</Button>
         </Stack>
         }
@@ -240,8 +257,9 @@ export default function Slots() {
           <SelectFilter label={t.event} value={filters.event} onChange={value => setFilters(f => ({ ...f, event: value }))} options={[{ value: 'all', label: t.allEvents }, ...events.map(ev => ({ value: String(ev.id), label: ev.name }))]} />
           <DateRangeFilter label="Date Range" from={filters.dateFrom} to={filters.dateTo} onFromChange={value => setFilters(f => ({ ...f, dateFrom: value }))} onToChange={value => setFilters(f => ({ ...f, dateTo: value }))} />
           <SelectFilter label={t.status} value={filters.status} onChange={value => setFilters(f => ({ ...f, status: value }))} options={[{ value: 'all', label: t.allStatus }, { value: 'active', label: t.active }, { value: 'disabled', label: t.disabled }]} />
-          <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-            <ResetFiltersButton onClick={() => setFilters({ event: 'all', dateFrom: '', dateTo: '', status: 'all', todayOnly: false, hideUnsold: false })} label={t.reset} />
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
+            <ApplyFiltersButton onClick={applyFilters} />
+            <ResetFiltersButton onClick={resetFilters} label={t.reset} />
           </div>
         </div>
         <Stack direction="row" spacing={2}>

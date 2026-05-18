@@ -11,7 +11,7 @@ import LoadingIndicator from '../components/LoadingIndicator'
 import QrCodeDialog from '../components/QrCodeDialog'
 import { adminQueryKeys, useCouponsQuery } from '../hooks/queries'
 import { useAdminMutation } from '../hooks/useAdminApi'
-import { ResetFiltersButton, SelectFilter, TextFilter } from '../components/FilterControls'
+import { ApplyFiltersButton, ResetFiltersButton, SelectFilter, TextFilter } from '../components/FilterControls'
 
 const PAGE_SIZE = 10
 
@@ -162,15 +162,16 @@ export default function Coupons() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const [filters, setFilters] = useState({ search: searchParams.get('search') || '', status: 'all', source: 'all', hideUnused: false })
+  const [appliedFilters, setAppliedFilters] = useState({ search: searchParams.get('search') || '', status: 'all', source: 'all', hideUnused: false })
   const [page, setPage] = useState(1)
   const [modal, setModal] = useState(null) // null | 'create' | { coupon }
   const [couponQr, setCouponQr] = useState(null)
 
   const couponParams = useMemo(() => ({
-    search: filters.search || undefined,
-    status: filters.status === 'all' ? undefined : filters.status,
-    source: filters.source === 'all' ? undefined : filters.source,
-  }), [filters.search, filters.status, filters.source])
+    search: appliedFilters.search || undefined,
+    status: appliedFilters.status === 'all' ? undefined : appliedFilters.status,
+    source: appliedFilters.source === 'all' ? undefined : appliedFilters.source,
+  }), [appliedFilters.search, appliedFilters.status, appliedFilters.source])
 
   const { data: coupons = [], loading, reload } = useCouponsQuery(couponParams, { initialData: [] })
   const saveCoupon = useAdminMutation(
@@ -199,13 +200,13 @@ export default function Coupons() {
 
   const filtered = useMemo(() => {
     return coupons.filter(c => {
-      if (filters.search && !c.code.toLowerCase().includes(filters.search.toLowerCase())) return false
-      if (filters.status !== 'all' && c.status !== filters.status) return false
-      if (filters.source !== 'all' && c.source !== filters.source) return false
-      if (filters.hideUnused && c.usedCount === 0) return false
+      if (appliedFilters.search && !c.code.toLowerCase().includes(appliedFilters.search.toLowerCase())) return false
+      if (appliedFilters.status !== 'all' && c.status !== appliedFilters.status) return false
+      if (appliedFilters.source !== 'all' && c.source !== appliedFilters.source) return false
+      if (appliedFilters.hideUnused && c.usedCount === 0) return false
       return true
     })
-  }, [coupons, filters])
+  }, [coupons, appliedFilters])
 
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
@@ -262,6 +263,18 @@ export default function Coupons() {
     reload()
   }
 
+  function applyFilters() {
+    setAppliedFilters(filters)
+    setPage(1)
+  }
+
+  function resetFilters() {
+    const empty = { search: '', status: 'all', source: 'all', hideUnused: false }
+    setFilters(empty)
+    setAppliedFilters(empty)
+    setPage(1)
+  }
+
   if (loading && !coupons.length) {
     return <LoadingIndicator label="Loading coupons..." />
   }
@@ -315,8 +328,9 @@ export default function Coupons() {
           <div className="flex items-end">
             <FormControlLabel control={<Checkbox checked={filters.hideUnused} onChange={e => setFilters(f => ({ ...f, hideUnused: e.target.checked }))} />} label={t.hideUnused} />
           </div>
-          <div className="flex items-end">
-            <ResetFiltersButton onClick={() => setFilters({ search: '', status: 'all', source: 'all', hideUnused: false })} label={t.reset} />
+          <div className="flex items-end gap-2">
+            <ApplyFiltersButton onClick={applyFilters} />
+            <ResetFiltersButton onClick={resetFilters} label={t.reset} />
           </div>
         </div>
       </FilterCard>

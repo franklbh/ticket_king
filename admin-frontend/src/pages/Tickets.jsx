@@ -12,7 +12,7 @@ import { useTicketTypesQuery } from '../hooks/catalog'
 import LoadingIndicator from '../components/LoadingIndicator'
 import QrCodeDialog from '../components/QrCodeDialog'
 import { AdminAlert, EmptyTableRow, FilterCard, PageHeader, TableShell } from '../components/AdminUI'
-import { DateRangeFilter, ResetFiltersButton, SelectFilter, TextFilter } from '../components/FilterControls'
+import { ApplyFiltersButton, DateRangeFilter, ResetFiltersButton, SelectFilter, TextFilter } from '../components/FilterControls'
 
 const PAGE_SIZE = 10
 const TODAY = new Date().toISOString().slice(0, 10)
@@ -93,19 +93,25 @@ export default function Tickets() {
     verifiedFrom: '', verifiedTo: '',
     types: [],
   })
+  const [appliedFilters, setAppliedFilters] = useState({
+    code: '', orderId: '', status: 'all',
+    slotDateFrom: '', slotDateTo: '',
+    verifiedFrom: '', verifiedTo: '',
+    types: [],
+  })
   const [page, setPage] = useState(1)
   const ticketQueryFilters = useMemo(() => ({
     page,
     pageSize: PAGE_SIZE,
-    code: filters.code,
-    orderId: filters.orderId,
-    status: filters.status,
-    slotDateFrom: filters.slotDateFrom,
-    slotDateTo: filters.slotDateTo,
-    verifiedFrom: filters.verifiedFrom,
-    verifiedTo: filters.verifiedTo,
-    ticketType: filters.types,
-  }), [filters, page])
+    code: appliedFilters.code,
+    orderId: appliedFilters.orderId,
+    status: appliedFilters.status,
+    slotDateFrom: appliedFilters.slotDateFrom,
+    slotDateTo: appliedFilters.slotDateTo,
+    verifiedFrom: appliedFilters.verifiedFrom,
+    verifiedTo: appliedFilters.verifiedTo,
+    ticketType: appliedFilters.types,
+  }), [appliedFilters, page])
   const { data: ticketsData, error: loadError, loading: loadingTickets, setData: setTicketsData } = useTicketsQuery(
     ticketQueryFilters,
     { initialData: { items: [], total: 0 } }
@@ -137,7 +143,6 @@ export default function Tickets() {
       ...f,
       types: f.types.includes(type) ? f.types.filter(x => x !== type) : [...f.types, type]
     }))
-    setPage(1)
   }
 
   async function toggleStatus(id) {
@@ -193,30 +198,41 @@ export default function Tickets() {
   const paged = tickets
 
   function resetFilters() {
-    setFilters({ code: '', orderId: '', status: 'all', slotDateFrom: '', slotDateTo: '', verifiedFrom: '', verifiedTo: '', types: [] })
+    const empty = { code: '', orderId: '', status: 'all', slotDateFrom: '', slotDateTo: '', verifiedFrom: '', verifiedTo: '', types: [] }
+    setFilters(empty)
+    setAppliedFilters(empty)
+    setPage(1)
+  }
+
+  function applyFilters() {
+    setAppliedFilters(filters)
     setPage(1)
   }
 
   function setTodaySlotFilter() {
-    setFilters(f => ({ ...f, slotDateFrom: TODAY, slotDateTo: TODAY }))
+    const next = { ...filters, slotDateFrom: TODAY, slotDateTo: TODAY }
+    setFilters(next)
+    setAppliedFilters(next)
     setPage(1)
   }
 
   function setTodayVerifiedFilter() {
-    setFilters(f => ({ ...f, status: 'used', verifiedFrom: TODAY, verifiedTo: TODAY }))
+    const next = { ...filters, status: 'used', verifiedFrom: TODAY, verifiedTo: TODAY }
+    setFilters(next)
+    setAppliedFilters(next)
     setPage(1)
   }
 
   async function exportCSV() {
     await exportTicketsMutation({
-      code: filters.code,
-      orderId: filters.orderId,
-      status: filters.status,
-      slotDateFrom: filters.slotDateFrom,
-      slotDateTo: filters.slotDateTo,
-      verifiedFrom: filters.verifiedFrom,
-      verifiedTo: filters.verifiedTo,
-      ticketType: filters.types,
+      code: appliedFilters.code,
+      orderId: appliedFilters.orderId,
+      status: appliedFilters.status,
+      slotDateFrom: appliedFilters.slotDateFrom,
+      slotDateTo: appliedFilters.slotDateTo,
+      verifiedFrom: appliedFilters.verifiedFrom,
+      verifiedTo: appliedFilters.verifiedTo,
+      ticketType: appliedFilters.types,
     })
     setShowExportConfirm(false)
   }
@@ -224,12 +240,12 @@ export default function Tickets() {
   function ticketExportFilters() {
     const statusLabels = { all: t.allStatus, not_used: t.notUsed, used: t.used, voided: t.voided }
     const items = []
-    if (filters.code) items.push(`Verification Code: ${filters.code}`)
-    if (filters.orderId) items.push(`Order ID: ${filters.orderId}`)
-    items.push(`Ticket Status: ${statusLabels[filters.status] || filters.status}`)
-    items.push(`Slot Date Range: ${filters.slotDateFrom || 'No limit'} - ${filters.slotDateTo || 'No limit'}`)
-    if (filters.verifiedFrom || filters.verifiedTo) items.push(`Verified Date Range: ${filters.verifiedFrom || 'No limit'} - ${filters.verifiedTo || 'No limit'}`)
-    if (filters.types.length) items.push(`Ticket Type: ${filters.types.join(', ')}`)
+    if (appliedFilters.code) items.push(`Verification Code: ${appliedFilters.code}`)
+    if (appliedFilters.orderId) items.push(`Order ID: ${appliedFilters.orderId}`)
+    items.push(`Ticket Status: ${statusLabels[appliedFilters.status] || appliedFilters.status}`)
+    items.push(`Slot Date Range: ${appliedFilters.slotDateFrom || 'No limit'} - ${appliedFilters.slotDateTo || 'No limit'}`)
+    if (appliedFilters.verifiedFrom || appliedFilters.verifiedTo) items.push(`Verified Date Range: ${appliedFilters.verifiedFrom || 'No limit'} - ${appliedFilters.verifiedTo || 'No limit'}`)
+    if (appliedFilters.types.length) items.push(`Ticket Type: ${appliedFilters.types.join(', ')}`)
     return items
   }
 
@@ -300,12 +316,12 @@ export default function Tickets() {
       {/* Filters */}
       <FilterCard>
         <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1fr_1fr_1fr_1.4fr_1.4fr_auto] mb-3">
-          <TextFilter label={t.verificationCode} placeholder="Enter verification code..." value={filters.code} onChange={value => { setFilters(f => ({ ...f, code: value })); setPage(1) }} />
-          <TextFilter label={t.orderID} placeholder="Enter order ID..." value={filters.orderId} onChange={value => { setFilters(f => ({ ...f, orderId: value })); setPage(1) }} />
+          <TextFilter label={t.verificationCode} placeholder="Enter verification code..." value={filters.code} onChange={value => setFilters(f => ({ ...f, code: value }))} />
+          <TextFilter label={t.orderID} placeholder="Enter order ID..." value={filters.orderId} onChange={value => setFilters(f => ({ ...f, orderId: value }))} />
           <SelectFilter
             label={t.ticketStatus}
             value={filters.status}
-            onChange={value => { setFilters(f => ({ ...f, status: value })); setPage(1) }}
+            onChange={value => setFilters(f => ({ ...f, status: value }))}
             options={[
               { value: 'all', label: t.allStatus },
               { value: 'not_used', label: t.notUsed },
@@ -313,9 +329,10 @@ export default function Tickets() {
               { value: 'voided', label: t.voided },
             ]}
           />
-          <DateRangeFilter label={t.slotDateRange} from={filters.slotDateFrom} to={filters.slotDateTo} onFromChange={value => { setFilters(f => ({ ...f, slotDateFrom: value })); setPage(1) }} onToChange={value => { setFilters(f => ({ ...f, slotDateTo: value })); setPage(1) }} />
-          <DateRangeFilter label={t.verifiedDateRange} from={filters.verifiedFrom} to={filters.verifiedTo} onFromChange={value => { setFilters(f => ({ ...f, verifiedFrom: value })); setPage(1) }} onToChange={value => { setFilters(f => ({ ...f, verifiedTo: value })); setPage(1) }} />
-          <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+          <DateRangeFilter label={t.slotDateRange} from={filters.slotDateFrom} to={filters.slotDateTo} onFromChange={value => setFilters(f => ({ ...f, slotDateFrom: value }))} onToChange={value => setFilters(f => ({ ...f, slotDateTo: value }))} />
+          <DateRangeFilter label={t.verifiedDateRange} from={filters.verifiedFrom} to={filters.verifiedTo} onFromChange={value => setFilters(f => ({ ...f, verifiedFrom: value }))} onToChange={value => setFilters(f => ({ ...f, verifiedTo: value }))} />
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
+            <ApplyFiltersButton onClick={applyFilters} />
             <ResetFiltersButton onClick={resetFilters} label={t.reset} />
           </div>
         </div>
@@ -349,6 +366,9 @@ export default function Tickets() {
               sx={{ fontWeight: 700 }}
             />
           ))}
+          <Button size="small" variant="contained" onClick={applyFilters} startIcon={<i className="fa fa-check" />}>
+            Apply
+          </Button>
         </div>
       </FilterCard>
 
