@@ -68,7 +68,13 @@ class DashboardService:
             start = date.today() - timedelta(days=days - 1)
             keys = [(start + timedelta(days=i)).isoformat() for i in range(days)]
         else:
-            keys = sorted(set(order_by_day) | set(tickets_by_day))
+            populated = sorted(set(order_by_day) | set(tickets_by_day))
+            if not populated:
+                keys = []
+            else:
+                start = date.fromisoformat(populated[0])
+                end = date.fromisoformat(populated[-1])
+                keys = [(start + timedelta(days=i)).isoformat() for i in range((end - start).days + 1)]
         return [
             {
                 "date": key,

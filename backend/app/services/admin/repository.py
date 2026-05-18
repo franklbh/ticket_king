@@ -191,6 +191,7 @@ class AdminRepository:
                 order_filters.append(order_activity_date >= start_date)
                 ticket_filters.append(ticket_activity_date >= start_date)
             order_filters.extend(ticketing_order_filters)
+            ticket_filters.extend(ticketing_order_filters)
 
             order_summary_stmt = select(
                 func.coalesce(func.sum(case((order_activity_date == today, amount), else_=0)), 0).label("today_revenue"),
