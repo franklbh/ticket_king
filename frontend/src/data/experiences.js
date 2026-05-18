@@ -1,15 +1,16 @@
 import introVideo from '../user_media/Intro_video.mp4'
-import galleryImg1 from '../user_media/gallery1.png'
-import galleryImg2 from '../user_media/gallery2.png'
-import galleryImg3 from '../user_media/gallery3.png'
-import galleryImg4 from '../user_media/gallery4.png'
-import galleryImg5 from '../user_media/gallery5.png'
-import galleryImg6 from '../user_media/gallery6.png'
-import galleryImg7 from '../user_media/gallery7.png'
-import galleryImg8 from '../user_media/gallery8.png'
 import heroImg from '../user_media/cover.jpg'
-import commenterImg1 from '../user_media/comment_p1.jpg'
-import commenterImg2 from '../user_media/comment_p2.jpg'
+
+const galleryImg1 = '/user_media/gallery1.png'
+const galleryImg2 = '/user_media/gallery2.png'
+const galleryImg3 = '/user_media/gallery3.png'
+const galleryImg4 = '/user_media/gallery4.png'
+const galleryImg5 = '/user_media/gallery5.png'
+const galleryImg6 = '/user_media/gallery6.png'
+const galleryImg7 = '/user_media/gallery7.png'
+const galleryImg8 = '/user_media/gallery8.png'
+const commenterImg1 = '/user_media/comment_p1.jpg'
+const commenterImg2 = '/user_media/comment_p2.jpg'
 
 export const vrExperiences = [
   {
