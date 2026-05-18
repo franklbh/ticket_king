@@ -6,7 +6,7 @@ import TextField from '@mui/material/TextField'
 import { useNavigate } from 'react-router-dom'
 import { useLang } from '../context/authHooks'
 import { useT } from '../i18n/translations'
-import { createWalkInOrder } from '../api/adminApi'
+import { createWalkInOrder, validateCoupon } from '../api/adminApi'
 import { useAdminMutation } from '../hooks/useAdminApi'
 import { useSlotsQuery, useTicketTypesQuery } from '../hooks/catalog'
 import LoadingIndicator from '../components/LoadingIndicator'
@@ -21,6 +21,10 @@ const PAYMENT_METHODS = [
   { id: 'Other', label: 'Other', icon: 'fa-ellipsis-h' },
 ]
 const GST_RATE = 0.05
+
+function money(value) {
+  return Math.round((Number(value) || 0) * 100) / 100
+}
 
 function StepIndicator({ step }) {
   const steps = [1, 2, 3, 4]
@@ -55,6 +59,10 @@ export default function CreateOrder() {
   const [customer, setCustomer] = useState({ firstName: '', lastName: '', phone: '', email: '', remarks: '' })
   const [payment, setPayment] = useState('')
   const [markUsed, setMarkUsed] = useState(false)
+  const [priceOverride, setPriceOverride] = useState(null)
+  const [appliedCoupon, setAppliedCoupon] = useState(null)
+  const [couponMessage, setCouponMessage] = useState('')
+  const [applyingCoupon, setApplyingCoupon] = useState(false)
   const [orderComplete, setOrderComplete] = useState(false)
   const [lastOrderId, setLastOrderId] = useState(null)
   const [submitError, setSubmitError] = useState(null)
@@ -76,9 +84,11 @@ export default function CreateOrder() {
   function handleSlotSelect(slot) {
     setSelectedSlot(slot)
     setTicketSelections({})
+    clearCheckoutAdjustments()
   }
 
   function updateTicketCount(typeId, delta) {
+    clearCheckoutAdjustments()
     setTicketSelections(prev => {
       const current = prev[typeId] || 0
       const next = Math.max(0, current + delta)
@@ -90,6 +100,12 @@ export default function CreateOrder() {
     })
   }
 
+  function clearCheckoutAdjustments() {
+    setPriceOverride(null)
+    setAppliedCoupon(null)
+    setCouponMessage('')
+  }
+
   const totalTickets = Object.values(ticketSelections).reduce((s, v) => s + v, 0)
   const totalAmount = Object.entries(ticketSelections).reduce((sum, [typeId, count]) => {
     const tp = enabledTypes.find(t => String(t.id) === String(typeId))
@@ -97,8 +113,12 @@ export default function CreateOrder() {
     const price = tp.priceType === 'fixed' ? (tp.price || 0) : (selectedSlot?.price || 37.95) + (tp.priceAdj || 0)
     return sum + price * count
   }, 0)
-  const gstAmount = totalAmount * GST_RATE
-  const totalDue = totalAmount + gstAmount
+  const adjustedTicketAmount = priceOverride == null ? totalAmount : priceOverride
+  const adminAdjustment = money(adjustedTicketAmount - totalAmount)
+  const couponDiscount = Math.min(appliedCoupon?.discount || 0, adjustedTicketAmount)
+  const taxableAmount = Math.max(0, adjustedTicketAmount - couponDiscount)
+  const gstAmount = taxableAmount * GST_RATE
+  const totalDue = taxableAmount + gstAmount
   const customerName = [customer.firstName, customer.lastName].filter(Boolean).join(' ')
   const ticketValidationError = Object.entries(ticketSelections).reduce((message, [typeId, count]) => {
     if (message) return message
@@ -140,6 +160,9 @@ export default function CreateOrder() {
         },
         payment_method: payment,
         mark_used_immediately: markUsed,
+        admin_adjustment: adminAdjustment,
+        coupon_code: appliedCoupon?.code || null,
+        coupon_discount: Number(couponDiscount.toFixed(2)),
       })
       setLastOrderId(created?.order?.id || created?.order?.orderNumber || created?.order?.order_number)
       setOrderComplete(true)
@@ -155,8 +178,50 @@ export default function CreateOrder() {
     setCustomer({ firstName: '', lastName: '', phone: '', email: '', remarks: '' })
     setPayment('')
     setMarkUsed(false)
+    clearCheckoutAdjustments()
     setOrderComplete(false)
     setLastOrderId(null)
+  }
+
+  function changePrice() {
+    const value = window.prompt('New ticket total before GST', adjustedTicketAmount.toFixed(2))
+    if (value === null) return
+    const amount = Number(value)
+    if (!Number.isFinite(amount) || amount < 0) {
+      setCouponMessage('Enter a valid amount.')
+      return
+    }
+    setPriceOverride(money(amount))
+    setAppliedCoupon(null)
+    setCouponMessage('Custom price applied. Add a coupon after changing price if needed.')
+  }
+
+  async function applyCoupon() {
+    if (appliedCoupon) {
+      setAppliedCoupon(null)
+      setCouponMessage('Coupon removed.')
+      return
+    }
+    const code = window.prompt('Coupon code')
+    if (!code?.trim()) return
+    setApplyingCoupon(true)
+    setCouponMessage('')
+    try {
+      const result = await validateCoupon({ code: code.trim(), amount: adjustedTicketAmount })
+      if (!result.valid) {
+        setCouponMessage(result.reason || 'Coupon is not valid.')
+        return
+      }
+      setAppliedCoupon({
+        code: result.code,
+        discount: Number(result.discount || 0),
+      })
+      setCouponMessage(`Coupon ${result.code} applied.`)
+    } catch (err) {
+      setCouponMessage(err.message || 'Unable to validate coupon.')
+    } finally {
+      setApplyingCoupon(false)
+    }
   }
 
   if (orderComplete) {
@@ -451,6 +516,18 @@ export default function CreateOrder() {
                     <span>Ticket Total</span>
                     <span>${totalAmount.toFixed(2)}</span>
                   </div>
+                  {priceOverride != null && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: adminAdjustment < 0 ? '#dc2626' : '#047857' }}>
+                      <span>Price adjustment</span>
+                      <span>{adminAdjustment < 0 ? '-' : '+'}${Math.abs(adminAdjustment).toFixed(2)}</span>
+                    </div>
+                  )}
+                  {appliedCoupon && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#dc2626' }}>
+                      <span>Coupon ({appliedCoupon.code})</span>
+                      <span>-${couponDiscount.toFixed(2)}</span>
+                    </div>
+                  )}
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#374151' }}>
                     <span>GST (5%)</span>
                     <span>${gstAmount.toFixed(2)}</span>
@@ -460,6 +537,32 @@ export default function CreateOrder() {
                     <span>Total</span>
                     <span style={{ color: '#4f46e5' }}>${totalDue.toFixed(2)}</span>
                   </div>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, flexWrap: 'wrap', marginTop: 4 }}>
+                    <Button
+                      size="small"
+                      variant="contained"
+                      onClick={changePrice}
+                      startIcon={<i className="fa fa-sliders-h" />}
+                      sx={{ bgcolor: '#ef4444', '&:hover': { bgcolor: '#dc2626' } }}
+                    >
+                      Change Price
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="contained"
+                      onClick={applyCoupon}
+                      disabled={applyingCoupon}
+                      startIcon={<i className={`fa ${appliedCoupon ? 'fa-times' : 'fa-tag'}`} />}
+                      sx={{ bgcolor: '#6b7280', '&:hover': { bgcolor: '#4b5563' } }}
+                    >
+                      {appliedCoupon ? 'Remove Coupon' : 'Apply Coupon'}
+                    </Button>
+                  </div>
+                  {couponMessage && (
+                    <div style={{ fontSize: 12, color: appliedCoupon || priceOverride != null ? '#047857' : '#b45309', textAlign: 'right' }}>
+                      {couponMessage}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
