@@ -6,7 +6,7 @@ import MuiPagination from '@mui/material/Pagination'
 import Select from '@mui/material/Select'
 import { useLang } from '../context/authHooks'
 import { useT } from '../i18n/translations'
-import { exportOrders, updateOrderCustomer, updateOrderSlot, updateOrderStatus } from '../api/adminApi'
+import { exportOrders, resendOrderEmail, updateOrderCustomer, updateOrderSlot, updateOrderStatus } from '../api/adminApi'
 import { useAdminMutation } from '../hooks/useAdminApi'
 import { useOrdersQuery } from '../hooks/orders'
 import { useSlotsQuery } from '../hooks/catalog'
@@ -181,21 +181,22 @@ function Pagination({ page, total, pageSize, onPage }) {
 
 // ── popover contents ──────────────────────────────────────────────────────────
 
-function EmailHistoryContent({ order, t }) {
+function EmailHistoryContent({ order, t, onResend }) {
+  const wasSent = order.emailStatus === 'sent'
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
         <span style={{ fontWeight: 600, fontSize: 14 }}>{t.sendHistory}</span>
-        <button className="btn-primary btn-sm" style={{ padding: '4px 10px' }}>
+        <button className="btn-primary btn-sm" style={{ padding: '4px 10px' }} onClick={() => onResend(order.id)}>
           <i className="fa fa-redo" style={{ marginRight: 4 }} />{t.resend}
         </button>
       </div>
       <div style={{ height: 1, background: '#f3f4f6', marginBottom: 12 }} />
       <div style={{ paddingBottom: 4 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-          <i className="fa fa-check-circle" style={{ color: '#10b981' }} />
-          <span style={{ fontWeight: 600, fontSize: 13, color: '#10b981' }}>{t.sent}</span>
-          <span style={{ fontSize: 11, background: '#f3f4f6', padding: '1px 6px', borderRadius: 4, color: '#6b7280' }}>{t.latest}</span>
+          <i className={`fa ${wasSent ? 'fa-check-circle' : 'fa-clock'}`} style={{ color: wasSent ? '#10b981' : '#9ca3af' }} />
+          <span style={{ fontWeight: 600, fontSize: 13, color: wasSent ? '#10b981' : '#6b7280' }}>{wasSent ? t.sent : t.notSent}</span>
+          {wasSent && <span style={{ fontSize: 11, background: '#f3f4f6', padding: '1px 6px', borderRadius: 4, color: '#6b7280' }}>{t.latest}</span>}
         </div>
         {order.user.email && (
           <div style={{ fontSize: 12, color: '#374151', marginBottom: 3 }}>
@@ -380,6 +381,9 @@ export default function Orders() {
   const { mutate: updateStatusMutation } = useAdminMutation(updateOrderStatus, {
     successMessage: 'Order status updated.',
   })
+  const { mutate: resendEmailMutation } = useAdminMutation(resendOrderEmail, {
+    successMessage: 'Ticket email resent.',
+  })
   const [editForm, setEditForm] = useState({ firstName: '', lastName: '', phone: '', email: '' })
   const [slotPick, setSlotPick] = useState({ date: null, slot: null, resend: true })
   const [copiedId, setCopiedId] = useState(null)
@@ -413,8 +417,23 @@ export default function Orders() {
   async function saveSlot() {
     if (!slotPick.slot) return
     const updated = await updateSlotMutation(modal.order.id, slotPick.slot.id)
-    setOrdersData(prev => ({ ...prev, items: (prev?.items || []).map(o => o.id === modal.order.id ? updated : o) }))
+    if (slotPick.resend) {
+      await resendEmailMutation(modal.order.id, { reason: 'Order slot changed' })
+    }
+    setOrdersData(prev => ({
+      ...prev,
+      items: (prev?.items || []).map(o => o.id === modal.order.id ? { ...updated, emailStatus: slotPick.resend ? 'sent' : updated.emailStatus } : o),
+    }))
     setModal(null)
+  }
+
+  async function resendEmail(orderId) {
+    await resendEmailMutation(orderId, { reason: 'Manual admin resend' })
+    setOrdersData(prev => ({
+      ...prev,
+      items: (prev?.items || []).map(o => o.id === orderId ? { ...o, emailStatus: 'sent' } : o),
+    }))
+    setPopover(null)
   }
 
   async function updateStatus(orderId, status) {
@@ -588,9 +607,7 @@ export default function Orders() {
                       <span className={`badge ${o.emailStatus === 'sent' ? 'badge-green' : 'badge-gray'}`}>
                         {o.emailStatus === 'sent' ? <><i className="fa fa-check" style={{ marginRight: 3 }} />{t.sent}</> : t.notSent}
                       </span>
-                      {o.emailStatus === 'sent' && (
-                        <IconBtn icon="fa-info-circle" onClick={e => openPopover('email', o.id, e)} title={t.sendHistory} color="#6366f1" bg="#eef2ff" />
-                      )}
+                      <IconBtn icon={o.emailStatus === 'sent' ? 'fa-info-circle' : 'fa-envelope'} onClick={e => openPopover('email', o.id, e)} title={o.emailStatus === 'sent' ? t.sendHistory : t.resend} color="#6366f1" bg="#eef2ff" />
                     </div>
                   </td>
 
@@ -685,7 +702,7 @@ export default function Orders() {
       {/* Popover */}
       {popover && popoverOrder && (
         <Popover rect={popover.rect} onClose={() => setPopover(null)} width={popover.type === 'ip' ? 300 : popover.type === 'coupon' ? 220 : 280}>
-          {popover.type === 'email' && <EmailHistoryContent order={popoverOrder} t={t} />}
+          {popover.type === 'email' && <EmailHistoryContent order={popoverOrder} t={t} onResend={resendEmail} />}
           {popover.type === 'ticket' && <TicketDetailContent order={popoverOrder} t={t} />}
           {popover.type === 'amount' && <AmountDetailContent order={popoverOrder} t={t} />}
           {popover.type === 'ip' && <IpContent order={popoverOrder} t={t} copiedId={copiedId} onCopy={copyIp} />}

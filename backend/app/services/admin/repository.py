@@ -254,6 +254,8 @@ class AdminRepository:
                     .order_by(func.count().desc())
                     .limit(10)
                 )
+                if ticket_filters:
+                    popular_stmt = popular_stmt.where(*ticket_filters)
                 popular = db.execute(popular_stmt).mappings().all()
             else:
                 popular = []
@@ -281,6 +283,7 @@ class AdminRepository:
             users = self._table(db, settings.admin_users_table)
 
             order_id = cast(orders.c.id, String)
+            order_number = cast(orders.c.order_number, String) if "order_number" in orders.c else None
             order_created_date = func.date(orders.c.created_at)
             order_status = func.lower(cast(orders.c.order_status, String))
             slot_date = slots.c.business_date
@@ -299,9 +302,17 @@ class AdminRepository:
 
             conditions = []
             if filters.get("order_id_exact"):
-                conditions.append(order_id == str(filters["order_id_exact"]))
+                exact = str(filters["order_id_exact"])
+                identity_conditions = [order_id == exact]
+                if order_number is not None:
+                    identity_conditions.append(func.lower(order_number) == exact.lower())
+                conditions.append(or_(*identity_conditions))
             elif filters.get("order_id"):
-                conditions.append(order_id.ilike(f"%{filters['order_id']}%"))
+                needle = f"%{filters['order_id']}%"
+                identity_conditions = [order_id.ilike(needle)]
+                if order_number is not None:
+                    identity_conditions.append(order_number.ilike(needle))
+                conditions.append(or_(*identity_conditions))
             if filters.get("user_info"):
                 needle = f"%{str(filters['user_info']).lower()}%"
                 conditions.append(or_(
@@ -374,6 +385,7 @@ class AdminRepository:
 
             ticket_id = cast(tickets.c[settings.admin_ticket_id_column], String)
             order_id = cast(tickets.c.order_id, String)
+            order_number = cast(orders.c.order_number, String) if "order_number" in orders.c else None
             ticket_code = cast(tickets.c.verification_code, String)
             ticket_status = func.lower(cast(tickets.c[settings.admin_ticket_status_column], String))
             slot_date = slots.c.business_date
@@ -386,7 +398,11 @@ class AdminRepository:
                 needle = f"%{filters['code']}%"
                 conditions.append(or_(ticket_code.ilike(needle), cast(tickets.c.qr_payload, String).ilike(needle)))
             if filters.get("order_id"):
-                conditions.append(order_id.ilike(f"%{filters['order_id']}%"))
+                needle = f"%{filters['order_id']}%"
+                identity_conditions = [order_id.ilike(needle)]
+                if order_number is not None:
+                    identity_conditions.append(order_number.ilike(needle))
+                conditions.append(or_(*identity_conditions))
             if filters.get("status") and filters["status"] != "all":
                 requested_status = str(filters["status"]).lower()
                 db_status = {"not_used": "unused", "used": "used", "voided": "voided"}.get(
@@ -414,6 +430,7 @@ class AdminRepository:
             base = select(
                 tickets,
                 orders.c.payment_method.label("order_payment"),
+                orders.c.order_number.label("order_number") if "order_number" in orders.c else orders.c.id.label("order_number"),
                 orders.c.created_at.label("order_created_at"),
                 orders.c.remarks.label("remarks"),
                 orders.c.guest_name.label("guest_name"),
@@ -710,9 +727,16 @@ class AdminRepository:
                 .values(**values)
                 .returning(table)
             )
-            result = db.execute(statement)
-            db.commit()
-            return [dict(row) for row in result.mappings().all()]
+            try:
+                result = db.execute(statement)
+                db.commit()
+                return [dict(row) for row in result.mappings().all()]
+            except SQLAlchemyError as exc:
+                db.rollback()
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail=self._db_error_detail("update", table_name, exc),
+                ) from exc
 
     def _claim_order_fulfillment_sync(self, order_id: Any, updated_at: str) -> list[dict[str, Any]]:
         with self._session() as db:

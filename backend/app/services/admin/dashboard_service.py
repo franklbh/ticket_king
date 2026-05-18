@@ -66,7 +66,12 @@ class DashboardService:
         }
         if days:
             start = date.today() - timedelta(days=days - 1)
-            keys = [(start + timedelta(days=i)).isoformat() for i in range(days)]
+            latest = max(
+                [date.today()]
+                + [date.fromisoformat(key) for key in set(order_by_day) | set(tickets_by_day) if key >= start.isoformat()]
+            )
+            span = (latest - start).days + 1
+            keys = [(start + timedelta(days=i)).isoformat() for i in range(span)]
         else:
             keys = sorted(set(order_by_day) | set(tickets_by_day))
         return [

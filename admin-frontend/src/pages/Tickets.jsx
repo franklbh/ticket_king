@@ -5,7 +5,7 @@ import Chip from '@mui/material/Chip'
 import MuiPagination from '@mui/material/Pagination'
 import { useLang } from '../context/authHooks'
 import { useT } from '../i18n/translations'
-import { exportTickets, updateTicketStatus } from '../api/adminApi'
+import { exportTickets, regenerateTicketQr, updateTicketStatus } from '../api/adminApi'
 import { useAdminMutation } from '../hooks/useAdminApi'
 import { useTicketsQuery } from '../hooks/tickets'
 import { useTicketTypesQuery } from '../hooks/catalog'
@@ -147,6 +147,9 @@ export default function Tickets() {
   const { mutate: exportTicketsMutation, loading: exporting } = useAdminMutation(exportTickets, {
     successMessage: 'Tickets exported.',
   })
+  const { mutate: regenerateQrMutation } = useAdminMutation(regenerateTicketQr, {
+    successMessage: 'QR code regenerated.',
+  })
   const tickets = ticketsData?.items || []
   const ticketTypeOptions = useMemo(
     () => ticketTypes.map(type => type.name).filter(Boolean).sort(),
@@ -187,6 +190,15 @@ export default function Tickets() {
       ...prev,
       items: (prev?.items || []).map(t => t.id === id ? updated : t),
     }))
+  }
+
+  async function generateQr(id) {
+    const updated = await regenerateQrMutation(id, { reason: 'Manual admin regeneration' })
+    setTicketsData(prev => ({
+      ...prev,
+      items: (prev?.items || []).map(t => t.id === id ? updated : t),
+    }))
+    setQrTicket(updated.qrCode || updated.code)
   }
 
   const paged = tickets
@@ -389,11 +401,19 @@ export default function Tickets() {
                       </span>
                       <button
                         title={t.qrCode}
-                        onClick={() => setQrTicket(tk.code)}
+                        onClick={() => setQrTicket(tk.qrCode || tk.code)}
                         style={{ ...actionButton, background: THEME.utilityBg, color: THEME.utilityText, border: `1px solid ${THEME.utilityBorder}` }}
                       >
                         <i className="fa fa-qrcode" />
                         {t.qrCode}
+                      </button>
+                      <button
+                        title={t.generateQR}
+                        onClick={() => generateQr(tk.id)}
+                        style={{ ...actionButton, background: THEME.primary, color: '#fff' }}
+                      >
+                        <i className="fa fa-sync" />
+                        {t.generateQR}
                       </button>
                     </div>
                   </td>

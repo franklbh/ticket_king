@@ -242,17 +242,19 @@ export default function CreateOrder() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
               {availableSlots.map(slot => {
                 const sold = slot.websiteSeats + slot.inStoreSeats
-                const remaining = slot.totalSeats - sold
+                const remaining = Math.max(slot.totalSeats - sold, 0)
                 const isSelected = selectedSlot?.id === slot.id
                 return (
                   <button
                     key={slot.id}
-                    onClick={() => handleSlotSelect(slot)}
+                    onClick={() => remaining > 0 && handleSlotSelect(slot)}
+                    disabled={remaining === 0}
                     style={{
                       padding: 14, borderRadius: 8, textAlign: 'left',
                       border: isSelected ? '2px solid #6366f1' : '1px solid #e5e7eb',
                       background: isSelected ? '#fef2f2' : '#fff',
-                      cursor: 'pointer', transition: 'all 0.15s',
+                      cursor: remaining > 0 ? 'pointer' : 'not-allowed', transition: 'all 0.15s',
+                      opacity: remaining > 0 ? 1 : 0.55,
                     }}
                   >
                     <div style={{ fontWeight: 700, fontSize: 16, color: '#111827' }}>

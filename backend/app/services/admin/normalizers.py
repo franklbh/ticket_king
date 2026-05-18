@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, time
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
@@ -40,6 +40,14 @@ def to_datetime_string(value: Any) -> str | None:
         return value.strftime("%Y-%m-%d %H:%M:%S")
     text = str(value).replace("T", " ")
     return text[:19]
+
+
+def to_time_string(value: Any) -> str | None:
+    if value in (None, ""):
+        return None
+    if isinstance(value, time):
+        return value.strftime("%H:%M")
+    return str(value)[:5]
 
 
 def split_slot_time(value: Any) -> tuple[str | None, str | None]:
@@ -195,7 +203,7 @@ def normalize_ticket(
     slot: dict[str, Any] | None = None,
     customer: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    order_id = str(pick(row, "order_id", "order_number"))
+    order_id = str(pick(row, "order_number", "order_id"))
     slot_date, start_time, end_time = slot_times_from_row(slot)
     if slot_date is None:
         legacy_time = pick(row, "slot_time")
@@ -257,8 +265,8 @@ def normalize_ticket_type(row: dict[str, Any]) -> dict[str, Any]:
         "weekdays": pick(row, "weekdays", default=["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]),
         "validFrom": to_date_string(pick(row, "valid_from")),
         "validTo": to_date_string(pick(row, "valid_to")),
-        "timeStart": pick(row, "time_start"),
-        "timeEnd": pick(row, "time_end"),
+        "timeStart": to_time_string(pick(row, "time_start")),
+        "timeEnd": to_time_string(pick(row, "time_end")),
         "addOn": pick(row, "add_on", "addon"),
         "remarks": pick(row, "remarks"),
         "status": normalize_enabled_status(pick(row, "status", "active")),

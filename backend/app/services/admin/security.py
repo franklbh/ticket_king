@@ -136,17 +136,19 @@ require_owner = require_roles(OWNER)
 
 
 def public_user(row: dict[str, Any]) -> dict[str, Any]:
+    role = normalize_role(row.get("role"))
     return {
         "id": row.get("id"),
         "email": row.get("email"),
         "name": row.get("name"),
         "username": row.get("username") or row.get("name") or row.get("email"),
-        "role": normalize_role(row.get("role")),
+        "role": role,
         "permissions": sorted(effective_permissions(row)),
         "staffRole": row.get("staff_role"),
         "department": row.get("department"),
         "position": row.get("position"),
         "status": row.get("status", "active"),
+        "canDisable": role == ADMINISTRATOR,
         "lastLoginAt": _format_datetime(row.get("last_login_at")),
         "lastLoginIp": row.get("last_login_ip"),
         "createdAt": _format_datetime(row.get("created_at")),

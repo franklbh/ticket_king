@@ -110,10 +110,26 @@ class UserService:
         values = payload.model_dump(exclude_unset=True)
         if not values:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No profile fields provided.")
-        updated = await self._update_user(user_id=user_id, values=values)
+        password = values.pop("password", None)
+        email = values.get("email")
+        existing_rows = await admin_repository.select_where(settings.admin_users_table, column="id", value=uuid.UUID(str(user_id)), limit=1)
+        existing = existing_rows[0] if existing_rows else None
+        if not existing:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+        if email and str(email).lower() != str(existing.get("email") or "").lower():
+            found = await self._find_user_by_email(email)
+            if found and str(found.get("id")) != str(user_id):
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already exists.")
+        if password or (email and str(email).lower() != str(existing.get("email") or "").lower()):
+            await self._update_auth_user(user_id=user_id, email=email, password=password)
+
+        updated = await self._update_user(user_id=user_id, values=values) if values else [existing]
         if not updated:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
-        await write_audit_log(actor, "Update", "Admin", str(user_id), {"profile": values}, None)
+        details = {"profile": values}
+        if password:
+            details["password_updated"] = True
+        await write_audit_log(actor, "Update", "Admin", str(user_id), details, None)
         return public_user(updated[0])
 
     async def update_role(self, user_id: str, payload: UserRoleUpdate, actor: dict[str, Any]) -> dict[str, Any]:
@@ -243,6 +259,44 @@ class UserService:
         if response.status_code in {400, 409, 422} and any(marker in detail.lower() for marker in duplicate_markers):
             return response
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
+
+    async def _update_auth_user(
+        self,
+        *,
+        user_id: str,
+        email: str | None = None,
+        password: str | None = None,
+    ) -> None:
+        if not settings.supabase_url or not settings.supabase_service_role_key:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Supabase service role key is required to update admin email or password.",
+            )
+        payload: dict[str, Any] = {}
+        if email:
+            payload["email"] = email
+        if password:
+            payload["password"] = password
+        if not payload:
+            return
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                response = await client.put(
+                    f"{settings.supabase_url.rstrip('/')}/auth/v1/admin/users/{user_id}",
+                    headers={
+                        "apikey": settings.supabase_service_role_key,
+                        "Authorization": f"Bearer {settings.supabase_service_role_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json=payload,
+                )
+        except httpx.HTTPError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Could not update Supabase Auth user.",
+            ) from exc
+        if response.status_code not in {200, 204}:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=self._supabase_error_detail(response))
 
     def _auth_user_from_response(self, response: httpx.Response, email: str) -> dict[str, Any] | None:
         if response.status_code not in {200, 201}:

@@ -103,11 +103,15 @@ export default function Admins() {
   const saveAdmin = useAdminMutation(
     async (form, existing) => {
       if (existing?.id) {
-        return updateStaffProfile(existing.id, {
+        const payload = {
+          name: form.username || form.name || null,
+          email: form.email || null,
           department: form.department || null,
           position: form.position || null,
           status: form.status || 'active',
-        })
+        }
+        if (form.password) payload.password = form.password
+        return updateStaffProfile(existing.id, payload)
       }
       return createAdminAccount({
         name: form.username || form.name,
@@ -238,7 +242,7 @@ export default function Admins() {
                   <td>
                     <div style={{ display: 'flex', gap: 6 }}>
                       <Button variant="contained" size="small" onClick={() => setModal(a)} startIcon={<i className="fa fa-edit" />}>{t.edit}</Button>
-                      {a.canDisable && (
+                      {(a.canDisable ?? accountRole(a) === 'admin') && (
                         <Button
                           onClick={() => toggleAdminStatus(a)}
                           variant="contained"

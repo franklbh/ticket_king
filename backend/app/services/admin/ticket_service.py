@@ -148,7 +148,14 @@ class TicketService:
         if not rows:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found.")
         await write_audit_log(actor, "Regenerate", "Ticket", ticket_id, {"verification_code": code, "reason": payload.reason}, client_ip)
-        return await self.get_ticket(ticket_id)
+        orders = await orders_by_id()
+        slots = await slots_by_id()
+        users = await users_by_id()
+        order = orders.get(str(rows[0].get("order_id")))
+        slot = slots.get(str((order or {}).get("slot_id") or ""))
+        customer = users.get(str((order or {}).get("customer_id") or ""))
+        merged = merge_ticket_order(rows[0], order)
+        return to_model(TicketRead, normalize_ticket(merged, slot=slot, customer=customer))
 
     async def check_in_ticket(
         self,

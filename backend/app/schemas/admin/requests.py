@@ -107,6 +107,9 @@ class UserRoleUpdate(BaseModel):
 
 
 class StaffProfileUpdate(BaseModel):
+    name: str | None = None
+    email: str | None = None
+    password: str | None = Field(default=None, min_length=8)
     staff_role: str | None = None
     department: str | None = None
     position: str | None = None

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, time
 from decimal import Decimal
 from typing import Any, TypeVar
 from uuid import UUID
@@ -19,6 +19,8 @@ def prepare_value(value: Any) -> Any:
         return float(value)
     if isinstance(value, datetime):
         return value.strftime("%Y-%m-%d %H:%M:%S")
+    if isinstance(value, time):
+        return value.strftime("%H:%M:%S")
     if isinstance(value, date):
         return value.isoformat()
     if isinstance(value, dict):
