@@ -111,7 +111,7 @@ async def stripe_webhook(request: Request):
 
     if event["type"] == "payment_intent.succeeded":
         pi = event["data"]["object"]
-        order = await mark_paid_by_provider_reference("stripe", pi.get("id"))
+        order = await mark_paid_by_provider_reference("stripe", pi["id"])
         if order:
             await fulfill_paid_order(order["id"])
 

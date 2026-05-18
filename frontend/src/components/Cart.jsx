@@ -223,6 +223,7 @@ export default function Cart({
   const [appliedCoupon, setAppliedCoupon] = useState(null)
   const [paymentMethod, setPaymentMethod] = useState('card')
   const [paymentError, setPaymentError] = useState('')
+  const [reservationConflictMessage, setReservationConflictMessage] = useState('')
   const [stripeClientSecret, setStripeClientSecret] = useState('')
   const [stripeOrder, setStripeOrder] = useState(null)
   const [stripeLoading, setStripeLoading] = useState(false)
@@ -547,11 +548,12 @@ export default function Cart({
   async function continueToPayment() {
     setTouched({ first: true, last: true, email: true, phone: true })
     if (!contactReady) return
+    setReservationConflictMessage('')
     try {
       await createCheckoutReservation()
       setStep('payment')
     } catch (err) {
-      setPaymentError(err.message || 'Unable to reserve these seats.')
+      setReservationConflictMessage(err.message || 'Unable to reserve these seats.')
     }
   }
 
@@ -804,6 +806,20 @@ export default function Cart({
             )}
 
             {renderSummary()}
+          </div>
+        )}
+        {reservationConflictMessage && (
+          <div className="btk-added-overlay" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label="Reservation unavailable">
+            <div className="btk-added-modal">
+              <button className="btk-added-close" onClick={() => setReservationConflictMessage('')} type="button" aria-label="Close">×</button>
+              <div className="btk-added-icon"><TicketIcon /></div>
+              <h3>Seats no longer available</h3>
+              <p>{reservationConflictMessage}</p>
+              <div className="btk-added-actions">
+                <button className="btk-secondary" onClick={() => setReservationConflictMessage('')} type="button">Close</button>
+                <button className="btk-primary" onClick={() => { setReservationConflictMessage(''); setStep('review') }} type="button">Update cart</button>
+              </div>
+            </div>
           </div>
         )}
       </div>
