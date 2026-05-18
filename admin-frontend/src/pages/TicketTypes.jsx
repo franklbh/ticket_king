@@ -359,13 +359,16 @@ export default function TicketTypes() {
     const newPrice = parseFloat(editValue)
     if (!isNaN(newPrice) && newPrice >= 0) {
       const isOffPeak = editingCell.tier === 'off-peak'
-      const targets = types.filter(tp => {
+      let targets = types.filter(tp => {
         if (tp.name !== editingCell.name) return false
         const remarks = tp.remarks?.toLowerCase() ?? ''
         return isOffPeak
           ? remarks.includes('off-peak')
           : remarks.includes('peak') && !remarks.includes('off-peak')
       })
+      if (!targets.length) {
+        targets = types.filter(tp => tp.name === editingCell.name)
+      }
       await Promise.all(
         targets.map(row => updateTicketType(row.id, { ...ticketTypePayload({ ...row, price: newPrice }), price: newPrice }))
       )

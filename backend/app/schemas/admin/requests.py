@@ -107,10 +107,15 @@ class UserRoleUpdate(BaseModel):
 
 
 class StaffProfileUpdate(BaseModel):
+    name: str | None = None
     staff_role: str | None = None
     department: str | None = None
     position: str | None = None
     status: Literal["active", "inactive"] | None = None
+
+
+class UserPasswordUpdate(BaseModel):
+    password: str = Field(min_length=8)
 
 
 class SlotStatusUpdate(BaseModel):

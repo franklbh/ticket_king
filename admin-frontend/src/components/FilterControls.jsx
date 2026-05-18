@@ -114,3 +114,11 @@ export function ResetFiltersButton({ onClick, label = 'Reset' }) {
     </Button>
   )
 }
+
+export function ApplyFiltersButton({ onClick, label = 'Apply' }) {
+  return (
+    <Button variant="contained" size="medium" onClick={onClick} startIcon={<i className="fa fa-check" />}>
+      {label}
+    </Button>
+  )
+}

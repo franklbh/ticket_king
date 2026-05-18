@@ -8,8 +8,9 @@ import httpx
 
 from app.core.config import settings
 from app.services.admin.repository import admin_repository
-from app.schemas.admin import AdminAccountCreate, OwnerBootstrapCreate, StaffProfileUpdate, UserRoleUpdate
-from app.services.admin.audit import write_audit_log
+from app.schemas.admin import AdminAccountCreate, OwnerBootstrapCreate, StaffProfileUpdate, UserPasswordUpdate, UserRoleUpdate
+from app.schemas.admin.responses import ActivityLogPage, ActivityLogRead
+from app.services.admin.audit import audit_change, write_audit_log
 from app.services.admin.security import ADMINISTRATOR, ALL_ROLES, OWNER, normalize_role, now_utc, public_user
 
 
@@ -27,6 +28,12 @@ class UserService:
         users = [public_user(row) for row in rows]
         users.sort(key=lambda row: (row.get("role") or "", row.get("email") or "", row.get("name") or ""))
         return users
+
+    async def get_user(self, user_id: str) -> dict[str, Any]:
+        rows = await admin_repository.select_where(settings.admin_users_table, column="id", value=user_id, limit=1)
+        if not rows:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+        return public_user(rows[0])
 
     async def create_admin_account(self, payload: AdminAccountCreate, actor: dict[str, Any]) -> dict[str, Any]:
         auth_user = await self._get_or_create_auth_user_by_email(payload.email, payload.password, payload.name)
@@ -110,11 +117,29 @@ class UserService:
         values = payload.model_dump(exclude_unset=True)
         if not values:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No profile fields provided.")
+        before_rows = await admin_repository.select_where(settings.admin_users_table, column="id", value=user_id, limit=1)
         updated = await self._update_user(user_id=user_id, values=values)
         if not updated:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
-        await write_audit_log(actor, "Update", "Admin", str(user_id), {"profile": values}, None)
+        details = audit_change(before_rows[0] if before_rows else None, updated[0], ["staff_role", "department", "position", "status"])
+        if "name" in values:
+            details["name"] = values["name"]
+        details["profile"] = values
+        await write_audit_log(actor, "Update", "Admin", str(user_id), details, None)
         return public_user(updated[0])
+
+    async def set_password(self, user_id: str, payload: UserPasswordUpdate, actor: dict[str, Any]) -> dict[str, Any]:
+        rows = await admin_repository.select_where(settings.admin_users_table, column="id", value=user_id, limit=1)
+        if not rows:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+        if not settings.supabase_service_role_key or not settings.supabase_url:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Direct admin password update requires SUPABASE_SERVICE_ROLE_KEY.",
+            )
+        await self._update_auth_user_password(user_id, payload.password)
+        await write_audit_log(actor, "Password Update", "Admin", str(user_id), {"direct": True}, None)
+        return {"ok": True, "message": "Password updated.", "id": user_id}
 
     async def update_role(self, user_id: str, payload: UserRoleUpdate, actor: dict[str, Any]) -> dict[str, Any]:
         role = normalize_role(payload.role)
@@ -125,11 +150,60 @@ class UserService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Owner accounts cannot remove their own owner role.",
             )
+        before_rows = await admin_repository.select_where(settings.admin_users_table, column="id", value=user_id, limit=1)
         updated = await self._update_user(user_id=user_id, values={"role": role})
         if not updated:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
-        await write_audit_log(actor, "Update", "Admin", str(user_id), {"role": role}, None)
+        details = audit_change(before_rows[0] if before_rows else None, updated[0], ["role"])
+        details["role"] = role
+        await write_audit_log(actor, "Update", "Admin", str(user_id), details, None)
         return public_user(updated[0])
+
+    async def deactivate_user(self, user_id: str, actor: dict[str, Any]) -> dict[str, Any]:
+        if str(actor.get("id")) == str(user_id):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Admins cannot deactivate their own account.")
+        before_rows = await admin_repository.select_where(settings.admin_users_table, column="id", value=user_id, limit=1)
+        updated = await self._update_user(user_id=user_id, values={"status": "inactive"})
+        if not updated:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+        details = audit_change(before_rows[0] if before_rows else None, updated[0], ["status"])
+        await write_audit_log(actor, "Deactivate", "Admin", str(user_id), details, None)
+        return public_user(updated[0])
+
+    async def request_password_reset(self, user_id: str, actor: dict[str, Any]) -> dict[str, Any]:
+        rows = await admin_repository.select_where(settings.admin_users_table, column="id", value=user_id, limit=1)
+        if not rows:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+        email = rows[0].get("email")
+        if not email:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User does not have an email.")
+        await self._send_password_recovery(str(email))
+        await write_audit_log(actor, "Password Reset", "Admin", str(user_id), {"email": email}, None)
+        return {"ok": True, "message": "Password reset email requested.", "id": user_id}
+
+    async def login_history(self, user_id: str, page: int = 1, page_size: int = 25) -> ActivityLogPage:
+        rows, total = await admin_repository.list_activity_logs({
+            "page": page,
+            "page_size": page_size,
+            "target_type": "Admin",
+            "target_id": user_id,
+            "action_type": "Login",
+        })
+        items = [
+            ActivityLogRead.model_validate({
+                "id": row.get("id"),
+                "admin": row.get("admin_name") or row.get("admin_email") or row.get("admin_id") or "Unknown",
+                "adminId": row.get("admin_id"),
+                "actionType": row.get("action_type"),
+                "targetType": row.get("target_type"),
+                "targetId": row.get("target_id"),
+                "actionDetails": row.get("action_details") or {},
+                "loginInfo": row.get("login_info"),
+                "timestamp": str(row.get("created_at") or "")[:19],
+            })
+            for row in rows
+        ]
+        return ActivityLogPage(items=items, page=page, page_size=page_size, total=total)
 
     async def _ensure_email_unique(self, email: str) -> None:
         if await self._find_user_by_email(email):
@@ -243,6 +317,43 @@ class UserService:
         if response.status_code in {400, 409, 422} and any(marker in detail.lower() for marker in duplicate_markers):
             return response
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
+
+    async def _send_password_recovery(self, email: str) -> None:
+        key = settings.supabase_publishable_key or settings.supabase_service_role_key
+        if not settings.supabase_url or not key:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Supabase Auth password reset is not configured.")
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                response = await client.post(
+                    f"{settings.supabase_url.rstrip('/')}/auth/v1/recover",
+                    headers={
+                        "apikey": key,
+                        "Authorization": f"Bearer {key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={"email": email},
+                )
+        except httpx.HTTPError as exc:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Could not request password reset.") from exc
+        if response.status_code not in {200, 201, 204}:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=self._supabase_error_detail(response))
+
+    async def _update_auth_user_password(self, user_id: str, password: str) -> None:
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                response = await client.put(
+                    f"{settings.supabase_url.rstrip('/')}/auth/v1/admin/users/{user_id}",
+                    headers={
+                        "apikey": settings.supabase_service_role_key or "",
+                        "Authorization": f"Bearer {settings.supabase_service_role_key or ''}",
+                        "Content-Type": "application/json",
+                    },
+                    json={"password": password},
+                )
+        except httpx.HTTPError as exc:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Could not update user password.") from exc
+        if response.status_code not in {200, 201}:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=self._supabase_error_detail(response))
 
     def _auth_user_from_response(self, response: httpx.Response, email: str) -> dict[str, Any] | None:
         if response.status_code not in {200, 201}:

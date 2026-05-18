@@ -13,14 +13,14 @@ import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
 import { useLang } from '../context/authHooks'
 import { useT } from '../i18n/translations'
-import { createSlot, updateSlot } from '../api/adminApi'
+import { archiveEvent, createSlot, createSlotsBatch, updateSlot, updateSlotCapacity, updateSlotStatus } from '../api/adminApi'
 import { AdminAlert, AdminPagination, EmptyTableRow, FilterCard, PageHeader, TableShell } from '../components/AdminUI'
 import LoadingIndicator from '../components/LoadingIndicator'
 import { adminQueryKeys } from '../hooks/queries'
 import { useEventsQuery, useSlotsQuery } from '../hooks/catalog'
 import { useAdminMutation } from '../hooks/useAdminApi'
 import { formatDateWithDay, todayIso } from '../utils/date'
-import { DateRangeFilter, ResetFiltersButton, SelectFilter } from '../components/FilterControls'
+import { ApplyFiltersButton, DateRangeFilter, ResetFiltersButton, SelectFilter } from '../components/FilterControls'
 
 const PAGE_SIZE = 15
 const TODAY = todayIso()
@@ -92,11 +92,16 @@ export default function Slots() {
     dateFrom: linkedDate || '', dateTo: linkedDate || '',
     status: 'all', todayOnly: false, hideUnsold: false
   })
+  const [appliedFilters, setAppliedFilters] = useState({
+    event: 'all',
+    dateFrom: linkedDate || '', dateTo: linkedDate || '',
+    status: 'all', todayOnly: false, hideUnsold: false
+  })
 
   const slotParams = useMemo(() => ({
-    dateFrom: filters.dateFrom || linkedDate || '',
-    dateTo: filters.dateTo || linkedDate || '',
-  }), [filters.dateFrom, filters.dateTo, linkedDate])
+    dateFrom: appliedFilters.dateFrom || linkedDate || '',
+    dateTo: appliedFilters.dateTo || linkedDate || '',
+  }), [appliedFilters.dateFrom, appliedFilters.dateTo, linkedDate])
 
   const { data: loadedSlots, error: loadError, loading: loadingSlots, reload } = useSlotsQuery(
     slotParams,
@@ -120,21 +125,29 @@ export default function Slots() {
     },
     { invalidateQueries: adminQueryKeys.slots, successMessage: 'Slot saved.' }
   )
+  const slotAction = useAdminMutation(
+    action => action(),
+    { invalidateQueries: adminQueryKeys.slots, successMessage: 'Slot action completed.' }
+  )
+  const eventAction = useAdminMutation(
+    action => action(),
+    { invalidateQueries: adminQueryKeys.events, successMessage: 'Event archived.' }
+  )
   const [page, setPage] = useState(1)
   const [modal, setModal] = useState(null)
 
   const filtered = useMemo(() => {
     return slots.filter(s => {
-      if (filters.event !== 'all' && s.event !== Number(filters.event)) return false
-      if (filters.dateFrom && s.date < filters.dateFrom) return false
-      if (filters.dateTo && s.date > filters.dateTo) return false
+      if (appliedFilters.event !== 'all' && s.event !== Number(appliedFilters.event)) return false
+      if (appliedFilters.dateFrom && s.date < appliedFilters.dateFrom) return false
+      if (appliedFilters.dateTo && s.date > appliedFilters.dateTo) return false
       if (linkedStart && s.startTime !== linkedStart) return false
-      if (filters.status !== 'all' && s.status !== filters.status) return false
-      if (filters.todayOnly && s.date !== TODAY) return false
-      if (filters.hideUnsold && s.websiteSeats === 0 && s.inStoreSeats === 0) return false
+      if (appliedFilters.status !== 'all' && s.status !== appliedFilters.status) return false
+      if (appliedFilters.todayOnly && s.date !== TODAY) return false
+      if (appliedFilters.hideUnsold && s.websiteSeats === 0 && s.inStoreSeats === 0) return false
       return true
     })
-  }, [slots, filters, linkedStart])
+  }, [slots, appliedFilters, linkedStart])
 
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
@@ -151,15 +164,63 @@ export default function Slots() {
 
   async function toggleSlotStatus(slot) {
     const nextStatus = slot.status === 'active' ? 'disabled' : 'active'
-    await updateSlot(slot.id, {
-      date: slot.date,
-      startTime: slot.startTime,
-      endTime: slot.endTime,
-      totalSeats: slot.totalSeats,
-      price: slot.price,
-      status: nextStatus,
-    })
+    await slotAction.mutate(() => updateSlotStatus(slot.id, nextStatus))
     reload()
+  }
+
+  async function changeCapacity(slot) {
+    const totalSeats = Number(window.prompt('New total seats', String(slot.totalSeats)))
+    if (!Number.isFinite(totalSeats) || totalSeats <= 0) return
+    const reason = window.prompt('Reason for capacity change', 'Admin adjustment') || 'Admin adjustment'
+    await slotAction.mutate(() => updateSlotCapacity(slot.id, { totalSeats, reason }))
+    reload()
+  }
+
+  async function batchCreateSlots() {
+    const date = window.prompt('Date for new slots (YYYY-MM-DD)')
+    if (!date) return
+    const starts = (window.prompt('Start times, comma-separated (HH:mm)', '10:00,11:30,14:00') || '')
+      .split(',')
+      .map(item => item.trim())
+      .filter(Boolean)
+    if (!starts.length) return
+    const duration = Number(window.prompt('Duration in minutes', '45') || 45)
+    const totalSeats = Number(window.prompt('Total seats per slot', '20') || 20)
+    const price = Number(window.prompt('Price per slot', '37.95') || 37.95)
+    if (!Number.isFinite(duration) || !Number.isFinite(totalSeats) || !Number.isFinite(price)) return
+    const slots = starts.map(startTime => {
+      const [hour, minute] = startTime.split(':').map(Number)
+      const end = new Date(2000, 0, 1, hour || 0, minute || 0)
+      end.setMinutes(end.getMinutes() + duration)
+      return {
+        date,
+        startTime,
+        endTime: `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`,
+        totalSeats,
+        price,
+        status: 'active',
+      }
+    })
+    await slotAction.mutate(() => createSlotsBatch({ slots }))
+    reload()
+  }
+
+  async function archiveSelectedEvent() {
+    if (appliedFilters.event === 'all') return
+    if (!window.confirm('Archive this event?')) return
+    await eventAction.mutate(() => archiveEvent(appliedFilters.event))
+  }
+
+  function applyFilters() {
+    setAppliedFilters(filters)
+    setPage(1)
+  }
+
+  function resetFilters() {
+    const empty = { event: 'all', dateFrom: '', dateTo: '', status: 'all', todayOnly: false, hideUnsold: false }
+    setFilters(empty)
+    setAppliedFilters(empty)
+    setPage(1)
   }
 
   return (
@@ -183,7 +244,8 @@ export default function Slots() {
         subtitle="Manage all event slots"
         actions={
         <Stack direction="row" spacing={1}>
-          <Button variant="outlined" size="small" startIcon={<i className="fa fa-edit" />}>{t.batchEdit}</Button>
+          <Button variant="outlined" size="small" onClick={batchCreateSlots} startIcon={<i className="fa fa-layer-group" />}>Batch Create</Button>
+          <Button variant="outlined" size="small" disabled={appliedFilters.event === 'all'} onClick={archiveSelectedEvent} startIcon={<i className="fa fa-archive" />}>Archive Event</Button>
           <Button variant="contained" size="small" onClick={() => setModal('create')}>{t.createSlot}</Button>
         </Stack>
         }
@@ -195,8 +257,9 @@ export default function Slots() {
           <SelectFilter label={t.event} value={filters.event} onChange={value => setFilters(f => ({ ...f, event: value }))} options={[{ value: 'all', label: t.allEvents }, ...events.map(ev => ({ value: String(ev.id), label: ev.name }))]} />
           <DateRangeFilter label="Date Range" from={filters.dateFrom} to={filters.dateTo} onFromChange={value => setFilters(f => ({ ...f, dateFrom: value }))} onToChange={value => setFilters(f => ({ ...f, dateTo: value }))} />
           <SelectFilter label={t.status} value={filters.status} onChange={value => setFilters(f => ({ ...f, status: value }))} options={[{ value: 'all', label: t.allStatus }, { value: 'active', label: t.active }, { value: 'disabled', label: t.disabled }]} />
-          <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-            <ResetFiltersButton onClick={() => setFilters({ event: 'all', dateFrom: '', dateTo: '', status: 'all', todayOnly: false, hideUnsold: false })} label={t.reset} />
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
+            <ApplyFiltersButton onClick={applyFilters} />
+            <ResetFiltersButton onClick={resetFilters} label={t.reset} />
           </div>
         </div>
         <Stack direction="row" spacing={2}>
@@ -265,6 +328,7 @@ export default function Slots() {
                     <td>
                       <div style={{ display: 'flex', gap: 6 }}>
                         <Button variant="contained" size="small" onClick={() => setModal(s)} startIcon={<i className="fa fa-edit" />}>{t.edit}</Button>
+                        <Button variant="outlined" size="small" onClick={() => changeCapacity(s)} startIcon={<i className="fa fa-chair" />}>Capacity</Button>
                         <Button
                           onClick={() => toggleSlotStatus(s)}
                           variant="contained"

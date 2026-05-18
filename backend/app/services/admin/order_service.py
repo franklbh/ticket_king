@@ -25,6 +25,12 @@ from app.utils.datetime import utc_now, utc_now_iso_seconds
 
 
 class OrderService:
+    async def _resolve_order_row(self, order_ref: str) -> dict[str, Any]:
+        row = await admin_repository.get_order(order_ref)
+        if not row:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found.")
+        return row
+
     async def list_orders(self, filters: dict[str, Any]) -> OrderPage:
         rows, total = await admin_repository.list_orders(filters)
         orders = [normalize_order(row) for row in rows]
@@ -38,9 +44,7 @@ class OrderService:
         )
 
     async def get_order(self, order_id: str) -> OrderRead:
-        row = await admin_repository.get_order(order_id)
-        if not row:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found.")
+        row = await self._resolve_order_row(order_id)
         return to_model(OrderRead, normalize_order(row))
 
     async def update_order_status(
@@ -50,15 +54,13 @@ class OrderService:
         actor: dict[str, Any],
         client_ip: str | None = None,
     ) -> OrderRead:
-        before = await admin_repository.get_order(order_id)
+        before = await self._resolve_order_row(order_id)
         rows = await admin_repository.update(
             settings.admin_orders_table,
             match_column="id",
-            match_value=order_id,
+            match_value=before["id"],
             values={"order_status": db_order_status(payload.status), "updated_at": utc_now_iso_seconds()},
         )
-        if not rows:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found.")
         details = audit_change(before, rows[0], ["order_status"])
         details["requested_status"] = payload.status
         await write_audit_log(actor, "Update", "Order", order_id, details, client_ip)
@@ -71,7 +73,7 @@ class OrderService:
         actor: dict[str, Any],
         client_ip: str | None = None,
     ) -> OrderRead:
-        before = await admin_repository.get_order(order_id)
+        before = await self._resolve_order_row(order_id)
         values = {
             "guest_name": payload.name,
             "guest_email": payload.email,
@@ -81,11 +83,9 @@ class OrderService:
         rows = await admin_repository.update(
             settings.admin_orders_table,
             match_column="id",
-            match_value=order_id,
+            match_value=before["id"],
             values=values,
         )
-        if not rows:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found.")
         details = audit_change(before, rows[0], ["guest_name", "guest_email", "guest_phone"])
         details["customer"] = payload.model_dump()
         await write_audit_log(actor, "Update", "Order", order_id, details, client_ip)
@@ -98,7 +98,7 @@ class OrderService:
         actor: dict[str, Any],
         client_ip: str | None = None,
     ) -> OrderRead:
-        before = await admin_repository.get_order(order_id)
+        before = await self._resolve_order_row(order_id)
         slot_id = str(payload.slot_id)
         try:
             slot_value: Any = uuid.UUID(slot_id)
@@ -107,11 +107,9 @@ class OrderService:
         rows = await admin_repository.update(
             settings.admin_orders_table,
             match_column="id",
-            match_value=order_id,
+            match_value=before["id"],
             values={"slot_id": slot_value, "updated_at": utc_now_iso_seconds()},
         )
-        if not rows:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found.")
         details = audit_change(before, rows[0], ["slot_id"])
         details["slot_id"] = slot_id
         await write_audit_log(actor, "Update", "Order", order_id, details, client_ip)
@@ -124,20 +122,18 @@ class OrderService:
         actor: dict[str, Any],
         client_ip: str | None = None,
     ) -> OrderRead:
-        before = await admin_repository.get_order(order_id)
+        before = await self._resolve_order_row(order_id)
         code = payload.coupon_code.strip().upper()
         rows = await admin_repository.update(
             settings.admin_orders_table,
             match_column="id",
-            match_value=order_id,
+            match_value=before["id"],
             values={
                 "coupon_code": code,
                 "coupon_discount": payload.coupon_discount,
                 "updated_at": utc_now_iso_seconds(),
             },
         )
-        if not rows:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found.")
         details = audit_change(before, rows[0], ["coupon_code", "coupon_discount"])
         details.update({"coupon_code": code, "coupon_discount": payload.coupon_discount})
         await write_audit_log(actor, "Update", "Order", order_id, details, client_ip)
@@ -149,15 +145,13 @@ class OrderService:
         actor: dict[str, Any],
         client_ip: str | None = None,
     ) -> OrderRead:
-        before = await admin_repository.get_order(order_id)
+        before = await self._resolve_order_row(order_id)
         rows = await admin_repository.update(
             settings.admin_orders_table,
             match_column="id",
-            match_value=order_id,
+            match_value=before["id"],
             values={"coupon_code": None, "coupon_discount": 0, "coupon_details": {}, "updated_at": utc_now_iso_seconds()},
         )
-        if not rows:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found.")
         details = audit_change(before, rows[0], ["coupon_code", "coupon_discount", "coupon_details"])
         details["coupon_removed"] = True
         await write_audit_log(actor, "Update", "Order", order_id, details, client_ip)

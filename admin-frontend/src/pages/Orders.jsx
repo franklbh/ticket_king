@@ -6,13 +6,13 @@ import MuiPagination from '@mui/material/Pagination'
 import Select from '@mui/material/Select'
 import { useLang } from '../context/authHooks'
 import { useT } from '../i18n/translations'
-import { exportOrders, updateOrderCustomer, updateOrderSlot, updateOrderStatus } from '../api/adminApi'
+import { applyOrderCoupon, exportOrders, removeOrderCoupon, resendOrderEmail, updateOrderCustomer, updateOrderSlot, updateOrderStatus } from '../api/adminApi'
 import { useAdminMutation } from '../hooks/useAdminApi'
 import { useOrdersQuery } from '../hooks/orders'
 import { useSlotsQuery } from '../hooks/catalog'
 import LoadingIndicator from '../components/LoadingIndicator'
 import { AdminAlert, EmptyTableRow, FilterCard, PageHeader, TableShell } from '../components/AdminUI'
-import { DateRangeFilter, ResetFiltersButton, StatusChipFilter, TextFilter } from '../components/FilterControls'
+import { ApplyFiltersButton, DateRangeFilter, ResetFiltersButton, StatusChipFilter, TextFilter } from '../components/FilterControls'
 import { formatDateShort, todayIso, weekdayName } from '../utils/date'
 
 const STATUS_LIST = ['paid', 'completed', 'refunded', 'cancelled']
@@ -343,20 +343,28 @@ export default function Orders() {
     slotStart: linkedSlotStart,
     statuses: [],
   })
+  const [appliedFilters, setAppliedFilters] = useState({
+    orderId: searchParams.get('orderId') || '', userInfo: '',
+    couponCode: searchParams.get('couponCode') || '',
+    orderDateFrom: '', orderDateTo: '',
+    slotDateFrom: linkedSlotDate || '', slotDateTo: linkedSlotDate || '',
+    slotStart: linkedSlotStart,
+    statuses: [],
+  })
   const [page, setPage] = useState(1)
   const orderQueryFilters = useMemo(() => ({
     page,
     pageSize: PAGE_SIZE,
-    orderId: filters.orderId,
-    userInfo: filters.userInfo,
-    couponCode: filters.couponCode,
-    orderDateFrom: filters.orderDateFrom,
-    orderDateTo: filters.orderDateTo,
-    slotDateFrom: filters.slotDateFrom,
-    slotDateTo: filters.slotDateTo,
-    slotStart: filters.slotStart,
-    status: filters.statuses,
-  }), [filters, page])
+    orderId: appliedFilters.orderId,
+    userInfo: appliedFilters.userInfo,
+    couponCode: appliedFilters.couponCode,
+    orderDateFrom: appliedFilters.orderDateFrom,
+    orderDateTo: appliedFilters.orderDateTo,
+    slotDateFrom: appliedFilters.slotDateFrom,
+    slotDateTo: appliedFilters.slotDateTo,
+    slotStart: appliedFilters.slotStart,
+    status: appliedFilters.statuses,
+  }), [appliedFilters, page])
   const { data: ordersData, error: loadError, loading: loadingOrders, setData: setOrdersData } = useOrdersQuery(
     orderQueryFilters,
     { initialData: { items: [], total: 0 } }
@@ -379,6 +387,15 @@ export default function Orders() {
   })
   const { mutate: updateStatusMutation } = useAdminMutation(updateOrderStatus, {
     successMessage: 'Order status updated.',
+  })
+  const { mutate: applyCouponMutation } = useAdminMutation(applyOrderCoupon, {
+    successMessage: 'Coupon applied.',
+  })
+  const { mutate: removeCouponMutation } = useAdminMutation(removeOrderCoupon, {
+    successMessage: 'Coupon removed.',
+  })
+  const { mutate: resendEmailMutation } = useAdminMutation(resendOrderEmail, {
+    successMessage: 'Email resend requested.',
   })
   const [editForm, setEditForm] = useState({ firstName: '', lastName: '', phone: '', email: '' })
   const [slotPick, setSlotPick] = useState({ date: null, slot: null, resend: true })
@@ -422,6 +439,25 @@ export default function Orders() {
     setOrdersData(prev => ({ ...prev, items: (prev?.items || []).map(o => o.id === orderId ? updated : o) }))
   }
 
+  async function applyCoupon(order) {
+    const couponCode = window.prompt('Coupon code')
+    if (!couponCode) return
+    const couponDiscount = Number(window.prompt('Coupon discount amount', '0') || 0)
+    const updated = await applyCouponMutation(order.id, { couponCode, couponDiscount })
+    setOrdersData(prev => ({ ...prev, items: (prev?.items || []).map(o => o.id === order.id ? updated : o) }))
+  }
+
+  async function removeCoupon(order) {
+    if (!window.confirm(`Remove coupon from order #${order.id}?`)) return
+    const updated = await removeCouponMutation(order.id)
+    setOrdersData(prev => ({ ...prev, items: (prev?.items || []).map(o => o.id === order.id ? updated : o) }))
+  }
+
+  async function resendEmail(order) {
+    const reason = window.prompt('Reason for resending email', 'Admin requested resend') || 'Admin requested resend'
+    await resendEmailMutation(order.id, { reason })
+  }
+
   function copyIp(orderId, ip) {
     navigator.clipboard?.writeText(ip).catch(() => {})
     setCopiedId(orderId)
@@ -430,36 +466,42 @@ export default function Orders() {
 
   async function exportCSV() {
     await exportOrdersMutation({
-      orderId: filters.orderId,
-      userInfo: filters.userInfo,
-      orderDateFrom: filters.orderDateFrom,
-      orderDateTo: filters.orderDateTo,
-      slotDateFrom: filters.slotDateFrom,
-      slotDateTo: filters.slotDateTo,
-      status: filters.statuses,
+      orderId: appliedFilters.orderId,
+      userInfo: appliedFilters.userInfo,
+      orderDateFrom: appliedFilters.orderDateFrom,
+      orderDateTo: appliedFilters.orderDateTo,
+      slotDateFrom: appliedFilters.slotDateFrom,
+      slotDateTo: appliedFilters.slotDateTo,
+      status: appliedFilters.statuses,
     })
     setShowExportConfirm(false)
   }
 
   function orderExportFilters() {
     const items = []
-    if (filters.orderId) items.push(`Order ID: ${filters.orderId}`)
-    if (filters.userInfo) items.push(`User Info: ${filters.userInfo}`)
-    if (filters.couponCode) items.push(`Coupon Code: ${filters.couponCode}`)
-    items.push(`Order Status: ${filters.statuses.length ? filters.statuses.map(s => t[STATUS_T[s]] || s).join(', ') : 'All'}`)
-    items.push(`Slot Date Range: ${filters.slotDateFrom || 'No limit'} - ${filters.slotDateTo || 'No limit'}`)
-    if (filters.slotStart) items.push(`Slot Start: ${filters.slotStart}`)
-    if (filters.orderDateFrom || filters.orderDateTo) items.push(`Order Date Range: ${filters.orderDateFrom || 'No limit'} - ${filters.orderDateTo || 'No limit'}`)
+    if (appliedFilters.orderId) items.push(`Order ID: ${appliedFilters.orderId}`)
+    if (appliedFilters.userInfo) items.push(`User Info: ${appliedFilters.userInfo}`)
+    if (appliedFilters.couponCode) items.push(`Coupon Code: ${appliedFilters.couponCode}`)
+    items.push(`Order Status: ${appliedFilters.statuses.length ? appliedFilters.statuses.map(s => t[STATUS_T[s]] || s).join(', ') : 'All'}`)
+    items.push(`Slot Date Range: ${appliedFilters.slotDateFrom || 'No limit'} - ${appliedFilters.slotDateTo || 'No limit'}`)
+    if (appliedFilters.slotStart) items.push(`Slot Start: ${appliedFilters.slotStart}`)
+    if (appliedFilters.orderDateFrom || appliedFilters.orderDateTo) items.push(`Order Date Range: ${appliedFilters.orderDateFrom || 'No limit'} - ${appliedFilters.orderDateTo || 'No limit'}`)
     return items
   }
 
   function toggleStatus(s) {
     setFilters(f => ({ ...f, statuses: f.statuses.includes(s) ? f.statuses.filter(x => x !== s) : [...f.statuses, s] }))
-    setPage(1)
   }
 
   function resetFilters() {
-    setFilters({ orderId: '', userInfo: '', couponCode: '', orderDateFrom: '', orderDateTo: '', slotDateFrom: '', slotDateTo: '', slotStart: '', statuses: [] })
+    const empty = { orderId: '', userInfo: '', couponCode: '', orderDateFrom: '', orderDateTo: '', slotDateFrom: '', slotDateTo: '', slotStart: '', statuses: [] }
+    setFilters(empty)
+    setAppliedFilters(empty)
+    setPage(1)
+  }
+
+  function applyFilters() {
+    setAppliedFilters(filters)
     setPage(1)
   }
 
@@ -504,19 +546,20 @@ export default function Orders() {
       {/* Filters */}
       <FilterCard>
         <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1fr_1fr_1fr_1.5fr_1.5fr_auto] mb-3">
-          <TextFilter label={t.orderID} placeholder="Enter order ID..." value={filters.orderId} onChange={value => { setFilters(f => ({ ...f, orderId: value })); setPage(1) }} />
-          <TextFilter label={t.userInfo} placeholder="Enter name/phone/email..." value={filters.userInfo} onChange={value => { setFilters(f => ({ ...f, userInfo: value })); setPage(1) }} />
-          <TextFilter label={t.couponCode} placeholder={t.couponCode} value={filters.couponCode} onChange={value => { setFilters(f => ({ ...f, couponCode: value })); setPage(1) }} />
-          <DateRangeFilter label={t.orderDateRange} from={filters.orderDateFrom} to={filters.orderDateTo} onFromChange={value => { setFilters(f => ({ ...f, orderDateFrom: value })); setPage(1) }} onToChange={value => { setFilters(f => ({ ...f, orderDateTo: value })); setPage(1) }} />
+          <TextFilter label={t.orderID} placeholder="Enter order ID..." value={filters.orderId} onChange={value => setFilters(f => ({ ...f, orderId: value }))} />
+          <TextFilter label={t.userInfo} placeholder="Enter name/phone/email..." value={filters.userInfo} onChange={value => setFilters(f => ({ ...f, userInfo: value }))} />
+          <TextFilter label={t.couponCode} placeholder={t.couponCode} value={filters.couponCode} onChange={value => setFilters(f => ({ ...f, couponCode: value }))} />
+          <DateRangeFilter label={t.orderDateRange} from={filters.orderDateFrom} to={filters.orderDateTo} onFromChange={value => setFilters(f => ({ ...f, orderDateFrom: value }))} onToChange={value => setFilters(f => ({ ...f, orderDateTo: value }))} />
           <div>
-            <DateRangeFilter label={t.slotDateRange} from={filters.slotDateFrom} to={filters.slotDateTo} onFromChange={value => { setFilters(f => ({ ...f, slotDateFrom: value })); setPage(1) }} onToChange={value => { setFilters(f => ({ ...f, slotDateTo: value })); setPage(1) }} />
+            <DateRangeFilter label={t.slotDateRange} from={filters.slotDateFrom} to={filters.slotDateTo} onFromChange={value => setFilters(f => ({ ...f, slotDateFrom: value }))} onToChange={value => setFilters(f => ({ ...f, slotDateTo: value }))} />
             {filters.slotStart && (
               <div style={{ marginTop: 5, fontSize: 12, color: '#4f46e5', fontWeight: 600, whiteSpace: 'nowrap' }}>
                 Slot start: {filters.slotStart}
               </div>
             )}
           </div>
-          <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
+            <ApplyFiltersButton onClick={applyFilters} />
             <ResetFiltersButton onClick={resetFilters} label={t.reset} />
           </div>
         </div>
@@ -591,6 +634,7 @@ export default function Orders() {
                       {o.emailStatus === 'sent' && (
                         <IconBtn icon="fa-info-circle" onClick={e => openPopover('email', o.id, e)} title={t.sendHistory} color="#6366f1" bg="#eef2ff" />
                       )}
+                      <IconBtn icon="fa-paper-plane" onClick={() => resendEmail(o)} title="Resend email" color="#6366f1" bg="#eef2ff" />
                     </div>
                   </td>
 
@@ -635,9 +679,10 @@ export default function Orders() {
                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
                         <span style={{ color: '#dc2626', fontWeight: 500, fontSize: 13 }}>{o.couponDiscount.toFixed(2)}</span>
                         <IconBtn icon="fa-tag" onClick={e => openPopover('coupon', o.id, e)} title="Coupon Details" color="#6366f1" bg="#eef2ff" />
+                        <IconBtn icon="fa-times" onClick={() => removeCoupon(o)} title="Remove coupon" color="#dc2626" bg="#fee2e2" />
                       </div>
                     ) : (
-                      <span style={{ color: '#9ca3af' }}>-</span>
+                      <IconBtn icon="fa-plus" onClick={() => applyCoupon(o)} title="Apply coupon" color="#6366f1" bg="#eef2ff" />
                     )}
                   </td>
 

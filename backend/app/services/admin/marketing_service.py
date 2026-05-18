@@ -13,6 +13,12 @@ from app.utils.datetime import utc_now_iso_seconds
 
 
 class MarketingService:
+    async def _record_write_values(self, values: dict[str, Any]) -> dict[str, Any]:
+        columns = await admin_repository.columns(settings.admin_marketing_records_table)
+        if "updated_at" not in columns:
+            values.pop("updated_at", None)
+        return values
+
     async def get_settings(self) -> MarketingSettingsRead:
         rows = await admin_repository.select(settings.admin_marketing_settings_table)
         if not rows:
@@ -72,7 +78,7 @@ class MarketingService:
 
     async def create_record(self, payload: MarketingRecordCreate, actor: dict[str, Any]) -> MarketingRecordRead:
         now = utc_now_iso_seconds()
-        row = {
+        row = await self._record_write_values({
             "recipient_name": payload.recipient_name,
             "recipient_email": payload.recipient_email,
             "coupon_code": payload.coupon_code,
@@ -81,7 +87,7 @@ class MarketingService:
             "coupon_used": False,
             "created_at": now,
             "updated_at": now,
-        }
+        })
         inserted = await admin_repository.insert(settings.admin_marketing_records_table, row)
         record_id = str(inserted[0].get("id"))
         await write_audit_log(actor, "Create", "Marketing", record_id, {"recipientEmail": payload.recipient_email}, None)
@@ -112,7 +118,7 @@ class MarketingService:
         actor: dict[str, Any],
     ) -> MarketingRecordRead:
         before_rows = await admin_repository.select_where(settings.admin_marketing_records_table, column="id", value=int(record_id), limit=1)
-        values = {"status": next_status, "updated_at": utc_now_iso_seconds()}
+        values = await self._record_write_values({"status": next_status, "updated_at": utc_now_iso_seconds()})
         if next_status == "pending":
             values["sent_at"] = None
         rows = await admin_repository.update(

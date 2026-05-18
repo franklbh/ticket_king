@@ -32,6 +32,14 @@ async def update_event(
     return await catalog_service.update_event(event_id, payload, actor)
 
 
+@router.delete("/events/{event_id}", response_model=EventRead)
+async def archive_event(
+    event_id: int,
+    actor: dict = Depends(require_permission("catalog:write")),
+) -> EventRead:
+    return await catalog_service.archive_event(event_id, actor)
+
+
 @router.get("/slots", response_model=list[SlotRead])
 async def list_slots(
     date_from: str | None = Query(None, alias="dateFrom"),

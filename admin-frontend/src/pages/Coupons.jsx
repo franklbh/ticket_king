@@ -5,12 +5,13 @@ import Checkbox from '@mui/material/Checkbox'
 import FormControlLabel from '@mui/material/FormControlLabel'
 import { useLang } from '../context/authHooks'
 import { useT } from '../i18n/translations'
-import { createCoupon, updateCoupon } from '../api/adminApi'
+import { archiveCoupon, createCoupon, getCouponOrders, getCouponQr, updateCoupon, validateCoupon } from '../api/adminApi'
 import { AdminPagination, EmptyTableRow, FilterCard, PageHeader, TableShell } from '../components/AdminUI'
 import LoadingIndicator from '../components/LoadingIndicator'
+import QrCodeDialog from '../components/QrCodeDialog'
 import { adminQueryKeys, useCouponsQuery } from '../hooks/queries'
 import { useAdminMutation } from '../hooks/useAdminApi'
-import { ResetFiltersButton, SelectFilter, TextFilter } from '../components/FilterControls'
+import { ApplyFiltersButton, ResetFiltersButton, SelectFilter, TextFilter } from '../components/FilterControls'
 
 const PAGE_SIZE = 10
 
@@ -161,13 +162,16 @@ export default function Coupons() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const [filters, setFilters] = useState({ search: searchParams.get('search') || '', status: 'all', source: 'all', hideUnused: false })
+  const [appliedFilters, setAppliedFilters] = useState({ search: searchParams.get('search') || '', status: 'all', source: 'all', hideUnused: false })
   const [page, setPage] = useState(1)
   const [modal, setModal] = useState(null) // null | 'create' | { coupon }
+  const [couponQr, setCouponQr] = useState(null)
 
   const couponParams = useMemo(() => ({
-    status: filters.status === 'all' ? undefined : filters.status,
-    source: filters.source === 'all' ? undefined : filters.source,
-  }), [filters.status, filters.source])
+    search: appliedFilters.search || undefined,
+    status: appliedFilters.status === 'all' ? undefined : appliedFilters.status,
+    source: appliedFilters.source === 'all' ? undefined : appliedFilters.source,
+  }), [appliedFilters.search, appliedFilters.status, appliedFilters.source])
 
   const { data: coupons = [], loading, reload } = useCouponsQuery(couponParams, { initialData: [] })
   const saveCoupon = useAdminMutation(
@@ -189,16 +193,20 @@ export default function Coupons() {
     },
     { invalidateQueries: adminQueryKeys.coupons, successMessage: 'Coupon saved.' }
   )
+  const couponAction = useAdminMutation(
+    action => action(),
+    { invalidateQueries: adminQueryKeys.coupons, successMessage: 'Coupon action completed.' }
+  )
 
   const filtered = useMemo(() => {
     return coupons.filter(c => {
-      if (filters.search && !c.code.toLowerCase().includes(filters.search.toLowerCase())) return false
-      if (filters.status !== 'all' && c.status !== filters.status) return false
-      if (filters.source !== 'all' && c.source !== filters.source) return false
-      if (filters.hideUnused && c.usedCount === 0) return false
+      if (appliedFilters.search && !c.code.toLowerCase().includes(appliedFilters.search.toLowerCase())) return false
+      if (appliedFilters.status !== 'all' && c.status !== appliedFilters.status) return false
+      if (appliedFilters.source !== 'all' && c.source !== appliedFilters.source) return false
+      if (appliedFilters.hideUnused && c.usedCount === 0) return false
       return true
     })
-  }, [coupons, filters])
+  }, [coupons, appliedFilters])
 
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
@@ -226,6 +234,47 @@ export default function Coupons() {
     reload()
   }
 
+  async function validateCouponCode() {
+    const code = window.prompt('Coupon code to validate')
+    if (!code) return
+    const amount = Number(window.prompt('Order amount', '0') || 0)
+    const result = await couponAction.mutate(() => validateCoupon({ code, amount }))
+    alert(`${result.valid ? 'Valid' : 'Invalid'}: ${result.message || ''}`)
+  }
+
+  async function showCouponQr(coupon) {
+    const result = await couponAction.mutate(() => getCouponQr(coupon.id))
+    setCouponQr({
+      title: `${coupon.code} QR Code`,
+      value: result.payload || result.qrCode || result.url || result.code || `coupon:${coupon.code}`,
+      subtitle: 'Scan or copy this coupon payload.',
+    })
+  }
+
+  async function showCouponOrders(coupon) {
+    const result = await couponAction.mutate(() => getCouponOrders(coupon.id, { page: 1, pageSize: 5 }))
+    alert(`${result.total || 0} orders use ${coupon.code}. Opening filtered orders.`)
+    navigate(`/orders?couponCode=${encodeURIComponent(coupon.code)}`)
+  }
+
+  async function archiveCouponCode(coupon) {
+    if (!window.confirm(`Archive coupon ${coupon.code}?`)) return
+    await couponAction.mutate(() => archiveCoupon(coupon.id))
+    reload()
+  }
+
+  function applyFilters() {
+    setAppliedFilters(filters)
+    setPage(1)
+  }
+
+  function resetFilters() {
+    const empty = { search: '', status: 'all', source: 'all', hideUnused: false }
+    setFilters(empty)
+    setAppliedFilters(empty)
+    setPage(1)
+  }
+
   if (loading && !coupons.length) {
     return <LoadingIndicator label="Loading coupons..." />
   }
@@ -245,15 +294,28 @@ export default function Coupons() {
           t={t}
         />
       )}
+      {couponQr && (
+        <QrCodeDialog
+          title={couponQr.title}
+          value={couponQr.value}
+          subtitle={couponQr.subtitle}
+          onClose={() => setCouponQr(null)}
+        />
+      )}
 
       <PageHeader
         icon="fa-tag"
         title={t.coupons}
         subtitle={t.manageCoupons}
         actions={
-        <Button variant="contained" size="small" onClick={() => setModal('create')}>
-          {t.createCoupon}
-        </Button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <Button variant="outlined" size="small" onClick={validateCouponCode} startIcon={<i className="fa fa-check-circle" />}>
+            Validate
+          </Button>
+          <Button variant="contained" size="small" onClick={() => setModal('create')}>
+            {t.createCoupon}
+          </Button>
+        </div>
         }
       />
 
@@ -266,8 +328,9 @@ export default function Coupons() {
           <div className="flex items-end">
             <FormControlLabel control={<Checkbox checked={filters.hideUnused} onChange={e => setFilters(f => ({ ...f, hideUnused: e.target.checked }))} />} label={t.hideUnused} />
           </div>
-          <div className="flex items-end">
-            <ResetFiltersButton onClick={() => setFilters({ search: '', status: 'all', source: 'all', hideUnused: false })} label={t.reset} />
+          <div className="flex items-end gap-2">
+            <ApplyFiltersButton onClick={applyFilters} />
+            <ResetFiltersButton onClick={resetFilters} label={t.reset} />
           </div>
         </div>
       </FilterCard>
@@ -301,7 +364,7 @@ export default function Coupons() {
                       <Button onClick={() => copyCode(c.code)} title="Copy" size="small" sx={{ minWidth: 0, p: 0.25 }}>
                         <i className="fa fa-copy" />
                       </Button>
-                      <Button variant="outlined" size="small" startIcon={<i className="fa fa-qrcode" />} sx={{ fontSize: 11, py: 0 }}>Generate QR Code</Button>
+                      <Button onClick={() => showCouponQr(c)} variant="outlined" size="small" startIcon={<i className="fa fa-qrcode" />} sx={{ fontSize: 11, py: 0 }}>QR</Button>
                     </div>
                   </td>
                   <td>
@@ -311,7 +374,7 @@ export default function Coupons() {
                     <div style={{ fontSize: 13 }}>Used {c.usedCount} / {c.maxUses ?? '∞'} times</div>
                     <div style={{ fontSize: 12, color: '#6b7280' }}>Total ${c.totalAmount.toFixed(2)}</div>
                     <Button
-                      onClick={() => navigate(`/orders?couponCode=${encodeURIComponent(c.code)}`)}
+                      onClick={() => showCouponOrders(c)}
                       variant="outlined"
                       size="small"
                       sx={{ mt: 0.5, fontSize: 11, py: 0 }}
@@ -349,6 +412,15 @@ export default function Coupons() {
                           {c.status === 'active' ? t.disable : t.enable}
                         </Button>
                       )}
+                      <Button
+                        onClick={() => archiveCouponCode(c)}
+                        variant="outlined"
+                        color="error"
+                        size="small"
+                        startIcon={<i className="fa fa-archive" />}
+                      >
+                        Archive
+                      </Button>
                     </div>
                   </td>
                 </tr>

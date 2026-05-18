@@ -5,13 +5,14 @@ import Chip from '@mui/material/Chip'
 import MuiPagination from '@mui/material/Pagination'
 import { useLang } from '../context/authHooks'
 import { useT } from '../i18n/translations'
-import { exportTickets, updateTicketStatus } from '../api/adminApi'
+import { batchUpdateTicketStatus, exportTickets, regenerateTicketQr, updateTicketStatus } from '../api/adminApi'
 import { useAdminMutation } from '../hooks/useAdminApi'
 import { useTicketsQuery } from '../hooks/tickets'
 import { useTicketTypesQuery } from '../hooks/catalog'
 import LoadingIndicator from '../components/LoadingIndicator'
+import QrCodeDialog from '../components/QrCodeDialog'
 import { AdminAlert, EmptyTableRow, FilterCard, PageHeader, TableShell } from '../components/AdminUI'
-import { DateRangeFilter, ResetFiltersButton, SelectFilter, TextFilter } from '../components/FilterControls'
+import { ApplyFiltersButton, DateRangeFilter, ResetFiltersButton, SelectFilter, TextFilter } from '../components/FilterControls'
 
 const PAGE_SIZE = 10
 const TODAY = new Date().toISOString().slice(0, 10)
@@ -31,37 +32,6 @@ function shortDate(dateStr) {
   if (!dateStr) return '-'
   const d = new Date(dateStr + 'T12:00:00')
   return `${d.getMonth() + 1}/${d.getDate()}`
-}
-
-function QRModal({ code, onClose }) {
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: 320, textAlign: 'center' }}>
-        <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 16 }}>QR Code</div>
-        <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8, padding: 24, marginBottom: 16 }}>
-          {/* Simple QR code placeholder using grid pattern */}
-          <svg width="160" height="160" viewBox="0 0 160 160" style={{ display: 'block', margin: '0 auto' }}>
-            <rect width="160" height="160" fill="white" />
-            {/* Corner squares */}
-            <rect x="10" y="10" width="40" height="40" fill="none" stroke="#111" strokeWidth="4" />
-            <rect x="16" y="16" width="28" height="28" fill="#111" />
-            <rect x="110" y="10" width="40" height="40" fill="none" stroke="#111" strokeWidth="4" />
-            <rect x="116" y="16" width="28" height="28" fill="#111" />
-            <rect x="10" y="110" width="40" height="40" fill="none" stroke="#111" strokeWidth="4" />
-            <rect x="16" y="116" width="28" height="28" fill="#111" />
-            {/* Random dots for QR feel */}
-            {code.split('').map((c, i) => {
-              const x = (i % 7) * 10 + 58
-              const y = Math.floor(i / 7) * 10 + 58
-              return c.charCodeAt(0) % 2 === 0 ? <rect key={i} x={x} y={y} width="8" height="8" fill="#111" /> : null
-            })}
-          </svg>
-        </div>
-        <div style={{ fontFamily: 'monospace', fontSize: 14, color: '#374151', wordBreak: 'break-all', marginBottom: 16 }}>{code}</div>
-        <button className="btn-secondary" onClick={onClose}>Close</button>
-      </div>
-    </div>
-  )
 }
 
 function ExportConfirmDialog({ title, message, filters, onCancel, onConfirm }) {
@@ -123,19 +93,25 @@ export default function Tickets() {
     verifiedFrom: '', verifiedTo: '',
     types: [],
   })
+  const [appliedFilters, setAppliedFilters] = useState({
+    code: '', orderId: '', status: 'all',
+    slotDateFrom: '', slotDateTo: '',
+    verifiedFrom: '', verifiedTo: '',
+    types: [],
+  })
   const [page, setPage] = useState(1)
   const ticketQueryFilters = useMemo(() => ({
     page,
     pageSize: PAGE_SIZE,
-    code: filters.code,
-    orderId: filters.orderId,
-    status: filters.status,
-    slotDateFrom: filters.slotDateFrom,
-    slotDateTo: filters.slotDateTo,
-    verifiedFrom: filters.verifiedFrom,
-    verifiedTo: filters.verifiedTo,
-    ticketType: filters.types,
-  }), [filters, page])
+    code: appliedFilters.code,
+    orderId: appliedFilters.orderId,
+    status: appliedFilters.status,
+    slotDateFrom: appliedFilters.slotDateFrom,
+    slotDateTo: appliedFilters.slotDateTo,
+    verifiedFrom: appliedFilters.verifiedFrom,
+    verifiedTo: appliedFilters.verifiedTo,
+    ticketType: appliedFilters.types,
+  }), [appliedFilters, page])
   const { data: ticketsData, error: loadError, loading: loadingTickets, setData: setTicketsData } = useTicketsQuery(
     ticketQueryFilters,
     { initialData: { items: [], total: 0 } }
@@ -147,6 +123,12 @@ export default function Tickets() {
   const { mutate: exportTicketsMutation, loading: exporting } = useAdminMutation(exportTickets, {
     successMessage: 'Tickets exported.',
   })
+  const { mutate: batchStatusMutation } = useAdminMutation(batchUpdateTicketStatus, {
+    successMessage: 'Ticket batch updated.',
+  })
+  const { mutate: regenerateQrMutation } = useAdminMutation(regenerateTicketQr, {
+    successMessage: 'Ticket QR regenerated.',
+  })
   const tickets = ticketsData?.items || []
   const ticketTypeOptions = useMemo(
     () => ticketTypes.map(type => type.name).filter(Boolean).sort(),
@@ -154,13 +136,13 @@ export default function Tickets() {
   )
   const [qrTicket, setQrTicket] = useState(null)
   const [showExportConfirm, setShowExportConfirm] = useState(false)
+  const [selectedIds, setSelectedIds] = useState([])
 
   function toggleType(type) {
     setFilters(f => ({
       ...f,
       types: f.types.includes(type) ? f.types.filter(x => x !== type) : [...f.types, type]
     }))
-    setPage(1)
   }
 
   async function toggleStatus(id) {
@@ -189,33 +171,68 @@ export default function Tickets() {
     }))
   }
 
+  function toggleSelected(id) {
+    setSelectedIds(ids => ids.includes(id) ? ids.filter(item => item !== id) : [...ids, id])
+  }
+
+  async function batchStatus(status) {
+    if (!selectedIds.length) return
+    await batchStatusMutation(selectedIds, status)
+    setTicketsData(prev => ({
+      ...prev,
+      items: (prev?.items || []).map(ticket => selectedIds.includes(ticket.id) ? { ...ticket, status } : ticket),
+    }))
+    setSelectedIds([])
+  }
+
+  async function regenerateQr(ticket) {
+    const reason = window.prompt('Reason for regenerating QR', 'Admin requested QR regeneration') || 'Admin requested QR regeneration'
+    const updated = await regenerateQrMutation(ticket.id, { reason })
+    setTicketsData(prev => ({
+      ...prev,
+      items: (prev?.items || []).map(item => item.id === ticket.id ? updated : item),
+    }))
+    setQrTicket(updated.qrCode || updated.code)
+  }
+
   const paged = tickets
 
   function resetFilters() {
-    setFilters({ code: '', orderId: '', status: 'all', slotDateFrom: '', slotDateTo: '', verifiedFrom: '', verifiedTo: '', types: [] })
+    const empty = { code: '', orderId: '', status: 'all', slotDateFrom: '', slotDateTo: '', verifiedFrom: '', verifiedTo: '', types: [] }
+    setFilters(empty)
+    setAppliedFilters(empty)
+    setPage(1)
+  }
+
+  function applyFilters() {
+    setAppliedFilters(filters)
     setPage(1)
   }
 
   function setTodaySlotFilter() {
-    setFilters(f => ({ ...f, slotDateFrom: TODAY, slotDateTo: TODAY }))
+    const next = { ...filters, slotDateFrom: TODAY, slotDateTo: TODAY }
+    setFilters(next)
+    setAppliedFilters(next)
     setPage(1)
   }
 
   function setTodayVerifiedFilter() {
-    setFilters(f => ({ ...f, status: 'used', verifiedFrom: TODAY, verifiedTo: TODAY }))
+    const next = { ...filters, status: 'used', verifiedFrom: TODAY, verifiedTo: TODAY }
+    setFilters(next)
+    setAppliedFilters(next)
     setPage(1)
   }
 
   async function exportCSV() {
     await exportTicketsMutation({
-      code: filters.code,
-      orderId: filters.orderId,
-      status: filters.status,
-      slotDateFrom: filters.slotDateFrom,
-      slotDateTo: filters.slotDateTo,
-      verifiedFrom: filters.verifiedFrom,
-      verifiedTo: filters.verifiedTo,
-      ticketType: filters.types,
+      code: appliedFilters.code,
+      orderId: appliedFilters.orderId,
+      status: appliedFilters.status,
+      slotDateFrom: appliedFilters.slotDateFrom,
+      slotDateTo: appliedFilters.slotDateTo,
+      verifiedFrom: appliedFilters.verifiedFrom,
+      verifiedTo: appliedFilters.verifiedTo,
+      ticketType: appliedFilters.types,
     })
     setShowExportConfirm(false)
   }
@@ -223,12 +240,12 @@ export default function Tickets() {
   function ticketExportFilters() {
     const statusLabels = { all: t.allStatus, not_used: t.notUsed, used: t.used, voided: t.voided }
     const items = []
-    if (filters.code) items.push(`Verification Code: ${filters.code}`)
-    if (filters.orderId) items.push(`Order ID: ${filters.orderId}`)
-    items.push(`Ticket Status: ${statusLabels[filters.status] || filters.status}`)
-    items.push(`Slot Date Range: ${filters.slotDateFrom || 'No limit'} - ${filters.slotDateTo || 'No limit'}`)
-    if (filters.verifiedFrom || filters.verifiedTo) items.push(`Verified Date Range: ${filters.verifiedFrom || 'No limit'} - ${filters.verifiedTo || 'No limit'}`)
-    if (filters.types.length) items.push(`Ticket Type: ${filters.types.join(', ')}`)
+    if (appliedFilters.code) items.push(`Verification Code: ${appliedFilters.code}`)
+    if (appliedFilters.orderId) items.push(`Order ID: ${appliedFilters.orderId}`)
+    items.push(`Ticket Status: ${statusLabels[appliedFilters.status] || appliedFilters.status}`)
+    items.push(`Slot Date Range: ${appliedFilters.slotDateFrom || 'No limit'} - ${appliedFilters.slotDateTo || 'No limit'}`)
+    if (appliedFilters.verifiedFrom || appliedFilters.verifiedTo) items.push(`Verified Date Range: ${appliedFilters.verifiedFrom || 'No limit'} - ${appliedFilters.verifiedTo || 'No limit'}`)
+    if (appliedFilters.types.length) items.push(`Ticket Type: ${appliedFilters.types.join(', ')}`)
     return items
   }
 
@@ -264,7 +281,7 @@ export default function Tickets() {
 
   return (
     <div>
-      {qrTicket && <QRModal code={qrTicket} onClose={() => setQrTicket(null)} />}
+      {qrTicket && <QrCodeDialog title="Ticket QR Code" value={qrTicket} subtitle="Scan this in the admin scanner." onClose={() => setQrTicket(null)} />}
       {loadError && (
         <AdminAlert tone="warning">
           Backend tickets could not be loaded: {loadError.message}
@@ -285,21 +302,26 @@ export default function Tickets() {
         title={t.ticketsManagement}
         subtitle={t.manageTickets}
         actions={
-        <Button variant="outlined" size="small" onClick={() => setShowExportConfirm(true)} disabled={exporting} startIcon={<i className="fa fa-file-export" />}>
-          {t.exportCSV}
-        </Button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <Button variant="outlined" size="small" disabled={!selectedIds.length} onClick={() => batchStatus('used')}>Batch Used</Button>
+          <Button variant="outlined" size="small" disabled={!selectedIds.length} onClick={() => batchStatus('not_used')}>Batch Unused</Button>
+          <Button variant="outlined" color="warning" size="small" disabled={!selectedIds.length} onClick={() => batchStatus('voided')}>Batch Void</Button>
+          <Button variant="outlined" size="small" onClick={() => setShowExportConfirm(true)} disabled={exporting} startIcon={<i className="fa fa-file-export" />}>
+            {t.exportCSV}
+          </Button>
+        </div>
         }
       />
 
       {/* Filters */}
       <FilterCard>
         <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1fr_1fr_1fr_1.4fr_1.4fr_auto] mb-3">
-          <TextFilter label={t.verificationCode} placeholder="Enter verification code..." value={filters.code} onChange={value => { setFilters(f => ({ ...f, code: value })); setPage(1) }} />
-          <TextFilter label={t.orderID} placeholder="Enter order ID..." value={filters.orderId} onChange={value => { setFilters(f => ({ ...f, orderId: value })); setPage(1) }} />
+          <TextFilter label={t.verificationCode} placeholder="Enter verification code..." value={filters.code} onChange={value => setFilters(f => ({ ...f, code: value }))} />
+          <TextFilter label={t.orderID} placeholder="Enter order ID..." value={filters.orderId} onChange={value => setFilters(f => ({ ...f, orderId: value }))} />
           <SelectFilter
             label={t.ticketStatus}
             value={filters.status}
-            onChange={value => { setFilters(f => ({ ...f, status: value })); setPage(1) }}
+            onChange={value => setFilters(f => ({ ...f, status: value }))}
             options={[
               { value: 'all', label: t.allStatus },
               { value: 'not_used', label: t.notUsed },
@@ -307,9 +329,10 @@ export default function Tickets() {
               { value: 'voided', label: t.voided },
             ]}
           />
-          <DateRangeFilter label={t.slotDateRange} from={filters.slotDateFrom} to={filters.slotDateTo} onFromChange={value => { setFilters(f => ({ ...f, slotDateFrom: value })); setPage(1) }} onToChange={value => { setFilters(f => ({ ...f, slotDateTo: value })); setPage(1) }} />
-          <DateRangeFilter label={t.verifiedDateRange} from={filters.verifiedFrom} to={filters.verifiedTo} onFromChange={value => { setFilters(f => ({ ...f, verifiedFrom: value })); setPage(1) }} onToChange={value => { setFilters(f => ({ ...f, verifiedTo: value })); setPage(1) }} />
-          <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+          <DateRangeFilter label={t.slotDateRange} from={filters.slotDateFrom} to={filters.slotDateTo} onFromChange={value => setFilters(f => ({ ...f, slotDateFrom: value }))} onToChange={value => setFilters(f => ({ ...f, slotDateTo: value }))} />
+          <DateRangeFilter label={t.verifiedDateRange} from={filters.verifiedFrom} to={filters.verifiedTo} onFromChange={value => setFilters(f => ({ ...f, verifiedFrom: value }))} onToChange={value => setFilters(f => ({ ...f, verifiedTo: value }))} />
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
+            <ApplyFiltersButton onClick={applyFilters} />
             <ResetFiltersButton onClick={resetFilters} label={t.reset} />
           </div>
         </div>
@@ -343,6 +366,9 @@ export default function Tickets() {
               sx={{ fontWeight: 700 }}
             />
           ))}
+          <Button size="small" variant="contained" onClick={applyFilters} startIcon={<i className="fa fa-check" />}>
+            Apply
+          </Button>
         </div>
       </FilterCard>
 
@@ -365,6 +391,7 @@ export default function Tickets() {
             <thead>
               <tr>
                 <th>#</th>
+                <th>Select</th>
                 <th>{t.verificationCode}</th>
                 <th>{t.orderID}</th>
                 <th>{t.remarks}</th>
@@ -378,10 +405,13 @@ export default function Tickets() {
             </thead>
             <tbody>
               {paged.length === 0 ? (
-                <EmptyTableRow colSpan={10}>{t.noTicketsFound}</EmptyTableRow>
+                <EmptyTableRow colSpan={11}>{t.noTicketsFound}</EmptyTableRow>
               ) : paged.map((tk, idx) => (
                 <tr key={tk.id}>
                   <td style={{ color: '#9ca3af', fontSize: 13 }}>{(page - 1) * PAGE_SIZE + idx + 1}</td>
+                  <td>
+                    <input type="checkbox" checked={selectedIds.includes(tk.id)} onChange={() => toggleSelected(tk.id)} />
+                  </td>
                   <td>
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
                       <span style={{ fontFamily: 'monospace', fontSize: 13, color: THEME.primaryText, fontWeight: 800, background: THEME.primarySoft, borderRadius: 6, padding: '5px 8px' }}>
@@ -389,11 +419,19 @@ export default function Tickets() {
                       </span>
                       <button
                         title={t.qrCode}
-                        onClick={() => setQrTicket(tk.code)}
+                        onClick={() => setQrTicket(tk.qrCode || tk.code)}
                         style={{ ...actionButton, background: THEME.utilityBg, color: THEME.utilityText, border: `1px solid ${THEME.utilityBorder}` }}
                       >
                         <i className="fa fa-qrcode" />
                         {t.qrCode}
+                      </button>
+                      <button
+                        title="Regenerate QR"
+                        onClick={() => regenerateQr(tk)}
+                        style={{ ...actionButton, background: THEME.utilityBg, color: THEME.utilityText, border: `1px solid ${THEME.utilityBorder}` }}
+                      >
+                        <i className="fa fa-sync" />
+                        Reissue
                       </button>
                     </div>
                   </td>

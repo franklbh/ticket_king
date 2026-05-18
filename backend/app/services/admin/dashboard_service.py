@@ -68,7 +68,13 @@ class DashboardService:
             start = date.today() - timedelta(days=days - 1)
             keys = [(start + timedelta(days=i)).isoformat() for i in range(days)]
         else:
-            keys = sorted(set(order_by_day) | set(tickets_by_day))
+            populated = sorted(set(order_by_day) | set(tickets_by_day))
+            if not populated:
+                keys = []
+            else:
+                start = date.fromisoformat(populated[0])
+                end = date.fromisoformat(populated[-1])
+                keys = [(start + timedelta(days=i)).isoformat() for i in range((end - start).days + 1)]
         return [
             {
                 "date": key,
@@ -98,12 +104,13 @@ class DashboardService:
         result = []
         for row in rows:
             sold = int(row.get("sold") or 0)
+            total = int(row.get("total") or 0)
             slot_date = str(row.get("slot_date") or "")
             slot_time = str(row.get("slot_time") or "")
             result.append({
                 "slot": f"{slot_date} {slot_time}".strip(),
                 "sold": sold,
-                "total": max(sold, 20),
+                "total": max(sold, total, 1),
             })
         return result
 

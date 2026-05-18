@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import jsQR from 'jsqr'
 import { useLang } from '../context/authHooks'
 import { useT } from '../i18n/translations'
-import { checkInTicket } from '../api/adminApi'
+import { checkInTicket, overrideCheckInTicket } from '../api/adminApi'
 import { useAdminMutation } from '../hooks/useAdminApi'
 import { useRecentScansQuery } from '../hooks/scanner'
 import { ScannerActionButton, ScannerCard, ScannerSectionTitle, ScannerStat } from '../components/ScannerUI'
@@ -44,7 +44,7 @@ const CSS = `
   .scan-ripple { animation: fadeUp 0.22s ease; }
 `
 
-function ScanOverlay({ result, onDismiss }) {
+function ScanOverlay({ result, onDismiss, onOverride }) {
   if (!result) return null
   const ok = result.valid
   return (
@@ -93,6 +93,27 @@ function ScanOverlay({ result, onDismiss }) {
       <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11, marginTop: 16 }}>
         tap to dismiss
       </div>
+      {!ok && result.code && (
+        <button
+          type="button"
+          onClick={e => {
+            e.stopPropagation()
+            onOverride?.(result)
+          }}
+          style={{
+            marginTop: 8,
+            padding: '10px 16px',
+            borderRadius: 8,
+            border: '1px solid rgba(255,255,255,0.25)',
+            background: 'rgba(255,255,255,0.12)',
+            color: '#fff',
+            cursor: 'pointer',
+            fontWeight: 700,
+          }}
+        >
+          Override Check-in
+        </button>
+      )}
     </div>
   )
 }
@@ -121,6 +142,9 @@ export default function Scanner() {
   const { data: recentScans = [] } = useRecentScansQuery(20, { initialData: [] })
   const { mutate: checkInMutation } = useAdminMutation(checkInTicket, {
     successMessage: 'Scan processed.',
+  })
+  const { mutate: overrideMutation } = useAdminMutation(overrideCheckInTicket, {
+    successMessage: 'Check-in overridden.',
   })
 
   useEffect(() => {
@@ -242,6 +266,31 @@ export default function Scanner() {
     manualRef.current?.focus()
   }
 
+  async function handleOverride(scanResult) {
+    const reason = window.prompt('Override reason', 'Admin override') || 'Admin override'
+    try {
+      const response = await overrideMutation({ code: scanResult.code, reason })
+      const ticket = response.ticket
+      const next = {
+        ...ticket,
+        valid: true,
+        validMsg: 'Override successful',
+        code: ticket.code,
+      }
+      playBeep(true)
+      setResult(next)
+      setStats(s => ({ ...s, valid: s.valid + 1 }))
+      setScans(prev => [{
+        id: Date.now(),
+        code: ticket.code,
+        time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }),
+        valid: true,
+        name: ticket.orderUser || null,
+        type: ticket.ticketType || null,
+      }, ...prev].slice(0, 30))
+    } catch {}
+  }
+
   const total = stats.valid + stats.invalid
 
   return (
@@ -355,7 +404,7 @@ export default function Scanner() {
             )}
 
             {/* Result overlay */}
-            <ScanOverlay result={result} onDismiss={() => setResult(null)} />
+            <ScanOverlay result={result} onDismiss={() => setResult(null)} onOverride={handleOverride} />
 
             {/* Idle state */}
             {!cameraOn && (

@@ -5,7 +5,7 @@ import Switch from '@mui/material/Switch'
 import ToggleButton from '@mui/material/ToggleButton'
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup'
 import { useNavigate } from 'react-router-dom'
-import { updateMarketingSettings } from '../api/adminApi'
+import { cancelMarketingRecord, createMarketingRecord, retryMarketingRecord, testSendMarketing, updateMarketingSettings } from '../api/adminApi'
 import { AdminCard, AdminPagination, EmptyTableRow, PageHeader, TableShell } from '../components/AdminUI'
 import LoadingIndicator from '../components/LoadingIndicator'
 import { useAuth, useLang } from '../context/authHooks'
@@ -70,6 +70,10 @@ export default function Marketing() {
     payload => updateMarketingSettings(payload),
     { invalidateQueries: adminQueryKeys.marketingSettings, successMessage: 'Marketing settings saved.' }
   )
+  const recordAction = useAdminMutation(
+    action => action(),
+    { invalidateQueries: adminQueryKeys.marketingRecords, successMessage: 'Marketing action completed.' }
+  )
 
   const stats = {
     total: recordsData?.total ?? records.length,
@@ -88,6 +92,35 @@ export default function Marketing() {
     setTimeout(() => setSaved(false), 2000)
   }
 
+  async function createRecord() {
+    if (!canWriteMarketing) return
+    const recipientEmail = window.prompt('Recipient email')
+    if (!recipientEmail) return
+    const recipientName = window.prompt('Recipient name', '') || null
+    const couponCode = window.prompt('Coupon code', '') || null
+    const orderId = window.prompt('Order ID', '') || null
+    await recordAction.mutate(() => createMarketingRecord({ recipientEmail, recipientName, couponCode, orderId }))
+  }
+
+  async function testSend() {
+    if (!canWriteMarketing) return
+    const recipientEmail = window.prompt('Test recipient email')
+    if (!recipientEmail) return
+    await recordAction.mutate(() => testSendMarketing({ recipientEmail }))
+  }
+
+  async function cancelRecord(record) {
+    if (!canWriteMarketing) return
+    const reason = window.prompt('Cancel reason', 'Admin cancelled') || 'Admin cancelled'
+    await recordAction.mutate(() => cancelMarketingRecord(record.id, { reason }))
+  }
+
+  async function retryRecord(record) {
+    if (!canWriteMarketing) return
+    const reason = window.prompt('Retry reason', 'Admin retry') || 'Admin retry'
+    await recordAction.mutate(() => retryMarketingRecord(record.id, { reason }))
+  }
+
   if (loadingSettings && !loadedSettings) {
     return <LoadingIndicator label="Loading marketing settings..." />
   }
@@ -104,6 +137,16 @@ export default function Marketing() {
         icon="fa-bullhorn"
         title={t.marketingManagement}
         subtitle="Configure automatic marketing emails with discount coupons after ticket check-in"
+        actions={
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <Button variant="outlined" size="small" disabled={!canWriteMarketing} onClick={testSend} startIcon={<i className="fa fa-paper-plane" />}>
+            Test Send
+          </Button>
+          <Button variant="contained" size="small" disabled={!canWriteMarketing} onClick={createRecord} startIcon={<i className="fa fa-plus" />}>
+            Create Record
+          </Button>
+        </div>
+        }
       />
 
       {/* Stats */}
@@ -285,11 +328,12 @@ export default function Marketing() {
                 <th>{t.status}</th>
                 <th>{t.couponUsed}</th>
                 <th>{t.sentAt}</th>
+                <th>{t.actions}</th>
               </tr>
             </thead>
             <tbody>
               {paged.length === 0 ? (
-                <EmptyTableRow colSpan={7}>No marketing records found</EmptyTableRow>
+                <EmptyTableRow colSpan={8}>No marketing records found</EmptyTableRow>
               ) : paged.map(r => (
                 <tr key={r.id}>
                   <td style={{ color: '#9ca3af', fontSize: 13 }}>{r.id}</td>
@@ -337,6 +381,20 @@ export default function Marketing() {
                     }
                   </td>
                   <td style={{ fontSize: 12, color: '#6b7280' }}>{r.sentAt}</td>
+                  <td>
+                    <div style={{ display: 'inline-flex', gap: 6, whiteSpace: 'nowrap' }}>
+                      {r.status !== 'cancelled' && (
+                        <Button variant="outlined" color="warning" size="small" disabled={!canWriteMarketing} onClick={() => cancelRecord(r)}>
+                          Cancel
+                        </Button>
+                      )}
+                      {['failed', 'cancelled'].includes(r.status) && (
+                        <Button variant="contained" size="small" disabled={!canWriteMarketing} onClick={() => retryRecord(r)}>
+                          Retry
+                        </Button>
+                      )}
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
