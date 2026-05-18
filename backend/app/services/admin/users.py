@@ -8,7 +8,7 @@ import httpx
 
 from app.core.config import settings
 from app.services.admin.repository import admin_repository
-from app.schemas.admin import AdminAccountCreate, OwnerBootstrapCreate, StaffProfileUpdate, UserRoleUpdate
+from app.schemas.admin import AdminAccountCreate, OwnerBootstrapCreate, StaffProfileUpdate, UserPasswordUpdate, UserRoleUpdate
 from app.schemas.admin.responses import ActivityLogPage, ActivityLogRead
 from app.services.admin.audit import audit_change, write_audit_log
 from app.services.admin.security import ADMINISTRATOR, ALL_ROLES, OWNER, normalize_role, now_utc, public_user
@@ -122,9 +122,24 @@ class UserService:
         if not updated:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
         details = audit_change(before_rows[0] if before_rows else None, updated[0], ["staff_role", "department", "position", "status"])
+        if "name" in values:
+            details["name"] = values["name"]
         details["profile"] = values
         await write_audit_log(actor, "Update", "Admin", str(user_id), details, None)
         return public_user(updated[0])
+
+    async def set_password(self, user_id: str, payload: UserPasswordUpdate, actor: dict[str, Any]) -> dict[str, Any]:
+        rows = await admin_repository.select_where(settings.admin_users_table, column="id", value=user_id, limit=1)
+        if not rows:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+        if not settings.supabase_service_role_key or not settings.supabase_url:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Direct admin password update requires SUPABASE_SERVICE_ROLE_KEY.",
+            )
+        await self._update_auth_user_password(user_id, payload.password)
+        await write_audit_log(actor, "Password Update", "Admin", str(user_id), {"direct": True}, None)
+        return {"ok": True, "message": "Password updated.", "id": user_id}
 
     async def update_role(self, user_id: str, payload: UserRoleUpdate, actor: dict[str, Any]) -> dict[str, Any]:
         role = normalize_role(payload.role)
@@ -321,6 +336,23 @@ class UserService:
         except httpx.HTTPError as exc:
             raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Could not request password reset.") from exc
         if response.status_code not in {200, 201, 204}:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=self._supabase_error_detail(response))
+
+    async def _update_auth_user_password(self, user_id: str, password: str) -> None:
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                response = await client.put(
+                    f"{settings.supabase_url.rstrip('/')}/auth/v1/admin/users/{user_id}",
+                    headers={
+                        "apikey": settings.supabase_service_role_key or "",
+                        "Authorization": f"Bearer {settings.supabase_service_role_key or ''}",
+                        "Content-Type": "application/json",
+                    },
+                    json={"password": password},
+                )
+        except httpx.HTTPError as exc:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Could not update user password.") from exc
+        if response.status_code not in {200, 201}:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=self._supabase_error_detail(response))
 
     def _auth_user_from_response(self, response: httpx.Response, email: str) -> dict[str, Any] | None:

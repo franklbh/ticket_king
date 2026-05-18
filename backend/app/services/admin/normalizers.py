@@ -247,6 +247,8 @@ def normalize_slot(row: dict[str, Any]) -> dict[str, Any]:
 
 
 def normalize_ticket_type(row: dict[str, Any]) -> dict[str, Any]:
+    time_start = pick(row, "time_start")
+    time_end = pick(row, "time_end")
     return {
         "id": str(pick(row, "id", "ticket_type_id")) if pick(row, "id", "ticket_type_id") is not None else None,
         "name": pick(row, "name", "ticket_type", default="Regular"),
@@ -257,8 +259,8 @@ def normalize_ticket_type(row: dict[str, Any]) -> dict[str, Any]:
         "weekdays": pick(row, "weekdays", default=["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]),
         "validFrom": to_date_string(pick(row, "valid_from")),
         "validTo": to_date_string(pick(row, "valid_to")),
-        "timeStart": pick(row, "time_start"),
-        "timeEnd": pick(row, "time_end"),
+        "timeStart": str(time_start)[:5] if time_start else None,
+        "timeEnd": str(time_end)[:5] if time_end else None,
         "addOn": pick(row, "add_on", "addon"),
         "remarks": pick(row, "remarks"),
         "status": normalize_enabled_status(pick(row, "status", "active")),

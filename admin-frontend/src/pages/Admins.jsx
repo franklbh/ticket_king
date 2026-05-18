@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import Button from '@mui/material/Button'
 import { useLang } from '../context/authHooks'
 import { useT } from '../i18n/translations'
-import { createAdminAccount, deactivateUser, getUser, getUserLoginHistory, requestUserPasswordReset, updateStaffProfile } from '../api/adminApi'
+import { createAdminAccount, deactivateUser, getUser, getUserLoginHistory, requestUserPasswordReset, updateStaffProfile, updateUserPassword } from '../api/adminApi'
 import { adminQueryKeys, useUsersQuery } from '../hooks/queries'
 import { useAdminMutation } from '../hooks/useAdminApi'
 import LoadingIndicator from '../components/LoadingIndicator'
@@ -103,11 +103,16 @@ export default function Admins() {
   const saveAdmin = useAdminMutation(
     async (form, existing) => {
       if (existing?.id) {
-        return updateStaffProfile(existing.id, {
+        const updated = await updateStaffProfile(existing.id, {
+          name: form.username || null,
           department: form.department || null,
           position: form.position || null,
           status: form.status || 'active',
         })
+        if (form.password) {
+          await updateUserPassword(existing.id, form.password)
+        }
+        return updated
       }
       return createAdminAccount({
         name: form.username || form.name,
@@ -265,7 +270,7 @@ export default function Admins() {
                       <Button variant="outlined" size="small" onClick={() => showLoginHistory(a)}>Logins</Button>
                       <Button variant="outlined" size="small" onClick={() => sendPasswordReset(a)}>Reset</Button>
                       <Button variant="contained" size="small" onClick={() => setModal(a)} startIcon={<i className="fa fa-edit" />}>{t.edit}</Button>
-                      {a.canDisable && (
+                      {a.role !== 'owner' && (
                         <Button
                           onClick={() => toggleAdminStatus(a)}
                           variant="contained"

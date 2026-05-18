@@ -154,7 +154,7 @@ class CatalogService:
         return to_models(TicketTypeRead, types)
 
     async def create_ticket_type(self, payload: TicketTypeUpsert, actor: dict[str, Any]) -> TicketTypeRead:
-        row = self._ticket_type_row_from_payload(payload)
+        row = await self._ticket_type_row_from_payload(payload)
         inserted = await admin_repository.insert(settings.admin_ticket_types_table, row)
         type_id = str(inserted[0].get("id"))
         await write_audit_log(actor, "Create", "Ticket Type", type_id, {"name": payload.name}, None)
@@ -167,7 +167,7 @@ class CatalogService:
         actor: dict[str, Any],
     ) -> TicketTypeRead:
         before_rows = await admin_repository.select_where(settings.admin_ticket_types_table, column="id", value=self._coerce_type_id(type_id), limit=1)
-        values = self._ticket_type_row_from_payload(payload)
+        values = await self._ticket_type_row_from_payload(payload)
         values["updated_at"] = utc_now_iso_seconds()
         rows = await admin_repository.update(
             settings.admin_ticket_types_table,
@@ -267,26 +267,36 @@ class CatalogService:
             row["created_at"] = now
         return row
 
-    @staticmethod
-    def _ticket_type_row_from_payload(payload: TicketTypeUpsert) -> dict[str, Any]:
+    async def _ticket_type_row_from_payload(self, payload: TicketTypeUpsert) -> dict[str, Any]:
         now = utc_now_iso_seconds()
-        return {
-            "event": payload.event,
+        columns = await admin_repository.columns(settings.admin_ticket_types_table)
+        row = {
             "name": payload.name,
             "price_type": payload.price_type,
             "price": payload.price,
-            "price_adj": payload.price_adj,
             "weekdays": payload.weekdays,
             "valid_from": payload.valid_from,
             "valid_to": payload.valid_to,
             "time_start": payload.time_start,
             "time_end": payload.time_end,
-            "add_on": payload.add_on,
             "remarks": payload.remarks,
             "status": payload.status,
             "created_at": now,
             "updated_at": now,
         }
+        if "event_id" in columns:
+            row["event_id"] = payload.event
+        elif "event" in columns:
+            row["event"] = payload.event
+        if "price_adj" in columns:
+            row["price_adj"] = payload.price_adj
+        elif "price_adjustment" in columns:
+            row["price_adjustment"] = payload.price_adj
+        if "add_on" in columns:
+            row["add_on"] = payload.add_on
+        elif "addon" in columns:
+            row["addon"] = payload.add_on
+        return row
 
     @staticmethod
     def _coerce_type_id(type_id: int | str) -> int | str:

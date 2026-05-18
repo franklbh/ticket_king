@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, s
 
 from app.api.deps import client_ip
 from app.core.config import settings
-from app.schemas.admin import AdminAccountCreate, OwnerBootstrapCreate, StaffProfileUpdate, UserRoleUpdate
+from app.schemas.admin import AdminAccountCreate, OwnerBootstrapCreate, StaffProfileUpdate, UserPasswordUpdate, UserRoleUpdate
 from app.schemas.admin.responses import ActionResponse, ActivityLogPage
 from app.services.admin.security import public_user, require_admin, require_permission
 from app.services.admin.users import user_service
@@ -91,6 +91,15 @@ async def request_password_reset(
     actor: dict = Depends(require_permission("users:write")),
 ) -> ActionResponse:
     return ActionResponse.model_validate(await user_service.request_password_reset(user_id, actor))
+
+
+@router.patch("/{user_id}/password", response_model=ActionResponse)
+async def update_password(
+    user_id: str,
+    payload: UserPasswordUpdate,
+    actor: dict = Depends(require_permission("users:write")),
+) -> ActionResponse:
+    return ActionResponse.model_validate(await user_service.set_password(user_id, payload, actor))
 
 
 @router.get("/{user_id}/login-history", response_model=ActivityLogPage)

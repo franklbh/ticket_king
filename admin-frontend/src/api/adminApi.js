@@ -345,6 +345,13 @@ export function requestUserPasswordReset(userId) {
   return apiRequest(`/users/${encodeURIComponent(userId)}/password-reset`, { method: 'POST' })
 }
 
+export function updateUserPassword(userId, password) {
+  return apiRequest(`/users/${encodeURIComponent(userId)}/password`, {
+    method: 'PATCH',
+    body: { password },
+  })
+}
+
 export function getUserLoginHistory(userId, params = {}) {
   return apiRequest(withQuery(`/users/${encodeURIComponent(userId)}/login-history`, params))
 }

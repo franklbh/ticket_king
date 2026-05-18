@@ -242,7 +242,7 @@ export default function CreateOrder() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
               {availableSlots.map(slot => {
                 const sold = slot.websiteSeats + slot.inStoreSeats
-                const remaining = slot.totalSeats - sold
+                const remaining = Math.max(0, slot.totalSeats - sold)
                 const isSelected = selectedSlot?.id === slot.id
                 return (
                   <button
