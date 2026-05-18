@@ -17,6 +17,151 @@ function formatCountdown(seconds) {
   return `${String(minutes).padStart(2, '0')}:${String(rest).padStart(2, '0')}`
 }
 
+function gfMul(a, b) {
+  let result = 0
+  let left = a
+  let right = b
+  while (right > 0) {
+    if (right & 1) result ^= left
+    left <<= 1
+    if (left & 0x100) left ^= 0x11d
+    right >>= 1
+  }
+  return result
+}
+
+function qrBitsForNumeric(value) {
+  const bits = []
+  const append = (number, length) => {
+    for (let i = length - 1; i >= 0; i -= 1) bits.push((number >> i) & 1)
+  }
+  append(0x1, 4)
+  append(value.length, 10)
+  for (let i = 0; i < value.length; i += 3) {
+    const chunk = value.slice(i, i + 3)
+    append(Number(chunk), chunk.length === 3 ? 10 : chunk.length === 2 ? 7 : 4)
+  }
+  for (let i = 0; i < Math.min(4, 152 - bits.length); i += 1) bits.push(0)
+  while (bits.length < 152 && bits.length % 8 !== 0 && bits.length < 148) bits.push(0)
+  while (bits.length % 8 !== 0) bits.push(0)
+  const codewords = []
+  for (let i = 0; i < bits.length; i += 8) codewords.push(parseInt(bits.slice(i, i + 8).join(''), 2))
+  let pad = 0
+  while (codewords.length < 19) {
+    codewords.push(pad % 2 === 0 ? 0xec : 0x11)
+    pad += 1
+  }
+  return codewords
+}
+
+function ticketQrDataUri(rawCode) {
+  const code = String(rawCode || '').replace(/\D/g, '').slice(0, 41) || '0'
+  const size = 21
+  const quiet = 4
+  const matrix = Array.from({ length: size }, () => Array(size).fill(null))
+  const set = (x, y, dark) => {
+    if (x >= 0 && y >= 0 && x < size && y < size) matrix[y][x] = Boolean(dark)
+  }
+
+  const finder = (x, y) => {
+    for (let yy = -1; yy <= 7; yy += 1) {
+      for (let xx = -1; xx <= 7; xx += 1) {
+        const edge = xx === -1 || xx === 7 || yy === -1 || yy === 7
+        const dark = !edge && (xx === 0 || xx === 6 || yy === 0 || yy === 6 || (xx >= 2 && xx <= 4 && yy >= 2 && yy <= 4))
+        set(x + xx, y + yy, dark)
+      }
+    }
+  }
+  finder(0, 0)
+  finder(size - 7, 0)
+  finder(0, size - 7)
+  for (let i = 8; i < size - 8; i += 1) {
+    set(i, 6, i % 2 === 0)
+    set(6, i, i % 2 === 0)
+  }
+  set(8, size - 8, true)
+
+  const format = 0b111011111000100
+  const bit = (i) => ((format >> i) & 1) === 1
+  for (let i = 0; i <= 5; i += 1) set(8, i, bit(i))
+  set(8, 7, bit(6))
+  set(8, 8, bit(7))
+  set(7, 8, bit(8))
+  for (let i = 9; i < 15; i += 1) set(14 - i, 8, bit(i))
+  for (let i = 0; i < 8; i += 1) set(size - 1 - i, 8, bit(i))
+  for (let i = 8; i < 15; i += 1) set(8, size - 15 + i, bit(i))
+
+  const data = qrBitsForNumeric(code)
+  const generator = [87, 229, 146, 149, 238, 102, 21]
+  const ecc = Array(7).fill(0)
+  data.forEach((word) => {
+    const factor = word ^ ecc.shift()
+    ecc.push(0)
+    generator.forEach((coef, index) => { ecc[index] ^= gfMul(coef, factor) })
+  })
+  const stream = [...data, ...ecc].flatMap((word) => Array.from({ length: 8 }, (_, i) => (word >> (7 - i)) & 1))
+  let index = 0
+  let upward = true
+  for (let x = size - 1; x > 0; x -= 2) {
+    if (x === 6) x -= 1
+    for (let offset = 0; offset < size; offset += 1) {
+      const y = upward ? size - 1 - offset : offset
+      for (let dx = 0; dx < 2; dx += 1) {
+        const xx = x - dx
+        if (matrix[y][xx] !== null) continue
+        const masked = Boolean(stream[index] || 0) !== ((xx + y) % 2 === 0)
+        set(xx, y, masked)
+        index += 1
+      }
+    }
+    upward = !upward
+  }
+
+  const modules = []
+  matrix.forEach((row, y) => row.forEach((dark, x) => {
+    if (dark) modules.push(`<rect x="${x + quiet}" y="${y + quiet}" width="1" height="1"/>`)
+  }))
+  const viewBox = size + quiet * 2
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${viewBox} ${viewBox}" shape-rendering="crispEdges"><rect width="${viewBox}" height="${viewBox}" fill="#fff"/><g fill="#111827">${modules.join('')}</g></svg>`
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
+}
+
+function fallbackTickets(order) {
+  const orderDigits = String(order.orderNumber || Date.now()).replace(/\D/g, '').slice(-10) || String(Date.now()).slice(-10)
+  let counter = 0
+  return order.items.flatMap((item) => Array.from({ length: item.quantity }, () => {
+    counter += 1
+    const code = `${orderDigits}${String(counter).padStart(3, '0')}`
+    return {
+      id: `${item.id}__ticket_${counter}`,
+      code,
+      qrCode: `ticket:${code}`,
+      ticketNumber: `T-${code}`,
+      ticketType: item.ticket_type_label,
+      showTitle: item.show_title,
+      slotDate: item.session_date,
+      slotTime: item.session_time,
+    }
+  }))
+}
+
+function normalizeBackendTickets(tickets, order) {
+  return (tickets || []).map((ticket, index) => {
+    const code = String(ticket.verification_code || ticket.code || ticket.qrCode || ticket.qr_payload || `${Date.now()}${index}`).replace(/\D/g, '')
+    const item = order.items.find((entry) => entry.ticket_type_label === ticket.ticket_type) || order.items[0] || {}
+    return {
+      id: String(ticket.id || ticket.ticket_id || `${order.orderNumber}-ticket-${index + 1}`),
+      code,
+      qrCode: ticket.qr_payload || ticket.qrCode || `ticket:${code}`,
+      ticketNumber: ticket.ticket_number || ticket.ticketNumber || `T-${code}`,
+      ticketType: ticket.ticket_type || ticket.ticketType || item.ticket_type_label || 'Ticket',
+      showTitle: ticket.event_name || item.show_title || 'WE ARE VR',
+      slotDate: ticket.slot_date || item.session_date || '',
+      slotTime: ticket.slot_time || item.session_time || '',
+    }
+  })
+}
+
 function CartIcon() {
   return (
     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -422,7 +567,29 @@ export default function Cart({
     return () => window.removeEventListener('beforeunload', releaseOnLeave)
   }, [releaseReservation, reservation?.id, step])
 
-  function finishPayment(order, providerReference, method) {
+  async function loadIssuedTickets(order, providerReference, method, snapshot) {
+    if (!order?.id || !providerReference) return fallbackTickets(snapshot)
+    try {
+      const res = await fetch(`${BACKEND}/api/v1/reservations/${order.id}/complete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider: method === 'card' ? 'stripe' : 'alphapay',
+          providerReference,
+          method,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.detail || 'Unable to issue tickets.')
+      const issuedTickets = normalizeBackendTickets(data.tickets || [], snapshot)
+      return issuedTickets.length ? issuedTickets : fallbackTickets(snapshot)
+    } catch (err) {
+      setPaymentError(err.message || 'Unable to load issued tickets. Showing temporary ticket codes.')
+      return fallbackTickets(snapshot)
+    }
+  }
+
+  async function finishPayment(order, providerReference, method) {
     const snapshot = {
       orderNumber: order?.orderNumber || `VRX-${new Date().toISOString().slice(0, 10).replaceAll('-', '')}-${String(Date.now()).slice(-4)}`,
       providerReference,
@@ -436,7 +603,9 @@ export default function Cart({
       tax,
       grand,
       couponCode: appliedCoupon?.code || '',
+      tickets: [],
     }
+    snapshot.tickets = await loadIssuedTickets(order, providerReference, method, snapshot)
     setConfirmed(snapshot)
     setReservation(null)
     setTimeLeft(0)
@@ -568,6 +737,9 @@ export default function Cart({
       `Email: ${order.contact.email}`,
       '',
       ...order.items.map((item) => `${item.show_title} | ${item.session_date} ${item.session_time} | ${item.ticket_type_label} x${item.quantity} | ${fmt(item.unit_price * item.quantity)}`),
+      '',
+      'Tickets:',
+      ...(order.tickets || []).map((ticket, index) => `${index + 1}. ${ticket.ticketNumber} | ${ticket.showTitle} | ${ticket.ticketType} | Code: ${ticket.code}`),
       '',
       `Subtotal: ${fmt(order.subtotal)}`,
       order.discount ? `Coupon ${order.couponCode}: -${fmt(order.discount)}` : '',
@@ -797,10 +969,26 @@ export default function Cart({
                     </article>
                   ))}
                 </div>
-                <div className="crt-ticket-ready">
-                  <img src={qrPlaceholder} alt="Ticket QR code" />
-                  <div><strong>Your tickets are ready!</strong><span>Show your QR code at the venue or download your tickets to your device.</span></div>
-                  <button className="crt-primary" onClick={downloadReceipt} type="button">Download all tickets</button>
+                <div className="crt-issued-tickets">
+                  <div className="crt-issued-head">
+                    <div><strong>Your tickets are ready</strong><span>Each ticket has its own QR code. Show the matching code at check-in.</span></div>
+                    <button className="crt-primary" onClick={downloadReceipt} type="button">Download receipt</button>
+                  </div>
+                  <div className="crt-ticket-grid">
+                    {confirmed.tickets.map((ticket, index) => (
+                      <article className="crt-ticket-card" key={ticket.id || `${ticket.code}-${index}`}>
+                        <img src={ticketQrDataUri(ticket.code)} alt={`QR code for ticket ${ticket.ticketNumber}`} />
+                        <div>
+                          <strong>Ticket {index + 1}</strong>
+                          <span className="crt-ticket-number">{ticket.ticketNumber}</span>
+                          <span>{ticket.showTitle}</span>
+                          <small>{ticket.slotDate} {ticket.slotTime}</small>
+                          <small>{ticket.ticketType}</small>
+                          <code>{ticket.code}</code>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
                 </div>
               </main>
             )}

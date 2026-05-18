@@ -214,6 +214,42 @@ async def mark_paid_by_provider_reference(provider: str, provider_reference: str
     return None
 
 
+async def mark_paid_reservation(
+    order_id: str,
+    *,
+    provider: str,
+    provider_reference: str,
+    method: str | None = None,
+) -> dict[str, Any]:
+    rows = await admin_repository.select_where(settings.admin_orders_table, column="id", value=uuid.UUID(str(order_id)))
+    if not rows:
+        raise HTTPException(status_code=404, detail="Reservation not found.")
+    order = rows[0]
+    existing_reference = str(order.get("provider_reference") or "")
+    if existing_reference and existing_reference != str(provider_reference):
+        raise HTTPException(status_code=409, detail="Payment reference does not match this reservation.")
+    if str(order.get("payment_status") or "").lower() == "paid":
+        return _reservation_response(order)
+
+    values = {
+        "order_status": "Paid",
+        "payment_status": "Paid",
+        "fulfillment_status": "Pending",
+        "payment_provider": provider,
+        "provider_reference": provider_reference,
+        "updated_at": utc_now_iso_seconds(),
+    }
+    if method:
+        values["payment_method"] = method
+    updated = await admin_repository.update(
+        settings.admin_orders_table,
+        match_column="id",
+        match_value=uuid.UUID(str(order_id)),
+        values=values,
+    )
+    return _reservation_response(updated[0] if updated else order)
+
+
 async def fulfill_paid_order(order_id: str) -> dict[str, Any]:
     rows = await admin_repository.select_where(settings.admin_orders_table, column="id", value=uuid.UUID(str(order_id)))
     if not rows:
