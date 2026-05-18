@@ -10,6 +10,7 @@ from fastapi import HTTPException
 
 from app.core.config import settings
 from app.schemas.checkout import CheckoutOrder
+from app.services.admin.normalizers import db_ticket_status
 from app.services.admin.repository import admin_repository
 from app.utils.datetime import utc_now, utc_now_iso_seconds
 
@@ -207,6 +208,78 @@ async def mark_paid_by_provider_reference(provider: str, provider_reference: str
     return None
 
 
+async def fulfill_paid_order(order_id: str) -> dict[str, Any]:
+    rows = await admin_repository.select_where(settings.admin_orders_table, column="id", value=uuid.UUID(str(order_id)))
+    if not rows:
+        raise HTTPException(status_code=404, detail="Order not found.")
+    order = rows[0]
+    if str(order.get("payment_status") or "").lower() != "paid":
+        raise HTTPException(status_code=409, detail="Order is not paid yet.")
+
+    existing_tickets = await admin_repository.select_where(
+        settings.admin_tickets_table,
+        column="order_id",
+        value=uuid.UUID(str(order_id)),
+        limit=settings.max_table_rows,
+    )
+    if existing_tickets:
+        await _mark_order_fulfilled(order_id)
+        return {
+            "orderId": str(order_id),
+            "created": False,
+            "ticketCount": len(existing_tickets),
+            "tickets": existing_tickets,
+        }
+
+    order_items = await admin_repository.select_where(
+        "order_items",
+        column="order_id",
+        value=uuid.UUID(str(order_id)),
+        limit=settings.max_table_rows,
+    )
+    if not order_items:
+        raise HTTPException(status_code=409, detail="Paid order has no order items to fulfill.")
+
+    now = utc_now_iso_seconds()
+    ticket_columns = await admin_repository.columns(settings.admin_tickets_table)
+    ticket_rows: list[dict[str, Any]] = []
+    for item in order_items:
+        quantity = int(item.get("quantity") or 0)
+        unit_price = _money(item.get("unit_price") or 0)
+        for _ in range(quantity):
+            code = _verification_code()
+            ticket_row = {
+                "id": str(uuid.uuid4()),
+                "ticket_number": _ticket_number(),
+                "order_id": uuid.UUID(str(order_id)),
+                "ticket_type": item.get("ticket_type") or "Regular",
+                settings.admin_ticket_status_column: db_ticket_status("not_used"),
+                "verification_code": code,
+                "qr_payload": f"ticket:{code}",
+                "net_ticket_amount": unit_price,
+                "original_ticket_amount": unit_price,
+                "checked_in_at": None,
+                "checked_in_by": None,
+                "memo": order.get("remarks"),
+                "created_at": now,
+                "updated_at": now,
+            }
+            if "ticket_type_id" in ticket_columns:
+                ticket_row["ticket_type_id"] = item.get("ticket_type_id")
+            if "order_item_id" in ticket_columns:
+                ticket_row["order_item_id"] = item.get("id")
+            ticket_rows.append(ticket_row)
+
+    inserted_tickets = await admin_repository.insert(settings.admin_tickets_table, ticket_rows)
+    await _mark_order_fulfilled(order_id)
+    return {
+        "orderId": str(order_id),
+        "created": True,
+        "ticketCount": len(inserted_tickets),
+        "tickets": inserted_tickets,
+    }
+
+
 async def expire_stale_reservations(*, grace_seconds: int = 0) -> None:
     now = datetime.now(timezone.utc)
     for order in await admin_repository.select(settings.admin_orders_table):
@@ -226,6 +299,18 @@ async def expire_stale_reservations(*, grace_seconds: int = 0) -> None:
                 "updated_at": utc_now_iso_seconds(),
             },
         )
+
+
+async def _mark_order_fulfilled(order_id: str) -> None:
+    await admin_repository.update(
+        settings.admin_orders_table,
+        match_column="id",
+        match_value=uuid.UUID(str(order_id)),
+        values={
+            "fulfillment_status": "Fulfilled",
+            "updated_at": utc_now_iso_seconds(),
+        },
+    )
 
 
 def _is_active_pending_reservation(order: dict[str, Any], *, grace_seconds: int = 0) -> bool:
@@ -290,3 +375,11 @@ def _money(value: Decimal | int | float | str) -> Decimal:
 
 def _order_number() -> str:
     return f"TK{utc_now():%Y%m%d%H%M%S}{secrets.randbelow(9000) + 1000}"
+
+
+def _verification_code() -> str:
+    return f"{utc_now():%y%m%d}{secrets.randbelow(9000000) + 1000000}"
+
+
+def _ticket_number() -> str:
+    return f"T{utc_now():%Y%m%d%H%M%S}{secrets.randbelow(900000) + 100000}"
