@@ -119,16 +119,13 @@ export default function Layout() {
             </NavLink>
           ))}
           {can(admin, 'scanner:use') && (
-            <a
-              href="/scanner"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="sidebar-nav-item"
+            <NavLink
+              to="/scanner"
+              className={({ isActive }) => `sidebar-nav-item${isActive ? ' active' : ''}`}
             >
               <i className="fa fa-qrcode w-[18px] text-center" />
-              <span className="flex-1">{t.scanner}</span>
-              <i className="fa fa-external-link-alt text-[11px] opacity-70" />
-            </a>
+              <span>{t.scanner}</span>
+            </NavLink>
           )}
         </nav>
 
