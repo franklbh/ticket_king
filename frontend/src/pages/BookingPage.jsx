@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { isDateTimePeak } from '../data/showData'
 import { badge, currency } from '../utils/format'
 
@@ -26,15 +26,21 @@ function BookingPage({
   weekdayLabels,
 }) {
   const [ticketLines, setTicketLines] = useState([{ key: 'ticket-1', ticketTypeId: 'adult', quantity: 1 }])
-  const [added, setAdded] = useState(false)
-  const [showAddedModal, setShowAddedModal] = useState(false)
   const [showAllSlots, setShowAllSlots] = useState(false)
+  const lastAutoCartSelectionRef = useRef(null)
+  const onAddToCartRef = useRef(onAddToCart)
+
+  useEffect(() => {
+    onAddToCartRef.current = onAddToCart
+  }, [onAddToCart])
 
   const minQtyForType = (id) => id === 'family' ? 3 : id === 'group' ? 6 : 1
   const ticketById = useCallback((id) => (
     localizedTicketTypes.find((item) => item.id === id) || localizedTicketTypes[0]
   ), [localizedTicketTypes])
-  const ticketOptions = localizedTicketTypes.map((item) => ({ id: item.id, label: item.label, price: item.price }))
+  const ticketOptions = useMemo(() => (
+    localizedTicketTypes.map((item) => ({ id: item.id, label: item.label, price: item.price }))
+  ), [localizedTicketTypes])
   const selectedImage = bookingExperience?.heroImg || bookingExperience?.gallery?.[0]
 
   const liveSlots = useMemo(() => availableSlots.map((slot) => {
@@ -73,23 +79,42 @@ function BookingPage({
     && ticketLines.length
     && ticketLines.every((line) => line.quantity >= minQtyForType(line.ticketTypeId)),
   )
-  const displayCartCount = cartCount || (added ? ticketQty : 0)
+  const displayCartCount = cartCount
   const visibleSlots = showAllSlots ? liveSlots : liveSlots.slice(0, 8)
   const relatedExperiences = bookingExperiences.filter((item) => item.id !== bookingExperience?.id).slice(0, 5)
 
-  const addToCart = () => {
-    if (!canAdd) return
-    onAddToCart?.({
+  useEffect(() => {
+    const previousSelection = lastAutoCartSelectionRef.current
+    if (!canAdd) {
+      if (previousSelection) {
+        onAddToCartRef.current?.({ ...previousSelection, tickets: [] })
+        lastAutoCartSelectionRef.current = null
+      }
+      return
+    }
+
+    const nextSelection = {
       experience: bookingExperience,
       selectedDate: selectedDate.date,
       selectedTime,
       ticketOptions,
       tickets: ticketLines.map((line) => ({ ...ticketById(line.ticketTypeId), quantity: line.quantity })),
       openCart: false,
-    })
-    setAdded(true)
-    setShowAddedModal(true)
-  }
+    }
+
+    if (previousSelection) {
+      const previousDateKey = previousSelection.selectedDate?.toISOString?.() || String(previousSelection.selectedDate)
+      const nextDateKey = nextSelection.selectedDate?.toISOString?.() || String(nextSelection.selectedDate)
+      const previousTime = previousSelection.selectedTime?.id || previousSelection.selectedTime?.time || previousSelection.selectedTime
+      const nextTime = nextSelection.selectedTime?.id || nextSelection.selectedTime?.time || nextSelection.selectedTime
+      if (previousSelection.experience?.id !== nextSelection.experience?.id || previousDateKey !== nextDateKey || previousTime !== nextTime) {
+        onAddToCartRef.current?.({ ...previousSelection, tickets: [] })
+      }
+    }
+
+    onAddToCartRef.current?.(nextSelection)
+    lastAutoCartSelectionRef.current = nextSelection
+  }, [bookingExperience, canAdd, selectedDate, selectedTime, ticketById, ticketLines, ticketOptions])
 
   const updateTicketType = (key, ticketTypeId) => {
     setTicketLines((lines) => lines.map((line) => (
@@ -97,7 +122,6 @@ function BookingPage({
         ? { ...line, ticketTypeId, quantity: Math.max(line.quantity, minQtyForType(ticketTypeId)) }
         : line
     )))
-    setAdded(false)
   }
 
   const updateTicketQty = (key, delta) => {
@@ -105,7 +129,6 @@ function BookingPage({
       if (line.key !== key) return line
       return { ...line, quantity: Math.max(minQtyForType(line.ticketTypeId), line.quantity + delta) }
     }))
-    setAdded(false)
   }
 
   const addTicketLine = () => {
@@ -117,20 +140,18 @@ function BookingPage({
       ticketTypeId: nextType.id,
       quantity: minQtyForType(nextType.id),
     }])
-    setAdded(false)
   }
 
   const removeTicketLine = (key) => {
     setTicketLines((lines) => lines.length > 1 ? lines.filter((line) => line.key !== key) : lines)
-    setAdded(false)
   }
 
   const chooseRelatedExperience = (experienceId) => {
+    lastAutoCartSelectionRef.current = null
     onBookingExperienceChange?.(experienceId)
     setSelectedTime(null)
     setTicketLines([{ key: 'ticket-1', ticketTypeId: localizedTicketTypes[0]?.id || 'adult', quantity: 1 }])
     setShowAllSlots(false)
-    setAdded(false)
     requestAnimationFrame(() => {
       bookingRef?.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     })
@@ -174,7 +195,7 @@ function BookingPage({
                       key={date.key}
                       className={`${date.disabled ? 'disabled' : ''} ${selectedDate?.key === date.key ? 'selected' : ''} ${badge(date.level)}`}
                       disabled={date.disabled}
-                      onClick={() => { setSelectedDate(date); setSelectedTime(null); setAdded(false) }}
+                      onClick={() => { setSelectedDate(date); setSelectedTime(null) }}
                       type="button"
                     >
                       <strong>{date.day}</strong>
@@ -195,7 +216,7 @@ function BookingPage({
                     <button
                       key={slot.id}
                       className={selectedTime?.id === slot.id ? 'selected' : ''}
-                      onClick={() => { setSelectedTime(slot); setAdded(false) }}
+                      onClick={() => { setSelectedTime(slot) }}
                       type="button"
                     >
                       <strong>{slot.time}</strong>
@@ -239,7 +260,6 @@ function BookingPage({
               </div>
               <div className="btk-ticket-actions">
                 <button className="btk-add-type" onClick={addTicketLine} type="button">+ Add another ticket type</button>
-                <button className="btk-primary" onClick={addToCart} disabled={!canAdd} type="button">Add to cart →</button>
               </div>
             </section>
 
@@ -274,9 +294,8 @@ function BookingPage({
             <div className="btk-summary-head">
               <div>
                 <h3>Current Choice</h3>
-                <p>Review this selection before adding it to your cart.</p>
+                <p>Your selection is added to your cart automatically.</p>
               </div>
-              <span>Not added</span>
             </div>
             <div className="btk-summary-product">
               <div className="btk-summary-thumb" style={selectedImage ? { backgroundImage: `url(${selectedImage})` } : { background: bookingExperience?.cardGradient }} />
@@ -292,7 +311,7 @@ function BookingPage({
             <div className="btk-divider" />
             <div className="btk-total"><span>Total</span><strong>{currency(grand)} <small>CAD</small></strong></div>
             <div className="btk-cart-callout">
-              <div><CartIcon /><strong>{displayCartCount || ticketQty} item{(displayCartCount || ticketQty) !== 1 ? 's' : ''} in your cart</strong><span>Add more experiences and pay in one checkout.</span></div>
+              <div><CartIcon /><strong>{displayCartCount} item{displayCartCount !== 1 ? 's' : ''} in your cart</strong><span>Add more experiences and pay in one checkout.</span></div>
               <button onClick={onOpenCart} disabled={!displayCartCount} type="button">View cart ({displayCartCount}) →</button>
             </div>
             <div className="btk-bundle-callout"><span>♙</span><div><strong>Add multiple experiences</strong><small>Bundle your favorite VR experiences and enjoy a seamless checkout.</small></div></div>
@@ -300,29 +319,6 @@ function BookingPage({
           </aside>
         </div>
       </div>
-      {showAddedModal && (
-        <div className="btk-added-overlay" role="dialog" aria-modal="true" aria-label="Added to cart">
-          <div className="btk-added-modal">
-            <button className="btk-added-close" onClick={() => setShowAddedModal(false)} type="button" aria-label="Close">×</button>
-            <div className="btk-added-icon"><CartIcon /></div>
-            <h3>Added to cart</h3>
-            <p>Your selected tickets have been added to your cart.</p>
-            <div className="btk-added-actions">
-              <button className="btk-secondary" onClick={() => setShowAddedModal(false)} type="button">Keep browsing</button>
-              <button
-                className="btk-primary"
-                onClick={() => {
-                  setShowAddedModal(false)
-                  onOpenCart?.()
-                }}
-                type="button"
-              >
-                View cart →
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

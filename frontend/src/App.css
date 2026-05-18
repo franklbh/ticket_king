@@ -12758,7 +12758,7 @@ body:has(.btk-page) .topbar {
 
 .btk-ticket-actions {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) minmax(240px, 360px);
+  grid-template-columns: minmax(220px, 270px);
   gap: 14px;
   align-items: center;
   margin-top: 12px;
