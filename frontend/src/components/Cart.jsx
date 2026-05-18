@@ -648,8 +648,8 @@ export default function Cart({
   }
 
   return (
-    <div className="crt-overlay" onClick={closeCart} role="dialog" aria-modal="true" aria-label="Shopping cart">
-      <div className="crt-panel" onClick={(e) => e.stopPropagation()}>
+    <div className="crt-overlay" role="dialog" aria-modal="true" aria-label="Shopping cart">
+      <div className="crt-panel">
         <div className="crt-shell-top">
           <div className="crt-title-row"><CartIcon /><h2>{step === 'confirm' ? 'Your Cart' : 'Your Cart'}</h2><span>{numTickets || confirmed?.items?.reduce((s, item) => s + item.quantity, 0)} items</span></div>
           <button className="crt-close" onClick={closeCart} aria-label="Close cart" type="button">×</button>
