@@ -299,6 +299,7 @@ class AdminRepository:
             users = self._table(db, settings.admin_users_table)
 
             order_id = cast(orders.c.id, String)
+            order_number = cast(orders.c.order_number, String) if "order_number" in orders.c else None
             order_created_date = func.date(orders.c.created_at)
             order_status = func.lower(cast(orders.c.order_status, String))
             slot_date = slots.c.business_date
@@ -317,9 +318,17 @@ class AdminRepository:
 
             conditions = []
             if filters.get("order_id_exact"):
-                conditions.append(order_id == str(filters["order_id_exact"]))
+                exact_order_id = str(filters["order_id_exact"])
+                if order_number is not None:
+                    conditions.append(or_(order_id == exact_order_id, order_number == exact_order_id))
+                else:
+                    conditions.append(order_id == exact_order_id)
             elif filters.get("order_id"):
-                conditions.append(order_id.ilike(f"%{filters['order_id']}%"))
+                needle = f"%{filters['order_id']}%"
+                if order_number is not None:
+                    conditions.append(or_(order_id.ilike(needle), order_number.ilike(needle)))
+                else:
+                    conditions.append(order_id.ilike(needle))
             if filters.get("user_info"):
                 needle = f"%{str(filters['user_info']).lower()}%"
                 conditions.append(or_(
