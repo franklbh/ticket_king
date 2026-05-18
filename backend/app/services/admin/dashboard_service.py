@@ -98,12 +98,13 @@ class DashboardService:
         result = []
         for row in rows:
             sold = int(row.get("sold") or 0)
+            total = int(row.get("total") or 0)
             slot_date = str(row.get("slot_date") or "")
             slot_time = str(row.get("slot_time") or "")
             result.append({
                 "slot": f"{slot_date} {slot_time}".strip(),
                 "sold": sold,
-                "total": max(sold, 20),
+                "total": max(sold, total, 1),
             })
         return result
 

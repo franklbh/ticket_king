@@ -170,33 +170,45 @@ class AdminRepository:
 
             order_created_date = func.date(orders.c.created_at)
             ticket_created_date = func.date(tickets.c.created_at)
+            slot_business_date = slots.c.business_date
             order_status = func.lower(cast(orders.c.order_status, String))
             slot_status = func.lower(cast(slots.c.status, String))
             amount = func.coalesce(orders.c.total_amount, 0)
+            slot_capacity = func.coalesce(getattr(slots.c, "capacity", None), 20)
+            ticketing_order_filters = [orders.c.slot_id.is_not(None)] if hasattr(orders.c, "slot_id") else []
+
+            orders_from = orders.outerjoin(slots, orders.c.slot_id == slots.c.id)
+            tickets_from = (
+                tickets.outerjoin(orders, tickets.c.order_id == orders.c.id)
+                .outerjoin(slots, orders.c.slot_id == slots.c.id)
+            )
+            order_activity_date = func.coalesce(slot_business_date, order_created_date)
+            ticket_activity_date = func.coalesce(slot_business_date, ticket_created_date, order_created_date)
 
             order_filters = []
             ticket_filters = []
             if start_date is not None:
-                order_filters.append(order_created_date >= start_date)
-                ticket_filters.append(ticket_created_date >= start_date)
+                order_filters.append(order_activity_date >= start_date)
+                ticket_filters.append(ticket_activity_date >= start_date)
+            order_filters.extend(ticketing_order_filters)
 
             order_summary_stmt = select(
-                func.coalesce(func.sum(case((order_created_date == today, amount), else_=0)), 0).label("today_revenue"),
-                func.count(case((order_created_date == today, 1))).label("today_orders"),
+                func.coalesce(func.sum(case((order_activity_date == today, amount), else_=0)), 0).label("today_revenue"),
+                func.count(case((order_activity_date == today, 1))).label("today_orders"),
                 func.coalesce(func.sum(amount), 0).label("total_revenue"),
                 func.count().label("total_orders"),
-            )
+            ).select_from(orders_from)
             if order_filters:
                 order_summary_stmt = order_summary_stmt.where(*order_filters)
             order_summary = dict(db.execute(order_summary_stmt).mappings().one())
             pending_orders = db.scalar(
-                select(func.count()).select_from(orders).where(order_status == "pending")
+                select(func.count()).select_from(orders).where(order_status == "pending", *ticketing_order_filters)
             ) or 0
 
             ticket_summary_stmt = select(
-                func.count(case((ticket_created_date == today, 1))).label("today_tickets"),
+                func.count(case((ticket_activity_date == today, 1))).label("today_tickets"),
                 func.count().label("total_tickets"),
-            )
+            ).select_from(tickets_from)
             if ticket_filters:
                 ticket_summary_stmt = ticket_summary_stmt.where(*ticket_filters)
             ticket_summary = dict(db.execute(ticket_summary_stmt).mappings().one())
@@ -205,21 +217,23 @@ class AdminRepository:
 
             order_trend_stmt = (
                 select(
-                    order_created_date.label("day"),
+                    order_activity_date.label("day"),
                     func.coalesce(func.sum(amount), 0).label("revenue"),
                     func.count().label("orders"),
                 )
-                .group_by(order_created_date)
-                .order_by(order_created_date)
+                .select_from(orders_from)
+                .group_by(order_activity_date)
+                .order_by(order_activity_date)
             )
             if order_filters:
                 order_trend_stmt = order_trend_stmt.where(*order_filters)
             order_trend = db.execute(order_trend_stmt).mappings().all()
 
             ticket_trend_stmt = (
-                select(ticket_created_date.label("day"), func.count().label("tickets"))
-                .group_by(ticket_created_date)
-                .order_by(ticket_created_date)
+                select(ticket_activity_date.label("day"), func.count().label("tickets"))
+                .select_from(tickets_from)
+                .group_by(ticket_activity_date)
+                .order_by(ticket_activity_date)
             )
             if ticket_filters:
                 ticket_trend_stmt = ticket_trend_stmt.where(*ticket_filters)
@@ -227,6 +241,7 @@ class AdminRepository:
 
             distribution_stmt = (
                 select(tickets.c.ticket_type.label("name"), func.count().label("value"))
+                .select_from(tickets_from)
                 .group_by(tickets.c.ticket_type)
                 .order_by(func.count().desc())
             )
@@ -242,6 +257,7 @@ class AdminRepository:
                         slot_date_col.label("slot_date"),
                         slot_time_col.label("slot_time"),
                         func.count().label("sold"),
+                        slot_capacity.label("total"),
                     )
                     .select_from(
                         tickets.join(orders, tickets.c.order_id == orders.c.id).join(
@@ -250,10 +266,12 @@ class AdminRepository:
                         )
                     )
                     .where(slot_date_col.is_not(None))
-                    .group_by(slot_date_col, slot_time_col)
+                    .group_by(slot_date_col, slot_time_col, slot_capacity)
                     .order_by(func.count().desc())
                     .limit(10)
                 )
+                if start_date is not None:
+                    popular_stmt = popular_stmt.where(slot_date_col >= start_date)
                 popular = db.execute(popular_stmt).mappings().all()
             else:
                 popular = []
