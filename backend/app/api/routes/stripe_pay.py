@@ -9,6 +9,7 @@ from app.services.reservations import (
     PAYMENT_GRACE_SECONDS,
     attach_payment,
     create_reservation,
+    fulfill_paid_order,
     get_active_reservation,
     mark_paid_by_provider_reference,
 )
@@ -110,6 +111,8 @@ async def stripe_webhook(request: Request):
 
     if event["type"] == "payment_intent.succeeded":
         pi = event["data"]["object"]
-        await mark_paid_by_provider_reference("stripe", pi.get("id"))
+        order = await mark_paid_by_provider_reference("stripe", pi.get("id"))
+        if order:
+            await fulfill_paid_order(order["id"])
 
     return {"status": "ok"}

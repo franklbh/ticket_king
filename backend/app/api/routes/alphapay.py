@@ -19,6 +19,7 @@ from app.services.reservations import (
     PAYMENT_GRACE_SECONDS,
     attach_payment,
     create_reservation,
+    fulfill_paid_order,
     get_active_reservation,
     mark_paid_by_provider_reference,
 )
@@ -160,7 +161,9 @@ async def alphapay_webhook(request: Request):
     body = await request.json()
     payment_request_id = body.get("paymentRequestId")
     if payment_request_id:
-        await mark_paid_by_provider_reference("alphapay", payment_request_id)
+        order = await mark_paid_by_provider_reference("alphapay", payment_request_id)
+        if order:
+            await fulfill_paid_order(order["id"])
     queue = _pending.get(payment_request_id)
     if queue:
         await queue.put({"paid": True})
