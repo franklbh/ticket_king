@@ -9,6 +9,8 @@ import Stack from '@mui/material/Stack'
 import { useLang } from '../context/authHooks'
 import { useT } from '../i18n/translations'
 import { useLogsQuery } from '../hooks/queries'
+import { exportLogs, getLog } from '../api/adminApi'
+import { useAdminMutation } from '../hooks/useAdminApi'
 import LoadingIndicator from '../components/LoadingIndicator'
 import { AdminAlert, AdminPagination, EmptyTableRow, FilterCard, PageHeader, TableShell } from '../components/AdminUI'
 import { DateRangeFilter, ResetFiltersButton, SelectFilter, TextFilter } from '../components/FilterControls'
@@ -58,9 +60,22 @@ export default function Logs() {
   const [ipModal, setIpModal] = useState(null)
   const [detailLog, setDetailLog] = useState(null)
   const { data: logsData, error: loadError, loading: loadingLogs } = useLogsQuery(
-    { page: 1, pageSize: 200 },
+    {
+      page: 1,
+      pageSize: 200,
+      admin: filters.admin,
+      search: filters.search,
+      dateFrom: filters.dateFrom,
+      dateTo: filters.dateTo,
+      actionType: filters.actionTypes.length === ACTION_TYPES.length ? undefined : filters.actionTypes,
+      targetType: filters.targetTypes.length === TARGET_TYPES.length ? undefined : filters.targetTypes,
+    },
     { initialData: { items: [], total: 0 } }
   )
+  const { mutate: exportLogsMutation, loading: exporting } = useAdminMutation(exportLogs, {
+    successMessage: 'Logs exported.',
+  })
+  const { mutate: getLogMutation } = useAdminMutation(getLog)
   const logs = logsData?.items || []
   const adminNames = ['all', ...Array.from(new Set(logs.map(a => a.admin).filter(Boolean)))]
 
@@ -96,6 +111,24 @@ export default function Logs() {
 
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
+  async function openLogDetail(logId) {
+    const log = await getLogMutation(logId)
+    setDetailLog(log)
+  }
+
+  async function exportCurrentLogs() {
+    await exportLogsMutation({
+      page: 1,
+      pageSize: 200,
+      admin: filters.admin,
+      search: filters.search,
+      dateFrom: filters.dateFrom,
+      dateTo: filters.dateTo,
+      actionType: filters.actionTypes.length === ACTION_TYPES.length ? undefined : filters.actionTypes,
+      targetType: filters.targetTypes.length === TARGET_TYPES.length ? undefined : filters.targetTypes,
+    })
+  }
+
   if (loadingLogs) {
     return <LoadingIndicator label="Loading live activity logs..." />
   }
@@ -128,6 +161,11 @@ export default function Logs() {
         icon="fa-history"
         title={t.activityLogs}
         subtitle="View all administrator operation records"
+        actions={
+        <Button variant="outlined" size="small" disabled={exporting} onClick={exportCurrentLogs} startIcon={<i className="fa fa-file-export" />}>
+          Export Logs
+        </Button>
+        }
       />
 
       {/* Filters */}
@@ -227,7 +265,7 @@ export default function Logs() {
                   <td style={{ fontSize: 13, color: '#6b7280' }}>{log.targetId ?? '-'}</td>
                   <td>
                     <Button
-                      onClick={() => setDetailLog(log)}
+                      onClick={() => openLogDetail(log.id)}
                       variant="outlined"
                       size="small"
                       sx={{ maxWidth: 180, justifyContent: 'flex-start', fontFamily: 'monospace', fontSize: 12, textTransform: 'none' }}

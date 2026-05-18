@@ -94,8 +94,7 @@ Partial: customer updates currently change order guest fields, not the linked re
 | `GET` | `/events` | `catalog:read` | None | List events |
 | `POST` | `/events` | `catalog:write` | `EventUpsert` | Create event |
 | `PATCH` | `/events/{event_id}` | `catalog:write` | `EventUpsert` | Update event |
-
-Missing: event archive/deactivate endpoint.
+| `DELETE` | `/events/{event_id}` | `catalog:write` | None | Archive event |
 
 ### Slots
 
@@ -158,8 +157,10 @@ Partial: email dispatch provider and delivery tracking are not implemented yet.
 | `POST` | `/users/bootstrap-owner` | Bootstrap token if configured | `OwnerBootstrapCreate` | Bootstrap initial owner |
 | `PATCH` | `/users/{user_id}/role` | `users:write` | `{ "role": "owner\|administrator\|admin\|customer" }` | Change role |
 | `PATCH` | `/users/{user_id}/staff-profile` | `users:write` | `StaffProfileUpdate` | Update staff profile/status |
-
-Missing: password reset/change endpoint, user detail endpoint, and login-history endpoint.
+| `GET` | `/users/{user_id}` | `users:read` | None | User/admin detail |
+| `DELETE` | `/users/{user_id}` | `users:write` | None | Deactivate user/admin |
+| `POST` | `/users/{user_id}/password-reset` | `users:write` | None | Request password reset email |
+| `GET` | `/users/{user_id}/login-history` | `users:read` | `page`, `pageSize` | Login audit history |
 
 ## Activity Logs
 
@@ -169,11 +170,11 @@ Missing: password reset/change endpoint, user detail endpoint, and login-history
 | `GET` | `/logs/export` | `logs:read` | Same filters as `/logs` | CSV export |
 | `GET` | `/logs/{log_id}` | `logs:read` | Path `log_id` | Log detail |
 
-Audit details now include structured `changes` for the high-frequency order, coupon, and marketing mutations. Some catalog/ticket mutations still record action-specific details rather than a full before/after object.
+Audit details now include structured `changes` for high-frequency order, coupon, marketing, catalog, ticket, and user mutations where a previous row is available. Action-only flows such as resend/test-send/password-reset record structured event details.
 
 ## Frontend API Client Coverage
 
-`admin-frontend/src/api/adminApi.js` exports client functions for every backend route listed above, including routes that are not yet exposed in page UI.
+`admin-frontend/src/api/adminApi.js` exports client functions for every backend route listed above. The admin pages expose the operational actions for dashboard, orders, tickets, events/slots, coupons, marketing, logs, scanner, and users/admins.
 
 ## Database Setup
 

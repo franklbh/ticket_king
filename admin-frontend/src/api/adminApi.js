@@ -175,6 +175,10 @@ export function getUsers(params = {}) {
   return apiRequest(withQuery('/users', params))
 }
 
+export function getUser(userId) {
+  return apiRequest(`/users/${encodeURIComponent(userId)}`)
+}
+
 export function getLogs(filters = {}) {
   return apiRequest(withQuery('/logs', filters))
 }
@@ -201,6 +205,10 @@ export function createEvent(payload) {
 
 export function updateEvent(eventId, payload) {
   return apiRequest(`/events/${encodeURIComponent(eventId)}`, { method: 'PATCH', body: payload })
+}
+
+export function archiveEvent(eventId) {
+  return apiRequest(`/events/${encodeURIComponent(eventId)}`, { method: 'DELETE' })
 }
 
 export function getSlot(slotId) {
@@ -327,6 +335,18 @@ export function updateUserRole(userId, role) {
     method: 'PATCH',
     body: { role },
   })
+}
+
+export function deactivateUser(userId) {
+  return apiRequest(`/users/${encodeURIComponent(userId)}`, { method: 'DELETE' })
+}
+
+export function requestUserPasswordReset(userId) {
+  return apiRequest(`/users/${encodeURIComponent(userId)}/password-reset`, { method: 'POST' })
+}
+
+export function getUserLoginHistory(userId, params = {}) {
+  return apiRequest(withQuery(`/users/${encodeURIComponent(userId)}/login-history`, params))
 }
 
 export function createAdminAccount(payload) {

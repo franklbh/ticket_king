@@ -6,7 +6,7 @@ import MuiPagination from '@mui/material/Pagination'
 import Select from '@mui/material/Select'
 import { useLang } from '../context/authHooks'
 import { useT } from '../i18n/translations'
-import { exportOrders, updateOrderCustomer, updateOrderSlot, updateOrderStatus } from '../api/adminApi'
+import { applyOrderCoupon, exportOrders, removeOrderCoupon, resendOrderEmail, updateOrderCustomer, updateOrderSlot, updateOrderStatus } from '../api/adminApi'
 import { useAdminMutation } from '../hooks/useAdminApi'
 import { useOrdersQuery } from '../hooks/orders'
 import { useSlotsQuery } from '../hooks/catalog'
@@ -380,6 +380,15 @@ export default function Orders() {
   const { mutate: updateStatusMutation } = useAdminMutation(updateOrderStatus, {
     successMessage: 'Order status updated.',
   })
+  const { mutate: applyCouponMutation } = useAdminMutation(applyOrderCoupon, {
+    successMessage: 'Coupon applied.',
+  })
+  const { mutate: removeCouponMutation } = useAdminMutation(removeOrderCoupon, {
+    successMessage: 'Coupon removed.',
+  })
+  const { mutate: resendEmailMutation } = useAdminMutation(resendOrderEmail, {
+    successMessage: 'Email resend requested.',
+  })
   const [editForm, setEditForm] = useState({ firstName: '', lastName: '', phone: '', email: '' })
   const [slotPick, setSlotPick] = useState({ date: null, slot: null, resend: true })
   const [copiedId, setCopiedId] = useState(null)
@@ -420,6 +429,25 @@ export default function Orders() {
   async function updateStatus(orderId, status) {
     const updated = await updateStatusMutation(orderId, status)
     setOrdersData(prev => ({ ...prev, items: (prev?.items || []).map(o => o.id === orderId ? updated : o) }))
+  }
+
+  async function applyCoupon(order) {
+    const couponCode = window.prompt('Coupon code')
+    if (!couponCode) return
+    const couponDiscount = Number(window.prompt('Coupon discount amount', '0') || 0)
+    const updated = await applyCouponMutation(order.id, { couponCode, couponDiscount })
+    setOrdersData(prev => ({ ...prev, items: (prev?.items || []).map(o => o.id === order.id ? updated : o) }))
+  }
+
+  async function removeCoupon(order) {
+    if (!window.confirm(`Remove coupon from order #${order.id}?`)) return
+    const updated = await removeCouponMutation(order.id)
+    setOrdersData(prev => ({ ...prev, items: (prev?.items || []).map(o => o.id === order.id ? updated : o) }))
+  }
+
+  async function resendEmail(order) {
+    const reason = window.prompt('Reason for resending email', 'Admin requested resend') || 'Admin requested resend'
+    await resendEmailMutation(order.id, { reason })
   }
 
   function copyIp(orderId, ip) {
@@ -591,6 +619,7 @@ export default function Orders() {
                       {o.emailStatus === 'sent' && (
                         <IconBtn icon="fa-info-circle" onClick={e => openPopover('email', o.id, e)} title={t.sendHistory} color="#6366f1" bg="#eef2ff" />
                       )}
+                      <IconBtn icon="fa-paper-plane" onClick={() => resendEmail(o)} title="Resend email" color="#6366f1" bg="#eef2ff" />
                     </div>
                   </td>
 
@@ -635,9 +664,10 @@ export default function Orders() {
                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
                         <span style={{ color: '#dc2626', fontWeight: 500, fontSize: 13 }}>{o.couponDiscount.toFixed(2)}</span>
                         <IconBtn icon="fa-tag" onClick={e => openPopover('coupon', o.id, e)} title="Coupon Details" color="#6366f1" bg="#eef2ff" />
+                        <IconBtn icon="fa-times" onClick={() => removeCoupon(o)} title="Remove coupon" color="#dc2626" bg="#fee2e2" />
                       </div>
                     ) : (
-                      <span style={{ color: '#9ca3af' }}>-</span>
+                      <IconBtn icon="fa-plus" onClick={() => applyCoupon(o)} title="Apply coupon" color="#6366f1" bg="#eef2ff" />
                     )}
                   </td>
 

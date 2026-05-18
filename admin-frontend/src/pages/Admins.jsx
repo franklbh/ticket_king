@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import Button from '@mui/material/Button'
 import { useLang } from '../context/authHooks'
 import { useT } from '../i18n/translations'
-import { createAdminAccount, updateStaffProfile } from '../api/adminApi'
+import { createAdminAccount, deactivateUser, getUser, getUserLoginHistory, requestUserPasswordReset, updateStaffProfile } from '../api/adminApi'
 import { adminQueryKeys, useUsersQuery } from '../hooks/queries'
 import { useAdminMutation } from '../hooks/useAdminApi'
 import LoadingIndicator from '../components/LoadingIndicator'
@@ -119,6 +119,10 @@ export default function Admins() {
     },
     { invalidateQueries: adminQueryKeys.users, successMessage: 'Admin saved.' }
   )
+  const userAction = useAdminMutation(
+    action => action(),
+    { invalidateQueries: adminQueryKeys.users, successMessage: 'Admin action completed.' }
+  )
   const [filters, setFilters] = useState({ role: 'all', status: 'all' })
   const [modal, setModal] = useState(null)
   const [ipModal, setIpModal] = useState(null)
@@ -140,12 +144,32 @@ export default function Admins() {
 
   async function toggleAdminStatus(admin) {
     const nextStatus = admin.status === 'active' ? 'inactive' : 'active'
-    await updateStaffProfile(admin.id, {
-      department: admin.department || null,
-      position: admin.position || null,
-      status: nextStatus,
-    })
+    if (nextStatus === 'inactive') {
+      await userAction.mutate(() => deactivateUser(admin.id))
+    } else {
+      await updateStaffProfile(admin.id, {
+        department: admin.department || null,
+        position: admin.position || null,
+        status: nextStatus,
+      })
+    }
     reload()
+  }
+
+  async function showAdminDetail(admin) {
+    const detail = await userAction.mutate(() => getUser(admin.id))
+    alert(JSON.stringify(detail, null, 2))
+  }
+
+  async function sendPasswordReset(admin) {
+    if (!window.confirm(`Send password reset for ${admin.email || admin.username}?`)) return
+    await userAction.mutate(() => requestUserPasswordReset(admin.id))
+  }
+
+  async function showLoginHistory(admin) {
+    const result = await userAction.mutate(() => getUserLoginHistory(admin.id, { page: 1, pageSize: 5 }))
+    const lines = (result.items || []).map(item => `${item.timestamp || item.time}: ${item.loginInfo || '-'}`)
+    alert(lines.length ? lines.join('\n') : 'No login history found.')
   }
 
   if (loadingAdmins) {
@@ -236,7 +260,10 @@ export default function Admins() {
                     </span>
                   </td>
                   <td>
-                    <div style={{ display: 'flex', gap: 6 }}>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      <Button variant="outlined" size="small" onClick={() => showAdminDetail(a)}>Detail</Button>
+                      <Button variant="outlined" size="small" onClick={() => showLoginHistory(a)}>Logins</Button>
+                      <Button variant="outlined" size="small" onClick={() => sendPasswordReset(a)}>Reset</Button>
                       <Button variant="contained" size="small" onClick={() => setModal(a)} startIcon={<i className="fa fa-edit" />}>{t.edit}</Button>
                       {a.canDisable && (
                         <Button

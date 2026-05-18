@@ -12,13 +12,7 @@ from app.core.config import settings
 from app.schemas.admin import TicketBatchStatusUpdate, TicketCheckInRequest, TicketOverrideCheckInRequest, TicketRegenerateRequest, TicketStatusUpdate
 from app.schemas.admin.mappers import paginate, to_model, to_models
 from app.schemas.admin.responses import CheckInResponse, TicketPage, TicketRead
-from app.services.admin.audit import write_audit_log
-from app.services.admin.enrichment import (
-    merge_ticket_order,
-    orders_by_id,
-    slots_by_id,
-    users_by_id,
-)
+from app.services.admin.audit import audit_change, write_audit_log
 from app.services.admin.normalizers import (
     db_ticket_status,
     normalize_ticket,
@@ -84,6 +78,7 @@ class TicketService:
         actor: dict[str, Any],
         client_ip: str | None = None,
     ) -> TicketRead:
+        before = await admin_repository.get_ticket(ticket_id)
         ticket_status = normalize_ticket_status(update.status)
         values: dict[str, Any] = {
             settings.admin_ticket_status_column: db_ticket_status(ticket_status),
@@ -104,15 +99,10 @@ class TicketService:
         )
         if not rows:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found.")
-        await write_audit_log(actor, "Update", "Ticket", ticket_id, {"status": ticket_status}, client_ip)
-        orders = await orders_by_id()
-        slots = await slots_by_id()
-        users = await users_by_id()
-        order = orders.get(str(rows[0].get("order_id")))
-        slot = slots.get(str((order or {}).get("slot_id") or ""))
-        customer = users.get(str((order or {}).get("customer_id") or ""))
-        merged = merge_ticket_order(rows[0], order)
-        return to_model(TicketRead, normalize_ticket(merged, slot=slot, customer=customer))
+        details = audit_change(before, rows[0], [settings.admin_ticket_status_column, "checked_in_at", "checked_in_by"])
+        details["requested_status"] = ticket_status
+        await write_audit_log(actor, "Update", "Ticket", ticket_id, details, client_ip)
+        return await self.get_ticket(ticket_id)
 
     async def batch_update_status(
         self,
@@ -134,6 +124,7 @@ class TicketService:
         actor: dict[str, Any],
         client_ip: str | None = None,
     ) -> TicketRead:
+        before = await admin_repository.get_ticket(ticket_id)
         code = self._verification_code()
         rows = await admin_repository.update(
             settings.admin_tickets_table,
@@ -147,7 +138,9 @@ class TicketService:
         )
         if not rows:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found.")
-        await write_audit_log(actor, "Regenerate", "Ticket", ticket_id, {"verification_code": code, "reason": payload.reason}, client_ip)
+        details = audit_change(before, rows[0], ["verification_code", "qr_payload"])
+        details.update({"verification_code": code, "reason": payload.reason})
+        await write_audit_log(actor, "Regenerate", "Ticket", ticket_id, details, client_ip)
         return await self.get_ticket(ticket_id)
 
     async def check_in_ticket(
@@ -180,9 +173,11 @@ class TicketService:
             },
         )
         normalized = normalize_ticket(updated[0] if updated else match)
+        details = audit_change(match, updated[0] if updated else match, [settings.admin_ticket_status_column, "checked_in_at", "checked_in_by"])
+        details.update({"verification_code": normalized.get("code"), "order_id": normalized.get("orderId")})
         await write_audit_log(
             actor, "Check In", "Ticket", str(normalized.get("id") or ""),
-            {"verification_code": normalized.get("code"), "order_id": normalized.get("orderId")},
+            details,
             client_ip,
         )
         return CheckInResponse(result="checked_in", ticket=to_model(TicketRead, normalized))

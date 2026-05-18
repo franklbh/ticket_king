@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, s
 from app.api.deps import client_ip
 from app.core.config import settings
 from app.schemas.admin import AdminAccountCreate, OwnerBootstrapCreate, StaffProfileUpdate, UserRoleUpdate
+from app.schemas.admin.responses import ActionResponse, ActivityLogPage
 from app.services.admin.security import public_user, require_admin, require_permission
 from app.services.admin.users import user_service
 
@@ -30,6 +31,14 @@ async def list_users(
     _: dict = Depends(require_permission("users:read")),
 ) -> list[dict]:
     return await user_service.list_users(role)
+
+
+@router.get("/{user_id}")
+async def get_user(
+    user_id: str,
+    _: dict = Depends(require_permission("users:read")),
+) -> dict:
+    return await user_service.get_user(user_id)
 
 
 @router.post("/admins", status_code=201)
@@ -66,3 +75,29 @@ async def update_staff_profile(
     actor: dict = Depends(require_permission("users:write")),
 ) -> dict:
     return await user_service.update_staff_profile(user_id, payload, actor)
+
+
+@router.delete("/{user_id}")
+async def deactivate_user(
+    user_id: str,
+    actor: dict = Depends(require_permission("users:write")),
+) -> dict:
+    return await user_service.deactivate_user(user_id, actor)
+
+
+@router.post("/{user_id}/password-reset", response_model=ActionResponse)
+async def request_password_reset(
+    user_id: str,
+    actor: dict = Depends(require_permission("users:write")),
+) -> ActionResponse:
+    return ActionResponse.model_validate(await user_service.request_password_reset(user_id, actor))
+
+
+@router.get("/{user_id}/login-history", response_model=ActivityLogPage)
+async def login_history(
+    user_id: str,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(25, ge=1, le=200, alias="pageSize"),
+    _: dict = Depends(require_permission("users:read")),
+) -> ActivityLogPage:
+    return await user_service.login_history(user_id, page, page_size)

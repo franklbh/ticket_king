@@ -13,7 +13,7 @@ import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
 import { useLang } from '../context/authHooks'
 import { useT } from '../i18n/translations'
-import { createSlot, updateSlot } from '../api/adminApi'
+import { archiveEvent, createSlot, createSlotsBatch, updateSlot, updateSlotCapacity, updateSlotStatus } from '../api/adminApi'
 import { AdminAlert, AdminPagination, EmptyTableRow, FilterCard, PageHeader, TableShell } from '../components/AdminUI'
 import LoadingIndicator from '../components/LoadingIndicator'
 import { adminQueryKeys } from '../hooks/queries'
@@ -120,6 +120,14 @@ export default function Slots() {
     },
     { invalidateQueries: adminQueryKeys.slots, successMessage: 'Slot saved.' }
   )
+  const slotAction = useAdminMutation(
+    action => action(),
+    { invalidateQueries: adminQueryKeys.slots, successMessage: 'Slot action completed.' }
+  )
+  const eventAction = useAdminMutation(
+    action => action(),
+    { invalidateQueries: adminQueryKeys.events, successMessage: 'Event archived.' }
+  )
   const [page, setPage] = useState(1)
   const [modal, setModal] = useState(null)
 
@@ -151,15 +159,51 @@ export default function Slots() {
 
   async function toggleSlotStatus(slot) {
     const nextStatus = slot.status === 'active' ? 'disabled' : 'active'
-    await updateSlot(slot.id, {
-      date: slot.date,
-      startTime: slot.startTime,
-      endTime: slot.endTime,
-      totalSeats: slot.totalSeats,
-      price: slot.price,
-      status: nextStatus,
-    })
+    await slotAction.mutate(() => updateSlotStatus(slot.id, nextStatus))
     reload()
+  }
+
+  async function changeCapacity(slot) {
+    const totalSeats = Number(window.prompt('New total seats', String(slot.totalSeats)))
+    if (!Number.isFinite(totalSeats) || totalSeats <= 0) return
+    const reason = window.prompt('Reason for capacity change', 'Admin adjustment') || 'Admin adjustment'
+    await slotAction.mutate(() => updateSlotCapacity(slot.id, { totalSeats, reason }))
+    reload()
+  }
+
+  async function batchCreateSlots() {
+    const date = window.prompt('Date for new slots (YYYY-MM-DD)')
+    if (!date) return
+    const starts = (window.prompt('Start times, comma-separated (HH:mm)', '10:00,11:30,14:00') || '')
+      .split(',')
+      .map(item => item.trim())
+      .filter(Boolean)
+    if (!starts.length) return
+    const duration = Number(window.prompt('Duration in minutes', '45') || 45)
+    const totalSeats = Number(window.prompt('Total seats per slot', '20') || 20)
+    const price = Number(window.prompt('Price per slot', '37.95') || 37.95)
+    if (!Number.isFinite(duration) || !Number.isFinite(totalSeats) || !Number.isFinite(price)) return
+    const slots = starts.map(startTime => {
+      const [hour, minute] = startTime.split(':').map(Number)
+      const end = new Date(2000, 0, 1, hour || 0, minute || 0)
+      end.setMinutes(end.getMinutes() + duration)
+      return {
+        date,
+        startTime,
+        endTime: `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`,
+        totalSeats,
+        price,
+        status: 'active',
+      }
+    })
+    await slotAction.mutate(() => createSlotsBatch({ slots }))
+    reload()
+  }
+
+  async function archiveSelectedEvent() {
+    if (filters.event === 'all') return
+    if (!window.confirm('Archive this event?')) return
+    await eventAction.mutate(() => archiveEvent(filters.event))
   }
 
   return (
@@ -183,7 +227,8 @@ export default function Slots() {
         subtitle="Manage all event slots"
         actions={
         <Stack direction="row" spacing={1}>
-          <Button variant="outlined" size="small" startIcon={<i className="fa fa-edit" />}>{t.batchEdit}</Button>
+          <Button variant="outlined" size="small" onClick={batchCreateSlots} startIcon={<i className="fa fa-layer-group" />}>Batch Create</Button>
+          <Button variant="outlined" size="small" disabled={filters.event === 'all'} onClick={archiveSelectedEvent} startIcon={<i className="fa fa-archive" />}>Archive Event</Button>
           <Button variant="contained" size="small" onClick={() => setModal('create')}>{t.createSlot}</Button>
         </Stack>
         }
@@ -265,6 +310,7 @@ export default function Slots() {
                     <td>
                       <div style={{ display: 'flex', gap: 6 }}>
                         <Button variant="contained" size="small" onClick={() => setModal(s)} startIcon={<i className="fa fa-edit" />}>{t.edit}</Button>
+                        <Button variant="outlined" size="small" onClick={() => changeCapacity(s)} startIcon={<i className="fa fa-chair" />}>Capacity</Button>
                         <Button
                           onClick={() => toggleSlotStatus(s)}
                           variant="contained"

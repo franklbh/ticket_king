@@ -9,7 +9,7 @@ from app.core.config import settings
 from app.schemas.admin import SlotBatchCreate, SlotCapacityUpdate, SlotStatusUpdate, EventUpsert, SlotUpsert, TicketTypeBulkPriceUpdate, TicketTypeStatusUpdate, TicketTypeUpsert
 from app.schemas.admin.mappers import to_model, to_models
 from app.schemas.admin.responses import EventRead, SlotRead, TicketTypeRead
-from app.services.admin.audit import write_audit_log
+from app.services.admin.audit import audit_change, write_audit_log
 from app.services.admin.enrichment import slot_counts_for_row, slot_inventory_counts
 from app.services.admin.normalizers import normalize_event, normalize_slot, normalize_ticket_type
 from app.services.admin.repository import admin_repository
@@ -38,6 +38,7 @@ class CatalogService:
         return to_model(EventRead, normalize_event(inserted[0]))
 
     async def update_event(self, event_id: int, payload: EventUpsert, actor: dict[str, Any]) -> EventRead:
+        before_rows = await admin_repository.select_where(settings.admin_events_table, column="id", value=event_id, limit=1)
         values = {
             "name": payload.name,
             "slug": payload.slug or payload.name.lower().strip().replace(" ", "-"),
@@ -52,7 +53,22 @@ class CatalogService:
         )
         if not rows:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found.")
-        await write_audit_log(actor, "Update", "Event", str(event_id), {"name": payload.name}, None)
+        details = audit_change(before_rows[0] if before_rows else None, rows[0], ["name", "slug", "status"])
+        await write_audit_log(actor, "Update", "Event", str(event_id), details, None)
+        return to_model(EventRead, normalize_event(rows[0]))
+
+    async def archive_event(self, event_id: int, actor: dict[str, Any]) -> EventRead:
+        before_rows = await admin_repository.select_where(settings.admin_events_table, column="id", value=event_id, limit=1)
+        rows = await admin_repository.update(
+            settings.admin_events_table,
+            match_column="id",
+            match_value=event_id,
+            values={"status": "archived", "updated_at": utc_now_iso_seconds()},
+        )
+        if not rows:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found.")
+        details = audit_change(before_rows[0] if before_rows else None, rows[0], ["status"])
+        await write_audit_log(actor, "Archive", "Event", str(event_id), details, None)
         return to_model(EventRead, normalize_event(rows[0]))
 
     async def list_slots(self, date_from: str | None, date_to: str | None) -> list[SlotRead]:
@@ -71,6 +87,7 @@ class CatalogService:
         return to_model(SlotRead, normalize_slot(inserted[0]))
 
     async def update_slot(self, slot_id: str, payload: SlotUpsert, actor: dict[str, Any]) -> SlotRead:
+        before_rows = await admin_repository.select_where(settings.admin_slots_table, column="id", value=uuid.UUID(str(slot_id)), limit=1)
         values = self._slot_row_from_payload(payload, actor, include_id=False)
         values["updated_at"] = utc_now_iso_seconds()
         rows = await admin_repository.update(
@@ -81,7 +98,8 @@ class CatalogService:
         )
         if not rows:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Slot not found.")
-        await write_audit_log(actor, "Update", "Slot", slot_id, {"status": values.get("status")}, None)
+        details = audit_change(before_rows[0] if before_rows else None, rows[0], ["business_date", "start_time", "end_time", "capacity", "status", "base_price", "notes"])
+        await write_audit_log(actor, "Update", "Slot", slot_id, details, None)
         return to_model(SlotRead, normalize_slot(rows[0]))
 
     async def get_slot(self, slot_id: str) -> SlotRead:
@@ -99,6 +117,7 @@ class CatalogService:
         return created
 
     async def update_slot_status(self, slot_id: str, payload: SlotStatusUpdate, actor: dict[str, Any]) -> SlotRead:
+        before_rows = await admin_repository.select_where(settings.admin_slots_table, column="id", value=uuid.UUID(str(slot_id)), limit=1)
         rows = await admin_repository.update(
             settings.admin_slots_table,
             match_column="id",
@@ -107,10 +126,12 @@ class CatalogService:
         )
         if not rows:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Slot not found.")
-        await write_audit_log(actor, "Update", "Slot", slot_id, {"status": payload.status}, None)
+        details = audit_change(before_rows[0] if before_rows else None, rows[0], ["status"])
+        await write_audit_log(actor, "Update", "Slot", slot_id, details, None)
         return await self.get_slot(slot_id)
 
     async def update_slot_capacity(self, slot_id: str, payload: SlotCapacityUpdate, actor: dict[str, Any]) -> SlotRead:
+        before_rows = await admin_repository.select_where(settings.admin_slots_table, column="id", value=uuid.UUID(str(slot_id)), limit=1)
         rows = await admin_repository.update(
             settings.admin_slots_table,
             match_column="id",
@@ -119,7 +140,9 @@ class CatalogService:
         )
         if not rows:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Slot not found.")
-        await write_audit_log(actor, "Restock", "Slot", slot_id, {"totalSeats": payload.total_seats, "reason": payload.reason}, None)
+        details = audit_change(before_rows[0] if before_rows else None, rows[0], ["capacity"])
+        details["reason"] = payload.reason
+        await write_audit_log(actor, "Restock", "Slot", slot_id, details, None)
         return await self.get_slot(slot_id)
 
     async def list_ticket_types(self, enabled_only: bool = False) -> list[TicketTypeRead]:
@@ -143,6 +166,7 @@ class CatalogService:
         payload: TicketTypeUpsert,
         actor: dict[str, Any],
     ) -> TicketTypeRead:
+        before_rows = await admin_repository.select_where(settings.admin_ticket_types_table, column="id", value=self._coerce_type_id(type_id), limit=1)
         values = self._ticket_type_row_from_payload(payload)
         values["updated_at"] = utc_now_iso_seconds()
         rows = await admin_repository.update(
@@ -153,10 +177,12 @@ class CatalogService:
         )
         if not rows:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket type not found.")
-        await write_audit_log(actor, "Update", "Ticket Type", str(type_id), {"name": payload.name}, None)
+        details = audit_change(before_rows[0] if before_rows else None, rows[0], ["name", "price_type", "price", "price_adj", "weekdays", "valid_from", "valid_to", "time_start", "time_end", "add_on", "remarks", "status"])
+        await write_audit_log(actor, "Update", "Ticket Type", str(type_id), details, None)
         return to_model(TicketTypeRead, normalize_ticket_type(rows[0]))
 
     async def update_ticket_type_status(self, type_id: int | str, payload: TicketTypeStatusUpdate, actor: dict[str, Any]) -> TicketTypeRead:
+        before_rows = await admin_repository.select_where(settings.admin_ticket_types_table, column="id", value=self._coerce_type_id(type_id), limit=1)
         rows = await admin_repository.update(
             settings.admin_ticket_types_table,
             match_column="id",
@@ -165,7 +191,8 @@ class CatalogService:
         )
         if not rows:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket type not found.")
-        await write_audit_log(actor, "Update", "Ticket Type", str(type_id), {"status": payload.status}, None)
+        details = audit_change(before_rows[0] if before_rows else None, rows[0], ["status"])
+        await write_audit_log(actor, "Update", "Ticket Type", str(type_id), details, None)
         return to_model(TicketTypeRead, normalize_ticket_type(rows[0]))
 
     async def archive_ticket_type(self, type_id: int | str, actor: dict[str, Any]) -> TicketTypeRead:
