@@ -26,6 +26,74 @@ const TARGET_ICONS = { Order: 'fa-shopping-cart', Ticket: 'fa-ticket', 'Ticket T
 
 const PAGE_SIZE = 10
 
+const detailPreviewStyle = {
+  border: '1px solid #dbeafe',
+  background: '#eff6ff',
+  color: '#1d4ed8',
+  borderRadius: 999,
+  padding: '7px 11px',
+  maxWidth: 260,
+  width: '100%',
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 8,
+  fontSize: 12,
+  fontWeight: 800,
+  cursor: 'pointer',
+  boxShadow: '0 1px 2px rgba(15, 23, 42, 0.05)',
+}
+
+const detailPreviewTextStyle = {
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  textAlign: 'left',
+}
+
+function stringifyDetails(details, spacing = 0) {
+  if (typeof details === 'string') return details
+  try {
+    return JSON.stringify(details || {}, null, spacing)
+  } catch {
+    return String(details || '')
+  }
+}
+
+function truncateText(value, max = 76) {
+  const text = String(value || '').replace(/\s+/g, ' ').trim()
+  if (text.length <= max) return text
+  return `${text.slice(0, max - 1)}...`
+}
+
+function summarizeChanges(changes) {
+  if (!changes || typeof changes !== 'object') return ''
+  const keys = Object.keys(changes)
+  if (keys.length === 0) return ''
+  return `Changed ${keys.slice(0, 3).join(', ')}${keys.length > 3 ? ` +${keys.length - 3}` : ''}`
+}
+
+function summarizeActionDetails(details) {
+  if (!details || (typeof details === 'object' && Object.keys(details).length === 0)) return 'No details'
+  if (typeof details === 'string') return truncateText(details)
+
+  const parts = []
+  const orderNumber = details.order_number || details.orderNumber
+
+  if (details.email) parts.push(`Email: ${details.email}`)
+  if (details.name) parts.push(`Name: ${details.name}`)
+  if (details.code) parts.push(`Code: ${details.code}`)
+  if (orderNumber) parts.push(`Order: ${orderNumber}`)
+  if (details.status) parts.push(`Status: ${details.status}`)
+  if (details.profile?.name) {
+    parts.push(`Profile: ${details.profile.name}${details.profile.status ? ` (${details.profile.status})` : ''}`)
+  }
+
+  const changeSummary = summarizeChanges(details.changes)
+  if (changeSummary) parts.push(changeSummary)
+
+  return truncateText(parts.length ? parts.join(' - ') : stringifyDetails(details), 86)
+}
+
 function IPModal({ ip, onClose }) {
   return (
     <Dialog open onClose={onClose} maxWidth="xs" fullWidth>
@@ -104,7 +172,7 @@ export default function Logs() {
   const filtered = useMemo(() => {
     return logs.filter(log => {
       if (appliedFilters.admin !== 'all' && log.admin !== appliedFilters.admin) return false
-      const detailsText = typeof log.actionDetails === 'string' ? log.actionDetails : JSON.stringify(log.actionDetails || {})
+      const detailsText = stringifyDetails(log.actionDetails)
       if (appliedFilters.search && !detailsText.toLowerCase().includes(appliedFilters.search.toLowerCase())) return false
       if (appliedFilters.actionTypes.length > 0 && !appliedFilters.actionTypes.includes(log.actionType)) return false
       if (appliedFilters.targetTypes.length > 0 && !appliedFilters.targetTypes.includes(log.targetType)) return false
@@ -168,8 +236,16 @@ export default function Logs() {
             </IconButton>
           </DialogTitle>
           <DialogContent>
-            <pre style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 6, padding: 12, fontSize: 12, overflow: 'auto', maxHeight: 300 }}>
-              {typeof detailLog.actionDetails === 'string' ? detailLog.actionDetails : JSON.stringify(detailLog.actionDetails || {}, null, 2)}
+            <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 10, padding: 12, marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: '#2563eb', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 4 }}>
+                Summary
+              </div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a' }}>
+                {summarizeActionDetails(detailLog.actionDetails)}
+              </div>
+            </div>
+            <pre style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 10, padding: 12, fontSize: 12, overflow: 'auto', maxHeight: 320, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+              {stringifyDetails(detailLog.actionDetails, 2)}
             </pre>
           </DialogContent>
         </Dialog>
@@ -282,20 +358,20 @@ export default function Logs() {
                   </td>
                   <td style={{ fontSize: 13, color: '#6b7280' }}>{log.targetId ?? '-'}</td>
                   <td>
-                    <Button
+                    <button
+                      type="button"
                       onClick={() => openLogDetail(log.id)}
-                      variant="outlined"
-                      size="small"
-                      sx={{ maxWidth: 180, justifyContent: 'flex-start', fontFamily: 'monospace', fontSize: 12, textTransform: 'none' }}
+                      style={detailPreviewStyle}
                       title="Click to view full details"
                     >
-                      {(typeof log.actionDetails === 'string' ? log.actionDetails : JSON.stringify(log.actionDetails || {})).slice(0, 40)}...
-                    </Button>
+                      <i className="fa fa-file-alt" style={{ flex: '0 0 auto' }} />
+                      <span style={detailPreviewTextStyle}>{summarizeActionDetails(log.actionDetails)}</span>
+                    </button>
                   </td>
                   <td>
                     {log.loginInfo ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <span style={{ fontSize: 11, fontFamily: 'monospace', color: '#6b7280', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: '#475569', maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {log.loginInfo}
                         </span>
                         <Button
@@ -307,7 +383,7 @@ export default function Logs() {
                           <i className="fa fa-search" />
                         </Button>
                       </div>
-                    ) : '-'}
+                    ) : <span style={{ color: '#9ca3af', fontWeight: 800 }}>-</span>}
                   </td>
                   <td style={{ fontSize: 12, whiteSpace: 'nowrap', color: '#374151' }}>{log.timestamp || log.time}</td>
                 </tr>

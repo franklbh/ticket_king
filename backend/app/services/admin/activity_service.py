@@ -60,14 +60,20 @@ class ActivityService:
         return {
             "id": pick(row, "id"),
             "admin": admin,
-            "adminId": pick(row, "admin_id"),
+            "adminId": _optional_string(pick(row, "admin_id")),
             "actionType": pick(row, "action_type"),
             "targetType": pick(row, "target_type"),
-            "targetId": pick(row, "target_id"),
+            "targetId": _optional_string(pick(row, "target_id")),
             "actionDetails": pick(row, "action_details", default={}),
-            "loginInfo": pick(row, "login_info", "ip"),
+            "loginInfo": _optional_string(pick(row, "login_info", "ip")),
             "timestamp": str(pick(row, "created_at", "timestamp", default=""))[:19],
         }
+
+
+def _optional_string(value: Any) -> str | None:
+    if value in (None, ""):
+        return None
+    return str(value)
 
 
 activity_service = ActivityService()
