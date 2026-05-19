@@ -400,7 +400,13 @@ class AdminRepository:
             slots = self._table(db, settings.admin_slots_table)
             users = self._table(db, settings.admin_users_table)
 
-            ticket_id = cast(tickets.c[settings.admin_ticket_id_column], String)
+            ticket_id_column = self._configured_column(
+                tickets,
+                settings.admin_ticket_id_column,
+                "id",
+                "ticket_id",
+            )
+            ticket_id = cast(ticket_id_column, String)
             order_id = cast(tickets.c.order_id, String)
             ticket_code = cast(tickets.c.verification_code, String)
             ticket_status = func.lower(cast(tickets.c[settings.admin_ticket_status_column], String))
@@ -730,7 +736,7 @@ class AdminRepository:
         with self._session() as db:
             table = self._table(db, table_name)
             if match_column not in table.c:
-                raise HTTPException(status_code=400, detail=f"Invalid SQL column: {match_column}")
+                match_column = self._fallback_match_column(table, match_column)
             match_value = self._coerce_column_value(table, match_column, match_value)
             statement = (
                 update(table)
@@ -787,6 +793,22 @@ class AdminRepository:
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail=self._db_error_detail("reflect", table_name, exc),
             ) from exc
+
+    @staticmethod
+    def _configured_column(table: Table, preferred: str, *fallbacks: str):
+        for column_name in (preferred, *fallbacks):
+            if column_name in table.c:
+                return table.c[column_name]
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Configured column '{preferred}' does not exist on table '{table.name}'.",
+        )
+
+    @staticmethod
+    def _fallback_match_column(table: Table, match_column: str) -> str:
+        if match_column == settings.admin_ticket_id_column and "id" in table.c:
+            return "id"
+        raise HTTPException(status_code=400, detail=f"Invalid SQL column: {match_column}")
 
     @staticmethod
     def _coerce_column_value(table: Table, column: str, value: Any) -> Any:
