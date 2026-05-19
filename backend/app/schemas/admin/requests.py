@@ -29,6 +29,11 @@ class WalkInOrderCreate(BaseModel):
     customer: CustomerInput = Field(default_factory=CustomerInput)
     payment_method: str
     mark_used_immediately: bool = False
+    admin_adjustment: float = Field(default=0, alias="adminAdjustment")
+    coupon_code: str | None = Field(default=None, alias="couponCode")
+    coupon_discount: float = Field(default=0, ge=0, alias="couponDiscount")
+
+    model_config = {"populate_by_name": True}
 
 
 class TicketStatusUpdate(BaseModel):

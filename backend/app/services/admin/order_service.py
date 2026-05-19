@@ -9,10 +9,19 @@ from typing import Any
 from fastapi import HTTPException, status
 
 from app.core.config import settings
-from app.schemas.admin import OrderCouponUpdate, OrderCustomerUpdate, OrderEmailRequest, OrderSlotUpdate, OrderStatusUpdate, WalkInOrderCreate
+from app.schemas.admin import (
+    CouponValidationRequest,
+    OrderCouponUpdate,
+    OrderCustomerUpdate,
+    OrderEmailRequest,
+    OrderSlotUpdate,
+    OrderStatusUpdate,
+    WalkInOrderCreate,
+)
 from app.schemas.admin.mappers import paginate, to_model, to_models
 from app.schemas.admin.responses import OrderPage, OrderRead, TicketRead, WalkInOrderResponse
 from app.services.admin.audit import audit_change, write_audit_log
+from app.services.admin.coupons_service import coupons_service
 from app.services.admin.enrichment import slots_by_id
 from app.services.admin.normalizers import (
     db_order_status,
@@ -233,8 +242,23 @@ class OrderService:
         order_id = str(uuid.uuid4())
         order_number = self._order_number()
         total_amount = round(sum(item.quantity * item.unit_price for item in payload.tickets), 2)
-        gst = round(total_amount * 0.05, 2)
-        total_due = round(total_amount + gst, 2)
+        adjusted_ticket_amount = max(0, round(total_amount + payload.admin_adjustment, 2))
+        admin_adjustment = round(adjusted_ticket_amount - total_amount, 2)
+        coupon_code = payload.coupon_code.strip().upper() if payload.coupon_code else None
+        coupon_discount = 0
+        if coupon_code:
+            coupon_result = await coupons_service.validate_coupon(
+                CouponValidationRequest(code=coupon_code, amount=adjusted_ticket_amount)
+            )
+            if not coupon_result.get("valid"):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=coupon_result.get("reason") or "Coupon is not valid.",
+                )
+            coupon_discount = round(min(float(coupon_result.get("discount") or 0), adjusted_ticket_amount), 2)
+        taxable_amount = round(adjusted_ticket_amount - coupon_discount, 2)
+        gst = round(taxable_amount * 0.05, 2)
+        total_due = round(taxable_amount + gst, 2)
         order_status = "completed" if payload.mark_used_immediately else "paid"
         ticket_quantity = sum(item.quantity for item in payload.tickets)
         ticket_details = [
@@ -270,11 +294,11 @@ class OrderService:
             "payment_fee": 0,
             "gst": gst,
             "pst": 0,
-            "coupon_discount": 0,
-            "admin_adjustment": 0,
+            "coupon_discount": coupon_discount,
+            "admin_adjustment": admin_adjustment,
             "total_amount": total_due,
-            "coupon_code": None,
-            "coupon_details": {},
+            "coupon_code": coupon_code,
+            "coupon_details": {"discount": coupon_discount} if coupon_code else {},
             "remarks": payload.customer.remarks,
             "created_by": actor.get("id"),
             "created_at": now,
@@ -320,6 +344,10 @@ class OrderService:
                 "order_number": order_number,
                 "sales_channel": "walk_in",
                 "ticket_quantity": ticket_quantity,
+                "ticket_amount": total_amount,
+                "admin_adjustment": admin_adjustment,
+                "coupon_code": coupon_code,
+                "coupon_discount": coupon_discount,
                 "total_amount": total_due,
                 "mark_used_immediately": payload.mark_used_immediately,
             },
