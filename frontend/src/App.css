@@ -12362,6 +12362,7 @@ body:has(.btk-page) .topbar {
 
 .btk-page,
 .btk-page * {
+  box-sizing: border-box;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
   letter-spacing: 0 !important;
 }
@@ -13443,5 +13444,460 @@ body:has(.btk-page) .topbar {
 
   .btk-added-actions {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  body:has(.btk-page) {
+    background: #fff;
+  }
+
+  .btk-page {
+    min-height: 100dvh;
+    padding: 0;
+    overflow-x: hidden;
+  }
+
+  .btk-shell {
+    width: 100%;
+    min-height: 100dvh;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    overflow-x: hidden;
+  }
+
+  .btk-header {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    min-height: 64px;
+    padding: 14px 16px;
+    background: rgba(255,255,255,0.96);
+    backdrop-filter: blur(12px);
+  }
+
+  .btk-title {
+    min-width: 0;
+    gap: 10px;
+  }
+
+  .btk-title svg {
+    width: 25px;
+    height: 25px;
+    flex: 0 0 auto;
+  }
+
+  .btk-title h1 {
+    overflow: hidden;
+    font-size: 22px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .btk-title > span {
+    flex: 0 0 auto;
+    padding: 5px 10px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .btk-close {
+    flex: 0 0 auto;
+    width: 42px;
+    height: 42px;
+  }
+
+  .btk-layout {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 18px;
+    padding: 16px 16px 96px;
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+  }
+
+  .btk-main {
+    gap: 18px;
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .btk-main > *,
+  .btk-date-panel,
+  .btk-time-panel,
+  .btk-ticket-card,
+  .btk-more-experiences,
+  .btk-summary {
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .btk-back {
+    max-width: 100%;
+    overflow: hidden;
+    font-size: 14px;
+    text-align: left;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .btk-product {
+    grid-template-columns: 1fr;
+    gap: 16px;
+    min-height: 0;
+    width: 100%;
+    max-width: 100%;
+    padding: 14px;
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .btk-product-image {
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    min-height: 0;
+    aspect-ratio: 4 / 3;
+  }
+
+  .btk-product h2 {
+    font-size: 26px;
+    line-height: 1.08;
+  }
+
+  .btk-product p {
+    margin-bottom: 14px;
+    font-size: 14px;
+  }
+
+  .btk-meta {
+    flex-wrap: wrap;
+    gap: 10px 18px;
+  }
+
+  .btk-picker {
+    display: block;
+    grid-template-columns: 1fr;
+    padding: 0;
+  }
+
+  .btk-date-panel {
+    margin-bottom: 22px;
+  }
+
+  .btk-time-panel {
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .btk-month-row {
+    width: 100%;
+    max-width: 100%;
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
+    margin-bottom: 12px;
+  }
+
+  .btk-month-row button {
+    width: 44px;
+    height: 44px;
+  }
+
+  .btk-month-row strong {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .btk-calendar {
+    width: 100%;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 5px;
+  }
+
+  .btk-calendar button {
+    min-width: 0;
+    min-height: 44px;
+    padding: 4px 0;
+    border-radius: 8px;
+  }
+
+  .btk-time-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .btk-time-grid button {
+    min-height: 62px;
+  }
+
+  .btk-ticket-card,
+  .btk-more-experiences,
+  .btk-summary {
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .btk-ticket-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    min-height: 0;
+    padding: 12px;
+    overflow: hidden;
+  }
+
+  .btk-ticket-row select,
+  .btk-qty,
+  .btk-add-type {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .btk-ticket-row > strong,
+  .btk-ticket-row > span {
+    justify-self: start;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  .btk-remove-ticket {
+    justify-self: end;
+  }
+
+  .btk-ticket-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .btk-add-type {
+    width: 100%;
+    justify-self: stretch;
+  }
+
+  .btk-more-head {
+    display: grid;
+    grid-template-columns: 1fr;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .btk-more-head .btk-step-label {
+    align-items: flex-start;
+  }
+
+  .btk-more-head button {
+    display: none;
+  }
+
+  .btk-exp-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .btk-exp-card {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .btk-exp-body div {
+    grid-template-columns: 1fr;
+  }
+
+  .btk-exp-body strong,
+  .btk-exp-body small,
+  .btk-exp-body span {
+    white-space: normal;
+  }
+
+  .btk-summary {
+    padding: 18px 16px;
+  }
+
+  .btk-summary-product {
+    grid-template-columns: 112px minmax(0, 1fr);
+  }
+
+  .btk-summary-thumb {
+    width: 112px;
+    height: 82px;
+  }
+
+  .btk-total strong {
+    font-size: 28px;
+  }
+
+  .btk-bundle-callout,
+  .btk-trust {
+    display: none;
+  }
+
+  .btk-cart-callout {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: max(12px, env(safe-area-inset-bottom));
+    z-index: 40;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(150px, 0.8fr);
+    gap: 10px;
+    align-items: center;
+    margin: 0;
+    padding: 10px;
+    border-radius: 12px;
+    box-shadow: 0 18px 50px rgba(15,23,42,0.2);
+  }
+
+  .btk-cart-callout > div {
+    min-width: 0;
+    grid-template-columns: 30px minmax(0, 1fr);
+  }
+
+  .btk-cart-callout strong,
+  .btk-cart-callout span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .btk-cart-callout button {
+    min-height: 46px;
+    margin-top: 0;
+    white-space: nowrap;
+  }
+
+  .btk-cart-bar {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: max(12px, env(safe-area-inset-bottom));
+    z-index: 30;
+    grid-template-columns: 42px minmax(0, 1fr) auto;
+    gap: 10px;
+    margin: 0;
+    min-height: 62px;
+    border-radius: 12px;
+    box-shadow: 0 18px 50px rgba(15,23,42,0.18);
+  }
+
+  .btk-cart-icon {
+    width: 40px;
+    height: 40px;
+  }
+
+  .btk-cart-bar > div:nth-child(2) span {
+    display: none;
+  }
+
+  .btk-cart-bar-total {
+    gap: 6px;
+    justify-self: end;
+  }
+
+  .btk-cart-bar button {
+    grid-column: 1 / -1;
+    min-height: 44px;
+  }
+
+  .btk-step-label,
+  .btk-more-head .btk-step-label {
+    min-width: 0;
+  }
+
+  .btk-step-label strong,
+  .btk-auto-cart-note,
+  .btk-summary h3,
+  .btk-summary-line span,
+  .btk-summary-line strong {
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+}
+
+@media (max-width: 430px) {
+  .btk-header {
+    padding-inline: 12px;
+  }
+
+  .btk-title {
+    gap: 8px;
+  }
+
+  .btk-title h1 {
+    font-size: 20px;
+  }
+
+  .btk-title > span {
+    padding: 4px 8px;
+    font-size: 11px;
+  }
+
+  .btk-layout {
+    padding-inline: 12px;
+    padding-bottom: 150px;
+  }
+
+  .btk-product h2 {
+    font-size: 24px;
+  }
+
+  .btk-step-label strong {
+    font-size: 15px;
+  }
+
+  .btk-calendar {
+    gap: 4px;
+  }
+
+  .btk-calendar button {
+    min-height: 40px;
+  }
+
+  .btk-calendar button strong {
+    font-size: 14px;
+  }
+
+  .btk-calendar button small {
+    font-size: 9px;
+  }
+
+  .btk-summary-product {
+    grid-template-columns: 96px minmax(0, 1fr);
+  }
+
+  .btk-summary-thumb {
+    width: 96px;
+    height: 74px;
+  }
+
+  .btk-total {
+    align-items: flex-start;
+  }
+
+  .btk-total strong {
+    font-size: 25px;
+    text-align: right;
+  }
+
+  .btk-exp-row {
+    grid-template-columns: 1fr;
+  }
+
+  .btk-product-image {
+    aspect-ratio: 1 / 1;
+  }
+
+  .btk-cart-callout {
+    grid-template-columns: 1fr;
+  }
+
+  .btk-cart-callout span {
+    display: none;
   }
 }
