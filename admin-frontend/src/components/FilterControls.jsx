@@ -21,7 +21,7 @@ const controlSx = {
 
 export function TextFilter({ label, value, onChange, placeholder, type = 'text' }) {
   return (
-    <Box>
+    <Box sx={{ minWidth: 0 }}>
       <Typography variant="caption" color="text.secondary" fontWeight={800} sx={{ display: 'block', mb: 0.5 }}>
         {label}
       </Typography>
@@ -40,11 +40,11 @@ export function TextFilter({ label, value, onChange, placeholder, type = 'text' 
 
 export function SelectFilter({ label, value, onChange, options }) {
   return (
-    <Box>
+    <Box sx={{ minWidth: 0 }}>
       <Typography variant="caption" color="text.secondary" fontWeight={800} sx={{ display: 'block', mb: 0.5 }}>
         {label}
       </Typography>
-      <FormControl fullWidth size="small" sx={controlSx}>
+      <FormControl fullWidth size="small" sx={{ ...controlSx, minWidth: 0 }}>
         <Select value={value} onChange={event => onChange(event.target.value)}>
           {options.map(option => (
             <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
@@ -57,7 +57,7 @@ export function SelectFilter({ label, value, onChange, options }) {
 
 export function DateRangeFilter({ label, from, to, onFromChange, onToChange }) {
   return (
-    <Box>
+    <Box sx={{ minWidth: 0 }}>
       <Typography variant="caption" color="text.secondary" fontWeight={800} sx={{ display: 'block', mb: 0.5 }}>
         {label}
       </Typography>

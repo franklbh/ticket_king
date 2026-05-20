@@ -408,7 +408,7 @@ export default function TicketTypes() {
       />
 
       {/* Schedule reference */}
-      <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
+      <div className="ticket-type-schedule-grid">
         {SCHEDULE_TIERS.map(s => (
           <div key={s.key} style={{ flex: 1, background: s.bg, border: `1px solid ${s.border}`, borderRadius: 8, padding: '10px 16px' }}>
             <div style={{ fontSize: 11, fontWeight: 800, color: s.color, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>
@@ -426,7 +426,7 @@ export default function TicketTypes() {
 
       {/* Filters */}
       <FilterCard className="mb-3">
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(260px, 1fr) minmax(180px, 240px) auto', gap: 12, alignItems: 'end' }}>
+        <div className="ticket-type-filter-grid">
           <TextFilter
             label="Search"
             placeholder="Search ticket type..."

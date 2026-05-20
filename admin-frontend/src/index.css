@@ -114,6 +114,30 @@ body {
   padding: 24px;
 }
 
+.ticket-type-schedule-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.ticket-type-filter-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(150px, 240px) max-content;
+  gap: 12px;
+  align-items: end;
+  width: 100%;
+}
+
+.ticket-type-filter-grid > * {
+  min-width: 0;
+}
+
+.ticket-type-filter-grid .MuiButton-root {
+  min-height: 42px;
+  white-space: nowrap;
+}
+
 .loading-indicator {
   display: inline-flex;
   align-items: center;
@@ -336,6 +360,19 @@ body {
     padding: 14px;
   }
 
+  .ticket-type-schedule-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ticket-type-filter-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(128px, 0.55fr);
+  }
+
+  .ticket-type-filter-grid .MuiButton-root {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
   .loading-indicator-page {
     left: 0;
     top: 60px;
@@ -360,6 +397,10 @@ body {
 
   .admin-main {
     padding: 10px;
+  }
+
+  .ticket-type-filter-grid {
+    grid-template-columns: 1fr;
   }
 }
 
