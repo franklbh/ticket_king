@@ -20,14 +20,14 @@ export function ScannerSectionTitle({ icon, title, actions }) {
 
 export function ScannerStat({ value, label, color = '#6366f1', bg = '#eff6ff', border = '#bfdbfe' }) {
   return (
-    <div className="flex items-center gap-2 border-r border-slate-200 px-5 last:border-r-0">
+    <div className="scanner-stat">
       <div
-        className="flex h-9 w-9 items-center justify-center rounded-lg border text-sm font-extrabold"
+        className="scanner-stat-value"
         style={{ background: bg, borderColor: border, color }}
       >
         {value}
       </div>
-      <span className="text-xs font-medium text-slate-500">{label}</span>
+      <span className="scanner-stat-label">{label}</span>
     </div>
   )
 }

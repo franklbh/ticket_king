@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import jsQR from 'jsqr'
+import { useNavigate } from 'react-router-dom'
 import { useLang } from '../context/authHooks'
 import { useT } from '../i18n/translations'
 import { checkInTicket, overrideCheckInTicket } from '../api/adminApi'
@@ -121,6 +122,7 @@ function ScanOverlay({ result, onDismiss, onOverride }) {
 export default function Scanner() {
   const { lang, changeLang } = useLang()
   const t = useT(lang)
+  const navigate = useNavigate()
 
   const videoRef   = useRef()
   const canvasRef  = useRef()
@@ -294,18 +296,13 @@ export default function Scanner() {
   const total = stats.valid + stats.invalid
 
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: '#f1f5f9', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+    <div className="scanner-page">
       <style>{CSS}</style>
 
       {/* ── Header ── */}
-      <header style={{
-        height: 56, flexShrink: 0,
-        background: '#fff', borderBottom: '1px solid #e2e8f0',
-        padding: '0 20px',
-        display: 'flex', alignItems: 'center', gap: 16,
-      }}>
+      <header className="scanner-header">
         {/* Brand */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+        <div className="scanner-brand">
           <div style={{ width: 32, height: 32, background: '#6366f1', borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <i className="fa fa-qrcode" style={{ color: '#fff', fontSize: 15 }} />
           </div>
@@ -316,15 +313,17 @@ export default function Scanner() {
         </div>
 
         {/* Stats — center */}
-        <div className="flex flex-1 justify-center">
+        <div className="scanner-header-stats">
           <ScannerStat value={stats.valid} label={t.admitted} color="#16a34a" bg="#f0fdf4" border="#bbf7d0" />
           <ScannerStat value={stats.invalid} label={t.rejected} color="#dc2626" bg="#fef2f2" border="#fecaca" />
           <ScannerStat value={total} label={t.sessionStats} color="#2563eb" bg="#eff6ff" border="#bfdbfe" />
         </div>
 
         {/* Right controls */}
-        <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexShrink: 0 }}>
+        <div className="scanner-header-controls">
           <select
+            id="scanner-language"
+            name="scannerLanguage"
             value={lang}
             onChange={e => changeLang(e.target.value)}
             style={{
@@ -337,14 +336,14 @@ export default function Scanner() {
             <option value="zh-Hans">简体中文</option>
             <option value="zh-Hant">繁體中文</option>
           </select>
-          <ScannerActionButton variant="secondary" onClick={() => window.close()} className="ml-1">
+          <ScannerActionButton variant="secondary" onClick={() => navigate('/dashboard')} className="ml-1">
             {t.close}
           </ScannerActionButton>
         </div>
       </header>
 
       {/* ── Body ── */}
-      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 400px', gap: 16, padding: 16, minHeight: 0 }}>
+      <div className="scanner-body">
 
         {/* Left — Camera */}
         <ScannerCard className="flex flex-col">
@@ -469,7 +468,7 @@ export default function Scanner() {
         </ScannerCard>
 
         {/* Right — Controls */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, minHeight: 0 }}>
+        <div className="scanner-side-panel">
 
           {/* Manual Entry */}
           <ScannerCard className="p-4">
@@ -479,6 +478,8 @@ export default function Scanner() {
             </div>
             <form onSubmit={handleManual} style={{ display: 'flex', gap: 8 }}>
               <input
+                id="scanner-manual-code"
+                name="scannerManualCode"
                 ref={manualRef}
                 value={manualCode}
                 onChange={e => setManualCode(e.target.value)}
