@@ -82,7 +82,7 @@ export default function Layout() {
   const { admin, logout } = useAuth()
   const { lang, changeLang } = useLang()
   const t = useT(lang)
-  const navigate = useNavigate()
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   function getPageTitle() {
     const path = window.location.pathname
@@ -99,29 +99,45 @@ export default function Layout() {
     return t.dashboard
   }
 
+  const visibleNavItems = navItems.filter(item => can(admin, item.permission))
+  const showScanner = can(admin, 'scanner:use')
+
+  function closeMobileSidebar() {
+    setSidebarOpen(false)
+  }
+
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-50">
-      <aside className="flex w-[216px] shrink-0 flex-col overflow-y-auto bg-brand-900">
-        <div className="border-b border-white/10 px-4 py-5">
-          <div className="text-base font-bold leading-tight text-white">{t.ticketSystem}</div>
-          <div className="mt-1 text-xs text-white/60">{t.adminPanel}</div>
+    <div className="admin-shell">
+      {sidebarOpen && <button className="admin-sidebar-backdrop" type="button" aria-label="Close menu" onClick={closeMobileSidebar} />}
+
+      <aside className={`admin-sidebar${sidebarOpen ? ' mobile-open' : ''}`}>
+        <div className="admin-sidebar-brand">
+          <div>
+            <div className="admin-sidebar-title">{t.ticketSystem}</div>
+            <div className="admin-sidebar-subtitle">{t.adminPanel}</div>
+          </div>
+          <button className="admin-sidebar-close" type="button" aria-label="Close menu" onClick={closeMobileSidebar}>
+            <i className="fa fa-times" />
+          </button>
         </div>
 
-        <nav className="flex-1 py-2">
-          {navItems.filter(item => can(admin, item.permission)).map(item => (
+        <nav className="admin-sidebar-nav">
+          {visibleNavItems.map(item => (
             <NavLink
               key={item.path}
               to={item.path}
               className={({ isActive }) => `sidebar-nav-item${isActive ? ' active' : ''}`}
+              onClick={closeMobileSidebar}
             >
               <i className={`fa ${item.icon} w-[18px] text-center`} />
               <span>{t[item.key]}</span>
             </NavLink>
           ))}
-          {can(admin, 'scanner:use') && (
+          {showScanner && (
             <NavLink
               to="/scanner"
               className={({ isActive }) => `sidebar-nav-item${isActive ? ' active' : ''}`}
+              onClick={closeMobileSidebar}
             >
               <i className="fa fa-qrcode w-[18px] text-center" />
               <span>{t.scanner}</span>
@@ -129,22 +145,27 @@ export default function Layout() {
           )}
         </nav>
 
-        <div className="border-t border-white/10 px-4 py-3 text-xs text-white/75">
+        <div className="admin-sidebar-user">
           <div>User: {admin?.username}</div>
           <div>Role: {admin?.role}</div>
         </div>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-6">
-          <div className="text-base font-semibold text-slate-950">{getPageTitle()}</div>
-          <div className="flex items-center gap-4">
+      <div className="admin-content">
+        <header className="admin-header">
+          <div className="flex min-w-0 items-center gap-3">
+            <button className="admin-menu-button" type="button" aria-label="Open menu" onClick={() => setSidebarOpen(true)}>
+              <i className="fa fa-bars" />
+            </button>
+            <div className="truncate text-base font-semibold text-slate-950">{getPageTitle()}</div>
+          </div>
+          <div className="admin-header-actions">
             <LangDropdown lang={lang} changeLang={changeLang} />
             <UserMenu admin={admin} logout={logout} t={t} />
           </div>
         </header>
 
-        <main className="flex-1 overflow-auto p-6">
+        <main className="admin-main">
           <Outlet />
         </main>
       </div>
