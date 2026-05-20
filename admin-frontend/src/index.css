@@ -138,6 +138,61 @@ body {
   white-space: nowrap;
 }
 
+.logs-filter-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr) minmax(0, 1fr) max-content;
+  gap: 12px;
+  align-items: end;
+  width: 100%;
+  margin-bottom: 14px;
+}
+
+.logs-filter-grid > * {
+  min-width: 0;
+}
+
+.logs-filter-actions {
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+}
+
+.logs-filter-actions .MuiButton-root {
+  min-height: 42px;
+  white-space: nowrap;
+}
+
+.logs-chip-grid {
+  display: grid;
+  grid-template-columns: 96px repeat(auto-fit, minmax(104px, 1fr));
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  margin-top: 10px;
+  overflow: hidden;
+}
+
+.logs-chip-label {
+  color: #374151;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.logs-chip-grid .MuiChip-root {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  justify-content: center;
+}
+
+.logs-chip-grid .MuiChip-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .loading-indicator {
   display: inline-flex;
   align-items: center;
@@ -373,6 +428,28 @@ body {
     width: 100%;
   }
 
+  .logs-filter-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .logs-filter-grid > :nth-child(2),
+  .logs-filter-grid > :nth-child(3),
+  .logs-filter-actions {
+    grid-column: 1 / -1;
+  }
+
+  .logs-filter-actions .MuiButton-root {
+    flex: 1;
+  }
+
+  .logs-chip-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .logs-chip-label {
+    grid-column: 1 / -1;
+  }
+
   .loading-indicator-page {
     left: 0;
     top: 60px;
@@ -401,6 +478,15 @@ body {
 
   .ticket-type-filter-grid {
     grid-template-columns: 1fr;
+  }
+
+  .logs-filter-grid,
+  .logs-chip-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .logs-filter-actions {
+    flex-direction: column;
   }
 }
 

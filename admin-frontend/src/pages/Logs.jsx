@@ -5,7 +5,6 @@ import Dialog from '@mui/material/Dialog'
 import DialogContent from '@mui/material/DialogContent'
 import DialogTitle from '@mui/material/DialogTitle'
 import IconButton from '@mui/material/IconButton'
-import Stack from '@mui/material/Stack'
 import { useLang } from '../context/authHooks'
 import { useT } from '../i18n/translations'
 import { useLogsQuery } from '../hooks/queries'
@@ -264,7 +263,7 @@ export default function Logs() {
 
       {/* Filters */}
       <FilterCard>
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(160px, 0.8fr) minmax(220px, 1.2fr) minmax(310px, 1fr) auto', gap: 12, alignItems: 'end', marginBottom: 14 }}>
+        <div className="logs-filter-grid">
           <SelectFilter
             label={t.admin}
             value={filters.admin}
@@ -284,15 +283,15 @@ export default function Logs() {
             onFromChange={value => setFilters(f => ({ ...f, dateFrom: value }))}
             onToChange={value => setFilters(f => ({ ...f, dateTo: value }))}
           />
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div className="logs-filter-actions">
             <ApplyFiltersButton onClick={applyFilters} />
             <ResetFiltersButton label={t.reset} onClick={resetFilters} />
           </div>
         </div>
 
         {/* Action Type filter */}
-        <Stack direction="row" useFlexGap flexWrap="wrap" alignItems="center" gap={1} sx={{ mb: 1.25 }}>
-          <span style={{ fontSize: 13, fontWeight: 500, color: '#374151', minWidth: 90 }}>Action Type:</span>
+        <div className="logs-chip-grid">
+          <span className="logs-chip-label">Action Type:</span>
           {ACTION_TYPES.map(at => (
             <Chip
               key={at}
@@ -304,11 +303,11 @@ export default function Logs() {
               sx={{ fontWeight: 700 }}
             />
           ))}
-        </Stack>
+        </div>
 
         {/* Target Type filter */}
-        <Stack direction="row" useFlexGap flexWrap="wrap" alignItems="center" gap={1}>
-          <span style={{ fontSize: 13, fontWeight: 500, color: '#374151', minWidth: 90 }}>Target Type:</span>
+        <div className="logs-chip-grid">
+          <span className="logs-chip-label">Target Type:</span>
           {TARGET_TYPES.map(tt => (
             <Chip
               key={tt}
@@ -321,7 +320,7 @@ export default function Logs() {
               sx={{ fontWeight: 700 }}
             />
           ))}
-        </Stack>
+        </div>
       </FilterCard>
 
       {/* Table */}
