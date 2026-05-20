@@ -35,7 +35,7 @@ function Toggle({ checked, disabled, onChange }) {
 
 function StatBox({ value, label, color }) {
   return (
-    <div style={{ flex: 1, textAlign: 'center', padding: '16px 8px', borderRight: '1px solid #f3f4f6' }}>
+    <div className="marketing-stat-box">
       <div style={{ fontSize: 28, fontWeight: 700, color }}>{value}</div>
       <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>{label}</div>
     </div>
@@ -151,14 +151,14 @@ export default function Marketing() {
 
       {/* Stats */}
       <AdminCard className="mb-5 overflow-hidden p-0">
-        <div style={{ display: 'flex' }}>
+        <div className="marketing-stats-grid">
           <StatBox value={stats.total} label={t.totalRecords} color="#6366f1" />
           <StatBox value={stats.pending} label={t.pending} color="#f59e0b" />
           <StatBox value={stats.cancelled} label={t.cancelled2} color="#374151" />
           <StatBox value={stats.sent} label={t.sent} color="#10b981" />
           <StatBox value={stats.failed} label={t.failed} color="#ef4444" />
           <StatBox value={stats.couponsUsed} label={t.couponsUsed} color="#6366f1" />
-          <div style={{ flex: 1, textAlign: 'center', padding: '16px 8px' }}>
+          <div className="marketing-stat-box">
             <div style={{ fontSize: 28, fontWeight: 700, color: '#374151' }}>{stats.todaySent}</div>
             <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>{t.todaySent}</div>
           </div>
@@ -172,12 +172,12 @@ export default function Marketing() {
           {t.marketingSettings}
         </h2>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 32 }}>
+        <div className="marketing-settings-grid">
           {/* Left column */}
-          <div>
+          <div className="marketing-settings-column">
             {/* Enable Marketing */}
             <div style={{ marginBottom: 20 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+              <div className="marketing-toggle-row">
                 <span style={{ fontWeight: 600, fontSize: 14 }}>{t.enableMarketing}</span>
                 <Toggle disabled={!canWriteMarketing} checked={settings.enabled} onChange={() => setSettings(s => ({ ...s, enabled: !s.enabled }))} />
                 <span style={{ fontSize: 14, color: settings.enabled ? '#10b981' : '#6b7280', fontWeight: 500 }}>
@@ -187,7 +187,7 @@ export default function Marketing() {
               <p style={{ margin: 0, fontSize: 12, color: '#9ca3af' }}>When enabled, marketing emails will be automatically sent after ticket check-in</p>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <div className="marketing-field-grid">
               <div>
                 <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 6 }}>{t.sendDelay}</label>
                 <input
@@ -214,11 +214,11 @@ export default function Marketing() {
           </div>
 
           {/* Right column */}
-          <div>
+          <div className="marketing-settings-column">
             {/* Discount setting */}
             <div style={{ marginBottom: 16 }}>
               <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 8 }}>{t.discountSetting}</label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div className="marketing-discount-row">
                 <ToggleButtonGroup
                   exclusive
                   size="small"
@@ -230,20 +230,19 @@ export default function Marketing() {
                   <ToggleButton value="fixed">$</ToggleButton>
                 </ToggleButtonGroup>
                 <input
-                  className="form-input"
+                  className="form-input marketing-discount-input"
                   type="number"
                   min="0"
                   value={settings.discountValue}
                   disabled={!canWriteMarketing}
                   onChange={e => setSettings(s => ({ ...s, discountValue: Number(e.target.value) }))}
-                  style={{ width: 80 }}
                 />
                 <Chip color="success" size="small" icon={<i className="fa fa-tag" />} label={discountPreview} sx={{ fontWeight: 800 }} />
               </div>
               <p style={{ margin: '4px 0 0', fontSize: 12, color: '#9ca3af' }}>E.g. 10 means 10% discount</p>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <div className="marketing-field-grid">
               <div>
                 <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 6 }}>Minimum Purchase ($)</label>
                 <input
@@ -278,9 +277,9 @@ export default function Marketing() {
             <i className="fa fa-gift" style={{ color: '#6366f1' }} />
             {t.referralRewards}
           </h3>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 32 }}>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+          <div className="marketing-settings-grid">
+            <div className="marketing-settings-column">
+              <div className="marketing-toggle-row">
                 <span style={{ fontWeight: 600, fontSize: 14 }}>{t.enableReferral}</span>
                 <Toggle disabled={!canWriteMarketing} checked={settings.referralEnabled} onChange={() => setSettings(s => ({ ...s, referralEnabled: !s.referralEnabled }))} />
                 <span style={{ fontSize: 14, color: settings.referralEnabled ? '#10b981' : '#6b7280', fontWeight: 500 }}>
@@ -289,7 +288,7 @@ export default function Marketing() {
               </div>
               <p style={{ margin: 0, fontSize: 12, color: '#9ca3af' }}>When enabled, the referral reward message will be shown in marketing emails</p>
             </div>
-            <div>
+            <div className="marketing-settings-column">
               <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 6 }}>{t.referralReward}</label>
               <input
                 className="form-input"

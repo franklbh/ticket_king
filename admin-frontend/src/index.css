@@ -193,6 +193,73 @@ body {
   white-space: nowrap;
 }
 
+.marketing-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  width: 100%;
+}
+
+.marketing-stat-box {
+  min-width: 0;
+  text-align: center;
+  padding: 16px 8px;
+  border-right: 1px solid #f3f4f6;
+}
+
+.marketing-stat-box:last-child {
+  border-right: 0;
+}
+
+.marketing-stat-box > div {
+  overflow-wrap: anywhere;
+}
+
+.marketing-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 32px;
+  width: 100%;
+}
+
+.marketing-settings-column {
+  min-width: 0;
+}
+
+.marketing-field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.marketing-field-grid > *,
+.marketing-settings-grid > * {
+  min-width: 0;
+}
+
+.marketing-toggle-row,
+.marketing-discount-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.marketing-discount-row {
+  gap: 8px;
+}
+
+.marketing-discount-input {
+  width: 80px;
+  flex: 0 0 80px;
+}
+
+.marketing-settings-grid .form-input,
+.marketing-field-grid .form-input {
+  width: 100%;
+  min-width: 0;
+}
+
 .loading-indicator {
   display: inline-flex;
   align-items: center;
@@ -450,6 +517,25 @@ body {
     grid-column: 1 / -1;
   }
 
+  .marketing-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .marketing-stat-box {
+    border-right: 1px solid #f3f4f6;
+    border-bottom: 1px solid #f3f4f6;
+  }
+
+  .marketing-stat-box:nth-child(2n) {
+    border-right: 0;
+  }
+
+  .marketing-settings-grid,
+  .marketing-field-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
   .loading-indicator-page {
     left: 0;
     top: 60px;
@@ -487,6 +573,32 @@ body {
 
   .logs-filter-actions {
     flex-direction: column;
+  }
+
+  .marketing-stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .marketing-stat-box,
+  .marketing-stat-box:nth-child(2n) {
+    border-right: 0;
+  }
+
+  .marketing-discount-row {
+    align-items: stretch;
+  }
+
+  .marketing-discount-row .MuiToggleButtonGroup-root {
+    flex: 1 1 100%;
+  }
+
+  .marketing-discount-row .MuiToggleButton-root {
+    flex: 1;
+  }
+
+  .marketing-discount-input {
+    flex: 1 1 96px;
+    width: auto;
   }
 }
 
