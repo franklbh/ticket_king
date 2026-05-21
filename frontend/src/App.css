@@ -7508,6 +7508,209 @@ body {
   }
 }
 
+/* Final mobile hero layout override.
+   Keep the header visible, show the full poster, then place controls directly
+   under the poster instead of at the bottom of a tall empty hero. */
+@media (max-width: 640px) {
+  .mkt-nav {
+    position: sticky;
+    top: 0;
+    min-height: 76px;
+    padding: 10px 12px;
+    background: #fff !important;
+    border-bottom: 1px solid rgba(15,23,42,0.08) !important;
+    box-shadow: 0 8px 24px rgba(15,23,42,0.08) !important;
+  }
+
+  .mkt-logo-btn img {
+    max-height: 44px;
+    filter: invert(1) brightness(0.18);
+  }
+
+  .mkt-nav .top-actions {
+    width: auto;
+    margin-left: auto;
+    justify-content: flex-end;
+  }
+
+  .mkt-nav .lang-toggle,
+  .mkt-nav .cart-icon-btn,
+  .mkt-nav .menu-dots-btn {
+    background: #fff !important;
+    border-color: rgba(15,23,42,0.14) !important;
+    color: #0f172a !important;
+    box-shadow: 0 6px 18px rgba(15,23,42,0.08) !important;
+  }
+
+  .mkt-nav .menu-dots-btn span {
+    background: #0f172a !important;
+  }
+
+  .mkt-hero {
+    display: block !important;
+    min-height: auto !important;
+    padding: calc(min(56.25vw, 300px) + 12px) 14px 28px !important;
+    background: #050b13 !important;
+  }
+
+  .mkt-hero-slide {
+    inset: 0 0 auto 0 !important;
+    height: min(56.25vw, 300px) !important;
+    background: #050b13 !important;
+  }
+
+  .mkt-hero-slide img {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: contain !important;
+    object-position: center center !important;
+    background: #050b13 !important;
+  }
+
+  .mkt-hero-gradient {
+    inset: 0 0 auto 0 !important;
+    height: calc(min(56.25vw, 300px) + 100%) !important;
+    background:
+      linear-gradient(180deg, rgba(5,11,19,0.02) 0%, rgba(5,11,19,0.10) 38%, rgba(5,11,19,0.68) 100%) !important;
+  }
+
+  .mkt-hero-inner {
+    width: 100% !important;
+    margin: 0 auto !important;
+    transform: none !important;
+  }
+
+  .mkt-hero-dots {
+    margin: 0 0 14px !important;
+  }
+
+  .mkt-hero-btns {
+    width: 100% !important;
+    max-width: none !important;
+    gap: 10px !important;
+  }
+
+  .mkt-hero-nav {
+    top: calc(min(56.25vw, 300px) / 2) !important;
+    bottom: auto !important;
+    width: 46px !important;
+    height: 46px !important;
+    transform: translateY(-50%) !important;
+  }
+
+  .mkt-hero-nav:hover {
+    transform: translateY(-50%) scale(1.04) !important;
+  }
+
+  .mkt-hero-nav-prev {
+    left: 14px !important;
+  }
+
+  .mkt-hero-nav-next {
+    right: 14px !important;
+  }
+
+  .mkt-hero-primary,
+  .mkt-hero-secondary {
+    min-height: 58px !important;
+  }
+
+  .mkt-hero-meta {
+    margin-top: 12px !important;
+  }
+}
+
+/* Tablet portrait hero layout: iPad-size screens should also show the full
+   poster instead of using desktop cover-crop behavior. */
+@media (min-width: 641px) and (max-width: 1100px) {
+  .mkt-nav {
+    position: sticky;
+    top: 0;
+    min-height: 82px;
+    padding: 12px 18px;
+    background: rgba(255,255,255,0.96) !important;
+    border-bottom: 1px solid rgba(15,23,42,0.08) !important;
+    box-shadow: 0 8px 24px rgba(15,23,42,0.08) !important;
+  }
+
+  .mkt-logo-btn img {
+    max-height: 52px;
+    filter: invert(1) brightness(0.18);
+  }
+
+  .mkt-nav .top-actions .ghost-btn,
+  .mkt-nav .lang-toggle,
+  .mkt-nav .cart-icon-btn,
+  .mkt-nav .menu-dots-btn {
+    background: #fff !important;
+    border-color: rgba(15,23,42,0.14) !important;
+    color: #0f172a !important;
+    box-shadow: 0 6px 18px rgba(15,23,42,0.08) !important;
+  }
+
+  .mkt-nav .menu-dots-btn span {
+    background: #0f172a !important;
+  }
+
+  .mkt-hero {
+    display: block !important;
+    min-height: auto !important;
+    padding: calc(min(56.25vw, 620px) + 18px) 28px 38px !important;
+    background: #050b13 !important;
+  }
+
+  .mkt-hero-slide {
+    inset: 0 0 auto 0 !important;
+    height: min(56.25vw, 620px) !important;
+    background: #050b13 !important;
+  }
+
+  .mkt-hero-slide img {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: contain !important;
+    object-position: center center !important;
+    background: #050b13 !important;
+  }
+
+  .mkt-hero-gradient {
+    inset: 0 0 auto 0 !important;
+    height: calc(min(56.25vw, 620px) + 100%) !important;
+    background:
+      linear-gradient(180deg, rgba(5,11,19,0.02) 0%, rgba(5,11,19,0.08) 42%, rgba(5,11,19,0.72) 100%) !important;
+  }
+
+  .mkt-hero-inner {
+    width: min(760px, 100%) !important;
+    margin: 0 auto !important;
+    transform: none !important;
+  }
+
+  .mkt-hero-dots {
+    margin: 0 0 18px !important;
+  }
+
+  .mkt-hero-btns {
+    width: 100% !important;
+    max-width: none !important;
+    gap: 14px !important;
+  }
+
+  .mkt-hero-nav {
+    top: min(28.125vw, 310px) !important;
+    bottom: auto !important;
+    transform: translateY(-50%) !important;
+  }
+
+  .mkt-hero-nav:hover {
+    transform: translateY(-50%) scale(1.04) !important;
+  }
+
+  .mkt-hero-meta {
+    margin-top: 14px !important;
+  }
+}
+
 /* Hero CTA final sizing/color override */
 .mkt-hero-btns {
   width: min(760px, 94vw);
@@ -7614,6 +7817,54 @@ body {
 
   .mkt-hero-cta-stack {
     width: 100%;
+  }
+}
+
+/* Mobile-safe hero image framing.
+   Landscape posters cannot fill a portrait phone without cropping, so phones
+   show the whole poster on a dark stage instead of cutting off key artwork. */
+.mkt-hero-slide-terracotta-warriors img {
+  object-position: center center;
+}
+
+.mkt-hero-slide-panda img {
+  object-position: center center;
+}
+
+.mkt-hero-slide-dragon img,
+.mkt-hero-slide-cyber-arena img,
+.mkt-hero-slide-space-odyssey img,
+.mkt-hero-slide-ocean-quest img {
+  object-position: center center;
+}
+
+@media (max-width: 900px) {
+  .mkt-hero-slide-panda img {
+    object-position: 48% center;
+  }
+
+  .mkt-hero-slide-dragon img,
+  .mkt-hero-slide-cyber-arena img,
+  .mkt-hero-slide-space-odyssey img,
+  .mkt-hero-slide-ocean-quest img {
+    object-position: 52% center;
+  }
+}
+
+@media (max-width: 640px) {
+  .mkt-hero-slide {
+    background: #050b13;
+  }
+
+  .mkt-hero-slide img {
+    object-fit: contain;
+    object-position: center top;
+  }
+
+  .mkt-hero-gradient {
+    background:
+      linear-gradient(180deg, rgba(5,11,19,0.08) 0%, rgba(5,11,19,0.16) 38%, rgba(5,11,19,0.62) 62%, rgba(5,11,19,0.94) 100%),
+      linear-gradient(90deg, rgba(5,11,19,0.38), transparent 24%, transparent 76%, rgba(5,11,19,0.38));
   }
 }
 
@@ -14296,6 +14547,25 @@ body:has(.btk-page) .topbar {
   .mkt-hero {
     min-height: 700px;
     padding: 92px 14px 18px;
+    background: #050b13;
+  }
+
+  .mkt-hero-slide {
+    background: #050b13;
+  }
+
+  .mkt-hero-slide img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    object-position: center top;
+    background: #050b13;
+  }
+
+  .mkt-hero-gradient {
+    background:
+      linear-gradient(180deg, rgba(5,11,19,0.02) 0%, rgba(5,11,19,0.08) 34%, rgba(5,11,19,0.70) 64%, rgba(5,11,19,0.96) 100%),
+      linear-gradient(90deg, rgba(5,11,19,0.42), transparent 24%, transparent 76%, rgba(5,11,19,0.42));
   }
 
   .mkt-hero-primary,
