@@ -3,9 +3,11 @@ import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-
 import { loadStripe } from '@stripe/stripe-js'
 import BrandLogo from './BrandLogo'
 import { qrPlaceholder } from '../data/showData'
+import { allExperiences } from '../data/experiences'
 
 const BACKEND = import.meta.env.VITE_BACKEND_BASE || 'http://localhost:8000'
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '')
+const experienceById = new Map(allExperiences.map((experience) => [experience.id, experience]))
 
 function fmt(n) { return `CA$${Number(n || 0).toFixed(2)}` }
 function validEmail(value) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim()) }
@@ -250,10 +252,13 @@ function TrustList({ compact = false }) {
 }
 
 function ItemImage({ item, className }) {
+  const experience = experienceById.get(item.show_id)
+  const image = experience?.heroImg || experience?.gallery?.[0] || item.experience_image
+  const fallback = item.experience_gradient || experience?.cardGradient || item.experience_accent || experience?.accent || '#4f46e5'
   return (
     <div
       className={className}
-      style={item.experience_image ? { backgroundImage: `url(${item.experience_image})` } : { background: item.experience_gradient || item.experience_accent || '#4f46e5' }}
+      style={image ? { backgroundImage: `url(${image})` } : { background: fallback }}
       aria-hidden="true"
     />
   )

@@ -107,6 +107,7 @@ function MarketingPage({
   const experiencesRef = useRef(null)
   const [heroIndex, setHeroIndex] = useState(0)
   const [heroTimerResetKey, setHeroTimerResetKey] = useState(0)
+  const [navScrolled, setNavScrolled] = useState(false)
   const heroCount = localizedExperiences?.length || 6
   const activeHero = (localizedExperiences || [])[heroIndex] || (localizedExperiences || [])[0] || {}
   const resetHeroTimer = () => setHeroTimerResetKey((key) => key + 1)
@@ -130,11 +131,18 @@ function MarketingPage({
     return () => window.clearInterval(timer)
   }, [heroCount, heroTimerResetKey])
 
+  useEffect(() => {
+    const updateNav = () => setNavScrolled(window.scrollY > 80)
+    updateNav()
+    window.addEventListener('scroll', updateNav, { passive: true })
+    return () => window.removeEventListener('scroll', updateNav)
+  }, [])
+
   return (
     <div className="mkt-page">
 
       {/* ── Sticky Nav ── */}
-      <header className="mkt-nav">
+      <header className={`mkt-nav ${navScrolled ? 'mkt-nav-scrolled' : ''}`}>
         <button className="mkt-logo-btn" onClick={onGoHome} type="button">
           <BrandLogo height={60} />
         </button>
@@ -161,10 +169,12 @@ function MarketingPage({
           return (
             <div
               key={exp.id}
-              className={`mkt-hero-slide ${index === heroIndex ? 'active' : ''}`}
-              style={{ backgroundImage: heroSrc ? `url(${heroSrc})` : undefined, background: heroSrc ? undefined : exp.cardGradient }}
+              className={`mkt-hero-slide mkt-hero-slide-${exp.id} ${index === heroIndex ? 'active' : ''}`}
+              style={heroSrc ? undefined : { background: exp.cardGradient }}
               aria-hidden={index !== heroIndex}
-            />
+            >
+              {heroSrc && <img src={heroSrc} alt="" aria-hidden="true" />}
+            </div>
           )
         })}
         <div className="mkt-hero-gradient" />
@@ -185,11 +195,17 @@ function MarketingPage({
           <HeroChevron direction="right" />
         </button>
         <div className="mkt-hero-inner">
-          <span className="mkt-hero-eyebrow">We Are VR</span>
-          <h1 className="mkt-hero-h1">{activeHero.title}</h1>
-          <p className="mkt-hero-sub">
-            {activeHero.tagline}. {activeHero.duration} minutes · {t('agesMin', { min: activeHero.minAge })}
-          </p>
+          <div className="mkt-hero-dots" aria-label="Featured experience carousel">
+            {(localizedExperiences || []).map((exp, index) => (
+              <button
+                key={exp.id}
+                className={`mkt-hero-dot ${index === heroIndex ? 'active' : ''}`}
+                onClick={() => goToHero(index)}
+                type="button"
+                aria-label={`Show ${exp.title}`}
+              />
+            ))}
+          </div>
           <div className="mkt-hero-btns">
             <div className="mkt-hero-cta-stack">
               <button
@@ -208,17 +224,6 @@ function MarketingPage({
               </button>
               <div className="mkt-showpass-note">{t('showpassNote')}</div>
             </div>
-          </div>
-          <div className="mkt-hero-dots" aria-label="Featured experience carousel">
-            {(localizedExperiences || []).map((exp, index) => (
-              <button
-                key={exp.id}
-                className={`mkt-hero-dot ${index === heroIndex ? 'active' : ''}`}
-                onClick={() => goToHero(index)}
-                type="button"
-                aria-label={`Show ${exp.title}`}
-              />
-            ))}
           </div>
           <div className="mkt-hero-meta">
             <span>

@@ -2583,6 +2583,231 @@ small { color: #7c6157; }
   }
 }
 
+/* Cart thumbnails should always reserve visible media space. */
+.crt-exp-cell {
+  display: grid !important;
+  grid-template-columns: 116px minmax(0, 1fr) !important;
+  align-items: center !important;
+}
+
+.crt-cart-thumb {
+  display: block !important;
+  flex: 0 0 116px !important;
+  width: 116px !important;
+  height: 78px !important;
+  min-width: 116px !important;
+  border-radius: 8px !important;
+  background-color: #0f172a !important;
+  background-size: cover !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
+}
+
+/* Final homepage nav behavior: transparent on hero, white after scroll */
+.mkt-nav {
+  transition: background 180ms ease, box-shadow 180ms ease, border-color 180ms ease, color 180ms ease;
+}
+
+.mkt-nav.mkt-nav-scrolled {
+  background: rgba(255,255,255,0.96) !important;
+  border-bottom: 1px solid rgba(15,23,42,0.10) !important;
+  box-shadow: 0 10px 30px rgba(15,23,42,0.08) !important;
+  backdrop-filter: blur(14px) !important;
+  -webkit-backdrop-filter: blur(14px) !important;
+}
+
+.mkt-nav.mkt-nav-scrolled .mkt-logo-btn img {
+  filter: invert(1) brightness(0.18);
+}
+
+.mkt-nav.mkt-nav-scrolled .top-actions .ghost-btn,
+.mkt-nav.mkt-nav-scrolled .lang-toggle,
+.mkt-nav.mkt-nav-scrolled .cart-icon-btn,
+.mkt-nav.mkt-nav-scrolled .menu-dots-btn {
+  background: #fff !important;
+  border-color: rgba(15,23,42,0.16) !important;
+  color: #0f172a !important;
+  box-shadow: 0 6px 18px rgba(15,23,42,0.08) !important;
+}
+
+.mkt-nav.mkt-nav-scrolled .menu-dots-btn span {
+  background: #0f172a !important;
+}
+
+.mkt-nav.mkt-nav-scrolled .lang-pill {
+  color: #475569 !important;
+}
+
+.mkt-nav.mkt-nav-scrolled .lang-pill.active {
+  color: #fff !important;
+}
+
+.mkt-nav.mkt-nav-scrolled .account-trigger {
+  background: #f0fdf4 !important;
+  border-color: rgba(34,197,94,0.34) !important;
+  color: #0f172a !important;
+}
+
+/* Final transparent homepage hero controls */
+.mkt-nav {
+  background: transparent !important;
+  border-bottom: 0 !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.mkt-nav .top-actions .ghost-btn,
+.mkt-nav .lang-toggle,
+.mkt-nav .cart-icon-btn,
+.mkt-nav .menu-dots-btn {
+  background: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.mkt-hero-inner {
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.mkt-hero-btns {
+  max-width: 820px;
+  margin: 0 auto;
+  gap: 14px;
+}
+
+.mkt-hero-primary,
+.mkt-hero-secondary {
+  min-height: 56px !important;
+  border-radius: 12px !important;
+  font-size: 18px !important;
+  line-height: 1.2 !important;
+  font-weight: 850 !important;
+  letter-spacing: 0 !important;
+}
+
+.mkt-hero-primary {
+  box-shadow: 0 12px 34px rgba(34, 197, 94, 0.24) !important;
+}
+
+.mkt-hero-secondary {
+  background: transparent !important;
+  border-color: rgba(255,255,255,0.38) !important;
+  box-shadow: none !important;
+}
+
+.mkt-showpass-note,
+.mkt-cta-note {
+  min-height: 18px !important;
+  margin-top: 6px !important;
+  background: transparent !important;
+  color: rgba(248,250,252,0.82) !important;
+  font-size: 12px !important;
+  line-height: 1.25 !important;
+  font-weight: 750 !important;
+  text-shadow: 0 2px 12px rgba(0,0,0,0.5);
+}
+
+.mkt-hero-dots {
+  margin: 16px 0 20px !important;
+}
+
+.mkt-hero-meta {
+  max-width: 1000px;
+  margin: 0 auto !important;
+  gap: 14px;
+}
+
+.mkt-hero-meta span,
+.mkt-hero-meta a {
+  min-height: 44px !important;
+  background: transparent !important;
+  border-color: rgba(255,255,255,0.30) !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  color: #fff !important;
+  font-size: 14px !important;
+  line-height: 1.25 !important;
+  font-weight: 800 !important;
+  text-shadow: 0 2px 14px rgba(0,0,0,0.72);
+}
+
+@media (max-width: 900px) {
+  .mkt-hero-btns {
+    max-width: 560px;
+  }
+
+  .mkt-hero-meta {
+    max-width: 680px;
+  }
+}
+
+@media (max-width: 640px) {
+  .mkt-hero-primary,
+  .mkt-hero-secondary {
+    min-height: 50px !important;
+    font-size: 16px !important;
+  }
+
+  .mkt-hero-meta span,
+  .mkt-hero-meta a {
+    min-height: 38px !important;
+    font-size: 12px !important;
+  }
+}
+
+/* Final homepage hero order and no-blur buttons */
+.mkt-hero-inner {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.mkt-hero-dots {
+  order: 1;
+  margin: 0 0 18px !important;
+}
+
+.mkt-hero-btns {
+  order: 2;
+  max-width: 820px;
+  margin: 0 auto !important;
+}
+
+.mkt-hero-meta {
+  order: 3;
+  margin-top: 20px !important;
+}
+
+.mkt-hero-secondary,
+.mkt-hero-secondary:hover,
+.mkt-showpass-stack,
+.mkt-showpass-stack:hover {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  filter: none !important;
+}
+
+.mkt-hero-secondary {
+  background: rgba(3,10,18,0.52) !important;
+  border: 1px solid rgba(255,255,255,0.38) !important;
+  box-shadow: none !important;
+}
+
+.mkt-hero-secondary:hover {
+  background: rgba(3,10,18,0.68) !important;
+}
+
 /* Request polish: compact marketing controls, centered FAQ hero, checkout title bar */
 .mkt-nav {
   align-items: flex-start;
@@ -9422,6 +9647,42 @@ body:has(#booking) {
   object-fit: contain !important;
 }
 
+/* Product page top gallery should feel compact, not letterboxed. */
+.exp2-photo-grid {
+  grid-template-columns: minmax(0, 1.35fr) minmax(360px, 0.9fr) !important;
+  grid-template-rows: clamp(280px, 32vw, 430px) !important;
+  gap: 0 !important;
+  background: #0f172a !important;
+  overflow: hidden !important;
+}
+
+.exp2-photo-mini-grid {
+  gap: 0 !important;
+}
+
+.exp2-photo-main,
+.exp2-photo-mini {
+  background: #0f172a !important;
+  border: 0 !important;
+  outline: 0 !important;
+}
+
+.exp2-photo-grid .exp2-photo-fill {
+  background-size: cover !important;
+  background-position: center !important;
+}
+
+.exp2-photo-main .exp2-photo-fill {
+  background-position: center center !important;
+}
+
+@media (max-width: 900px) {
+  .exp2-photo-grid {
+    grid-template-columns: 1fr !important;
+    grid-template-rows: clamp(260px, 58vw, 420px) !important;
+  }
+}
+
 /* Month-grid product calendar inspired by ticketing checkout UIs. */
 .bw-calendar {
   margin: 10px 0 16px !important;
@@ -13899,5 +14160,160 @@ body:has(.btk-page) .topbar {
 
   .btk-cart-callout span {
     display: none;
+  }
+}
+
+/* Homepage hero poster framing */
+.mkt-hero {
+  min-height: 100svh;
+  padding: clamp(96px, 12vh, 132px) 32px clamp(36px, 6vh, 64px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.mkt-hero-slide {
+  background-position: center;
+  transform: none;
+  overflow: hidden;
+}
+
+.mkt-hero-slide img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  object-position: center;
+}
+
+.mkt-hero-slide.active {
+  transform: none;
+}
+
+.mkt-hero-slide-cyber-arena,
+.mkt-hero-slide-ocean-quest,
+.mkt-hero-slide-space-odyssey {
+  background-position: center center;
+}
+
+.mkt-hero-gradient {
+  background:
+    linear-gradient(180deg, rgba(3,8,14,0.64) 0%, rgba(3,8,14,0.10) 20%, rgba(3,8,14,0.08) 58%, rgba(3,8,14,0.78) 100%),
+    linear-gradient(90deg, rgba(3,8,14,0.34) 0%, transparent 24%, transparent 76%, rgba(3,8,14,0.34) 100%);
+}
+
+.mkt-hero-inner {
+  width: min(1180px, calc(100vw - 64px));
+  max-width: none;
+  margin: 0 auto;
+  padding: 22px;
+  border: 1px solid rgba(255,255,255,0.16);
+  border-radius: 24px;
+  background: rgba(3, 10, 18, 0.54);
+  box-shadow: 0 24px 72px rgba(0,0,0,0.34);
+  backdrop-filter: blur(18px);
+  transform: none;
+}
+
+.mkt-hero-btns {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr);
+  gap: 16px;
+  align-items: stretch;
+}
+
+.mkt-hero-cta-stack,
+.mkt-showpass-stack {
+  min-width: 0;
+}
+
+.mkt-hero-primary,
+.mkt-hero-secondary {
+  width: 100%;
+  min-width: 0;
+  min-height: 68px;
+  border-radius: 16px;
+  font-size: 22px;
+  font-weight: 900;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mkt-showpass-note,
+.mkt-cta-note {
+  min-height: 24px;
+  margin-top: 8px;
+  color: rgba(241,245,249,0.82);
+  font-size: 13px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.mkt-hero-dots {
+  margin: 14px 0 12px;
+}
+
+.mkt-hero-meta {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 12px;
+}
+
+.mkt-hero-meta span,
+.mkt-hero-meta a {
+  min-height: 48px;
+  width: 100%;
+  justify-content: center;
+  color: #f8fafc;
+  background: rgba(15,23,42,0.70);
+  border-color: rgba(255,255,255,0.20);
+  font-size: 15px;
+  font-weight: 900;
+}
+
+@media (max-width: 900px) {
+  .mkt-hero {
+    min-height: 760px;
+    padding: 104px 20px 28px;
+  }
+
+  .mkt-hero-inner {
+    width: 100%;
+    padding: 16px;
+    border-radius: 18px;
+  }
+
+  .mkt-hero-btns,
+  .mkt-hero-meta {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .mkt-hero {
+    min-height: 700px;
+    padding: 92px 14px 18px;
+  }
+
+  .mkt-hero-primary,
+  .mkt-hero-secondary {
+    min-height: 58px;
+    font-size: 18px;
+  }
+
+  .mkt-showpass-note,
+  .mkt-cta-note {
+    display: none;
+  }
+
+  .mkt-hero-meta span,
+  .mkt-hero-meta a {
+    min-height: 44px;
+    font-size: 12px;
+    line-height: 1.35;
+    padding: 8px 10px;
   }
 }
