@@ -307,7 +307,7 @@ function BookingPage({
             ))}
             <div className="btk-divider" />
             <SummaryLine label="Subtotal" value={currency(subtotal)} muted />
-            <SummaryLine label="Processing fee" value={currency(processingFee)} muted />
+            <SummaryLine label={<ProcessingFeeLabel />} value={currency(processingFee)} muted />
             <SummaryLine label="GST (5%)" value={currency(tax)} muted />
             <div className="btk-divider" />
             <div className="btk-total"><span>Total</span><strong>{currency(grand)} <small>CAD</small></strong></div>
@@ -339,6 +339,26 @@ function StepLabel({ number, label }) {
 
 function SummaryLine({ label, value, muted }) {
   return <div className={`btk-summary-line ${muted ? 'muted' : ''}`}><span>{label}</span><strong>{value}</strong></div>
+}
+
+function ProcessingFeeLabel() {
+  return (
+    <span className="processing-fee-label">
+      Processing fee
+      <span className="processing-fee-help">
+        <button
+          className="processing-fee-icon"
+          type="button"
+          aria-label="Processing fee details"
+        >
+          !
+        </button>
+        <span className="processing-fee-tooltip" role="tooltip">
+          Includes a $1.80 platform fee per ticket plus a 4% bank/card processing fee.
+        </span>
+      </span>
+    </span>
+  )
 }
 
 function TrustBox() {

@@ -15282,3 +15282,71 @@ body:has(.btk-page) .topbar {
     font-size: 11px !important;
   }
 }
+
+.processing-fee-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.processing-fee-help {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+.processing-fee-icon {
+  display: inline-grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 950;
+  line-height: 1;
+  cursor: help;
+}
+
+.processing-fee-icon:focus-visible {
+  outline: 3px solid rgba(37,99,235,0.24);
+  outline-offset: 2px;
+}
+
+.processing-fee-tooltip {
+  position: absolute;
+  z-index: 80;
+  left: 50%;
+  bottom: calc(100% + 9px);
+  display: none;
+  width: min(270px, 72vw);
+  transform: translateX(-50%);
+  border-radius: 10px;
+  background: #111827;
+  color: #fff;
+  padding: 10px 12px;
+  box-shadow: 0 12px 28px rgba(15,23,42,0.24);
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1.35;
+  text-align: left;
+}
+
+.processing-fee-tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: #111827;
+}
+
+.processing-fee-help:hover .processing-fee-tooltip,
+.processing-fee-help:focus-within .processing-fee-tooltip {
+  display: block;
+}

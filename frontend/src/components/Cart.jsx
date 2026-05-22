@@ -228,6 +228,26 @@ function SummaryRow({ label, value, muted, bold }) {
   )
 }
 
+function ProcessingFeeLabel() {
+  return (
+    <span className="processing-fee-label">
+      Processing fee
+      <span className="processing-fee-help">
+        <button
+          className="processing-fee-icon"
+          type="button"
+          aria-label="Processing fee details"
+        >
+          !
+        </button>
+        <span className="processing-fee-tooltip" role="tooltip">
+          Includes a $1.80 platform fee per ticket plus a 4% bank/card processing fee.
+        </span>
+      </span>
+    </span>
+  )
+}
+
 function Stepper({ step }) {
   const steps = [
     ['review', 'Review', 'Review your cart'],
@@ -797,7 +817,7 @@ export default function Cart({
           ))}
           <SummaryRow label={`Subtotal`} value={fmt(confirmed?.subtotal ?? subtotal)} muted />
           {Boolean(confirmed?.discount ?? discount) && <SummaryRow label={`Coupon${(confirmed?.couponCode || appliedCoupon?.code) ? ` (${confirmed?.couponCode || appliedCoupon?.code})` : ''}`} value={`-${fmt(confirmed?.discount ?? discount)}`} muted />}
-          <SummaryRow label="Processing fee" value={fmt(confirmed?.procFee ?? procFee)} muted />
+          <SummaryRow label={<ProcessingFeeLabel />} value={fmt(confirmed?.procFee ?? procFee)} muted />
           <SummaryRow label="GST (5%)" value={fmt(confirmed?.tax ?? tax)} muted />
           <div className="crt-sum-divider" />
           <SummaryRow label={step === 'confirm' ? 'Total paid' : 'Total due'} value={`${fmt(total)} CAD`} bold />
