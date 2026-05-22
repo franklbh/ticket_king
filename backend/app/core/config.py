@@ -19,6 +19,8 @@ class Settings(BaseSettings):
             "http://localhost:5175",
             "http://127.0.0.1:5175",
             "http://localhost:3000",
+            "https://ticket-king-kappa.vercel.app",
+            "https://ticket-king-deyc.vercel.app",
         ],
     )
     database_url: str | None = None
