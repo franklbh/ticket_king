@@ -15350,3 +15350,153 @@ body:has(.btk-page) .topbar {
 .processing-fee-help:focus-within .processing-fee-tooltip {
   display: block;
 }
+
+/* Mobile experience sections: horizontal card rails */
+@media (max-width: 768px) {
+  .vr-experiences-section {
+    overflow: hidden;
+    padding-top: 54px !important;
+    padding-bottom: 54px !important;
+  }
+
+  .vr-experiences-section .vr-exp-header {
+    margin-bottom: 28px !important;
+    padding: 0 24px !important;
+  }
+
+  .vr-experiences-section .vr-exp-grid {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 24px 10px !important;
+    display: grid !important;
+    grid-auto-flow: column !important;
+    grid-auto-columns: minmax(286px, 88vw) !important;
+    grid-template-columns: none !important;
+    gap: 18px !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scroll-snap-type: x mandatory;
+    scroll-padding-left: 24px;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+
+  .vr-experiences-section .vr-exp-grid::-webkit-scrollbar {
+    display: none;
+  }
+
+  .vr-experiences-section .vr-exp-grid {
+    scrollbar-width: none;
+  }
+
+  .vr-experiences-section .vr-exp-card {
+    width: 100% !important;
+    min-width: 0 !important;
+    scroll-snap-align: start;
+  }
+}
+
+@media (max-width: 390px) {
+  .vr-experiences-section .vr-exp-header {
+    padding: 0 20px !important;
+  }
+
+  .vr-experiences-section .vr-exp-grid {
+    grid-auto-columns: minmax(274px, 88vw) !important;
+    padding-left: 20px !important;
+    padding-right: 20px !important;
+    scroll-padding-left: 20px;
+  }
+}
+
+/* Mobile product detail: horizontal similar-experience rail */
+@media (max-width: 768px) {
+  .exp2-section .exp2-similar-grid {
+    width: calc(100% + 40px) !important;
+    margin-left: -20px !important;
+    padding: 0 20px 10px !important;
+    display: grid !important;
+    grid-auto-flow: column !important;
+    grid-auto-columns: minmax(286px, 88vw) !important;
+    grid-template-columns: none !important;
+    gap: 16px !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scroll-snap-type: x mandatory;
+    scroll-padding-left: 20px;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+
+  .exp2-section .exp2-similar-grid::-webkit-scrollbar {
+    display: none;
+  }
+
+  .exp2-section .exp2-mini-card {
+    width: 100% !important;
+    min-width: 0 !important;
+    scroll-snap-align: start;
+  }
+}
+
+@media (max-width: 390px) {
+  .exp2-section .exp2-similar-grid {
+    grid-auto-columns: minmax(274px, 88vw) !important;
+  }
+}
+
+/* Mobile booking page: horizontal add-more-experiences rail */
+@media (max-width: 768px) {
+  .btk-more-experiences {
+    overflow: hidden !important;
+  }
+
+  .btk-more-experiences .btk-exp-row {
+    width: calc(100% + 24px) !important;
+    margin-left: -12px !important;
+    padding: 0 12px 8px !important;
+    display: grid !important;
+    grid-auto-flow: column !important;
+    grid-auto-columns: minmax(258px, 82vw) !important;
+    grid-template-columns: none !important;
+    gap: 12px !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scroll-snap-type: x mandatory;
+    scroll-padding-left: 12px;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+
+  .btk-more-experiences .btk-exp-row::-webkit-scrollbar {
+    display: none;
+  }
+
+  .btk-more-experiences .btk-exp-card {
+    width: 100% !important;
+    min-width: 0 !important;
+    scroll-snap-align: start;
+  }
+
+  .btk-more-experiences .btk-exp-img {
+    height: 128px !important;
+  }
+
+  .btk-more-experiences .btk-exp-body div {
+    grid-template-columns: 1fr !important;
+  }
+
+  .btk-more-experiences .btk-exp-body button {
+    width: 100% !important;
+    min-height: 42px !important;
+  }
+}
+
+@media (max-width: 390px) {
+  .btk-more-experiences .btk-exp-row {
+    grid-auto-columns: minmax(248px, 82vw) !important;
+  }
+}

@@ -97,11 +97,11 @@ function BookingWidget({ experience, cartItems, onAddToCart }) {
   const prices = experience.offPeakPrices || {}
   const TICKET_TYPES = useMemo(() => [
     { id: 'adult',  label: 'Adult',  desc: 'Ages 18+', price: prices.adult ?? 37.95 },
-    { id: 'child',  label: 'Child',  desc: `Ages ${experience.minAge}–17`, price: prices.child ?? 27.95 },
+    { id: 'child',  label: 'Child',  desc: 'Ages 7–15', price: prices.child ?? 27.95 },
     { id: 'senior', label: 'Senior', desc: '65+ years', price: prices.senior ?? 34.95 },
     { id: 'group',  label: 'Group',  desc: '6+ guests', price: prices.group ?? 32.95, minQty: 6, notice: 'min. 6 people required.' },
     { id: 'family', label: 'Family', desc: '3+ family bundle', price: prices.family ?? 31.95, minQty: 3, notice: 'Ticket for min. 3 people, max. 2 adults.' },
-  ], [experience.minAge, prices.adult, prices.child, prices.family, prices.group, prices.senior])
+  ], [prices.adult, prices.child, prices.family, prices.group, prices.senior])
 
   today.setHours(0, 0, 0, 0)
   const monthOptions = Array.from({ length: 6 }, (_, i) => new Date(today.getFullYear(), today.getMonth() + i, 1))
