@@ -147,19 +147,26 @@ function fallbackTickets(order) {
   }))
 }
 
+function expandedTicketItems(order) {
+  return (order.items || []).flatMap((item) => Array.from({ length: item.quantity }, () => item))
+}
+
 function normalizeBackendTickets(tickets, order) {
+  const expandedItems = expandedTicketItems(order)
   return (tickets || []).map((ticket, index) => {
     const code = String(ticket.verification_code || ticket.code || ticket.qrCode || ticket.qr_payload || `${Date.now()}${index}`).replace(/\D/g, '')
-    const item = order.items.find((entry) => entry.ticket_type_label === ticket.ticket_type) || order.items[0] || {}
+    const item = expandedItems[index] || order.items.find((entry) => entry.ticket_type_label === ticket.ticket_type) || order.items[0] || {}
+    const slotStart = ticket.slot_start || ticket.slotStart || ''
+    const slotEnd = ticket.slot_end || ticket.slotEnd || ''
     return {
       id: String(ticket.id || ticket.ticket_id || `${order.orderNumber}-ticket-${index + 1}`),
       code,
       qrCode: ticket.qr_payload || ticket.qrCode || `ticket:${code}`,
       ticketNumber: ticket.ticket_number || ticket.ticketNumber || `T-${code}`,
       ticketType: ticket.ticket_type || ticket.ticketType || item.ticket_type_label || 'Ticket',
-      showTitle: ticket.event_name || item.show_title || 'WE ARE VR',
-      slotDate: ticket.slot_date || item.session_date || '',
-      slotTime: ticket.slot_time || item.session_time || '',
+      showTitle: ticket.event_name || ticket.eventName || ticket.show_title || ticket.showTitle || item.show_title || 'WE ARE VR',
+      slotDate: ticket.slot_date || ticket.slotDate || item.session_date || '',
+      slotTime: ticket.slot_time || ticket.slotTime || (slotStart && slotEnd ? `${slotStart}-${slotEnd}` : slotStart) || item.session_time || '',
     }
   })
 }
@@ -367,6 +374,7 @@ export default function Cart({
 }) {
   const [step, setStep] = useState('review')
   const [contact, setContact] = useState({ first: '', last: '', email: '', phone: '', request: '', optIn: true })
+  const [checkoutMode, setCheckoutMode] = useState(authMode === 'signup' ? 'signup' : 'login')
   const [touched, setTouched] = useState({})
   const [couponCode, setCouponCode] = useState('')
   const [couponMessage, setCouponMessage] = useState('')
@@ -397,7 +405,7 @@ export default function Cart({
   const contactReady = contact.first.trim().length > 1
     && contact.last.trim().length > 1
     && validEmail(contact.email)
-    && validPhone(contact.phone)
+    && (!contact.phone.trim() || validPhone(contact.phone))
 
   const orderItems = useMemo(() => items.map((item) => ({
     eventId: Number(item.event_id),
@@ -762,7 +770,8 @@ export default function Cart({
   }
 
   const switchAuthMode = (mode) => {
-    setAuthMode(mode)
+    setCheckoutMode(mode)
+    if (mode !== 'guest') setAuthMode(mode)
     resetAuthForm()
   }
 
@@ -885,27 +894,35 @@ export default function Cart({
                 {!currentUser && (
                   <div className="crt-account-box">
                     <div className="crt-tabs">
-                      <button className={authMode !== 'signup' ? 'active' : ''} onClick={() => switchAuthMode('login')} type="button">Log in</button>
-                      <button className={authMode === 'signup' ? 'active' : ''} onClick={() => switchAuthMode('signup')} type="button">Create account</button>
+                      <button className={checkoutMode === 'login' ? 'active' : ''} onClick={() => switchAuthMode('login')} type="button">Log in</button>
+                      <button className={checkoutMode === 'signup' ? 'active' : ''} onClick={() => switchAuthMode('signup')} type="button">Create account</button>
+                      <button className={checkoutMode === 'guest' ? 'active' : ''} onClick={() => switchAuthMode('guest')} type="button">Continue as guest</button>
                     </div>
-                    <form className="crt-login-form" onSubmit={authMode === 'signup' ? handleSignup : handleLogin}>
-                      {authMode === 'signup' && <label>Full name<input value={authForm.name} onChange={(e) => setAuthForm({ ...authForm, name: e.target.value })} autoComplete="name" /></label>}
-                      <label>Email<input type="email" value={authForm.email} onChange={(e) => setAuthForm({ ...authForm, email: e.target.value })} autoComplete="email" /></label>
-                      <label>Password<input type="password" value={authForm.password} onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })} autoComplete={authMode === 'signup' ? 'new-password' : 'current-password'} /></label>
-                      {authMessage && <div className="crt-warning">{authMessage}</div>}
-                      <button className="crt-outline" disabled={!authReady} type="submit">{authMode === 'signup' ? 'Create account' : 'Log in'}</button>
-                    </form>
+                    {checkoutMode === 'guest' ? (
+                      <div className="crt-guest-note">
+                        <strong>Continue as guest</strong>
+                        <span>No account needed. Enter your contact details below to receive your booking confirmation and e-tickets.</span>
+                      </div>
+                    ) : (
+                      <form className="crt-login-form" onSubmit={checkoutMode === 'signup' ? handleSignup : handleLogin}>
+                        {checkoutMode === 'signup' && <label>Full name<input value={authForm.name} onChange={(e) => setAuthForm({ ...authForm, name: e.target.value })} autoComplete="name" /></label>}
+                        <label>Email<input type="email" value={authForm.email} onChange={(e) => setAuthForm({ ...authForm, email: e.target.value })} autoComplete="email" /></label>
+                        <label>Password<input type="password" value={authForm.password} onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })} autoComplete={checkoutMode === 'signup' ? 'new-password' : 'current-password'} /></label>
+                        {authMessage && <div className="crt-warning">{authMessage}</div>}
+                        <button className="crt-outline" disabled={!authReady} type="submit">{checkoutMode === 'signup' ? 'Create account' : 'Log in'}</button>
+                      </form>
+                    )}
                   </div>
                 )}
-                <div className="crt-form-panel crt-contact-panel">
+                <div className={`crt-form-panel crt-contact-panel ${checkoutMode === 'guest' && !currentUser ? 'guest' : ''}`}>
                   <h3>Contact details</h3>
-                  <p>We'll use this information for your booking confirmation and e-tickets.</p>
+                  <p>{checkoutMode === 'guest' && !currentUser ? 'For guest checkout, enter only the details needed for your confirmation and e-tickets.' : "We'll use this information for your booking confirmation and e-tickets."}</p>
                   <div className="crt-form-grid">
                     <label className={touched.first && contact.first.trim().length <= 1 ? 'crt-field-error' : ''}>First name<input value={contact.first} onBlur={() => setTouched((p) => ({ ...p, first: true }))} onChange={(e) => setContact((p) => ({ ...p, first: e.target.value }))} /></label>
                     <label className={touched.last && contact.last.trim().length <= 1 ? 'crt-field-error' : ''}>Last name<input value={contact.last} onBlur={() => setTouched((p) => ({ ...p, last: true }))} onChange={(e) => setContact((p) => ({ ...p, last: e.target.value }))} /></label>
                     <label className={touched.email && !validEmail(contact.email) ? 'crt-field-error' : ''}>Email<input type="email" value={contact.email} onBlur={() => setTouched((p) => ({ ...p, email: true }))} onChange={(e) => setContact((p) => ({ ...p, email: e.target.value }))} /></label>
-                    <label className={touched.phone && !validPhone(contact.phone) ? 'crt-field-error' : ''}>Phone<input type="tel" value={contact.phone} onBlur={() => setTouched((p) => ({ ...p, phone: true }))} onChange={(e) => setContact((p) => ({ ...p, phone: e.target.value }))} /></label>
-                    <label className="crt-field-wide"><span>Special requests (optional)</span><textarea value={contact.request} onChange={(e) => setContact((p) => ({ ...p, request: e.target.value }))} placeholder="Tell us anything we should know..." /></label>
+                    <label className={touched.phone && contact.phone.trim() && !validPhone(contact.phone) ? 'crt-field-error' : ''}>Phone (optional)<input type="tel" value={contact.phone} onBlur={() => setTouched((p) => ({ ...p, phone: true }))} onChange={(e) => setContact((p) => ({ ...p, phone: e.target.value }))} /></label>
+                    {checkoutMode !== 'guest' && <label className="crt-field-wide"><span>Special requests (optional)</span><textarea value={contact.request} onChange={(e) => setContact((p) => ({ ...p, request: e.target.value }))} placeholder="Tell us anything we should know..." /></label>}
                   </div>
                   <div className="crt-contact-actions"><button className="crt-text-btn" onClick={() => setStep('review')} type="button">← Back to cart</button><button className="crt-primary" onClick={continueToPayment} disabled={!contactReady || reservationLoading} type="button">{reservationLoading ? 'Reserving seats...' : 'Continue to Payment →'}</button></div>
                 </div>
