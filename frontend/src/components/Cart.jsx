@@ -415,6 +415,7 @@ export default function Cart({
   const [paymentSubmitting, setPaymentSubmitting] = useState(false)
   const releasedReservationRef = useRef(null)
   const reservationCreatingRef = useRef(null)
+  const ticketRailRef = useRef(null)
 
   const subtotal = items.reduce((s, i) => s + i.unit_price * i.quantity, 0)
   const numTickets = items.reduce((s, i) => s + i.quantity, 0)
@@ -795,6 +796,14 @@ export default function Cart({
     resetAuthForm()
   }
 
+  const scrollTicketRail = (direction) => {
+    const rail = ticketRailRef.current
+    if (!rail) return
+    const card = rail.querySelector('.crt-ticket-card')
+    const stepSize = card ? card.getBoundingClientRect().width + 14 : rail.clientWidth * 0.86
+    rail.scrollBy({ left: direction * stepSize, behavior: 'smooth' })
+  }
+
   const renderSummary = () => {
     const summaryItems = confirmed?.items || items
     const total = confirmed?.grand ?? grand
@@ -1016,20 +1025,24 @@ export default function Cart({
                     <div><strong>Your tickets are ready</strong><span>Each ticket has its own QR code. Show the matching code at check-in.</span></div>
                     <button className="crt-primary" onClick={downloadReceipt} type="button">Download receipt</button>
                   </div>
-                  <div className="crt-ticket-grid">
-                    {confirmed.tickets.map((ticket, index) => (
-                      <article className="crt-ticket-card" key={ticket.id || `${ticket.code}-${index}`}>
-                        <img src={ticketQrDataUri(ticket.code)} alt={`QR code for ticket ${ticket.ticketNumber}`} />
-                        <div>
-                          <strong>Ticket {index + 1}</strong>
-                          <span className="crt-ticket-number">{ticket.ticketNumber}</span>
-                          <span>{ticket.showTitle}</span>
-                          <small>{ticket.slotDate} {ticket.slotTime}</small>
-                          <small>{ticket.ticketType}</small>
-                          <code>{ticket.code}</code>
-                        </div>
-                      </article>
-                    ))}
+                  <div className="crt-ticket-rail-wrap">
+                    <button className="crt-ticket-arrow prev" onClick={() => scrollTicketRail(-1)} type="button" aria-label="Previous ticket">‹</button>
+                    <div className="crt-ticket-grid" ref={ticketRailRef}>
+                      {confirmed.tickets.map((ticket, index) => (
+                        <article className="crt-ticket-card" key={ticket.id || `${ticket.code}-${index}`}>
+                          <img src={ticketQrDataUri(ticket.code)} alt={`QR code for ticket ${ticket.ticketNumber}`} />
+                          <div>
+                            <strong>Ticket {index + 1}</strong>
+                            <span className="crt-ticket-number">{ticket.ticketNumber}</span>
+                            <span>{ticket.showTitle}</span>
+                            <small>{ticket.slotDate} {ticket.slotTime}</small>
+                            <small>{ticket.ticketType}</small>
+                            <code>{ticket.code}</code>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                    <button className="crt-ticket-arrow next" onClick={() => scrollTicketRail(1)} type="button" aria-label="Next ticket">›</button>
                   </div>
                 </div>
               </main>

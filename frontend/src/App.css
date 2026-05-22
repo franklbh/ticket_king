@@ -15500,3 +15500,91 @@ body:has(.btk-page) .topbar {
     grid-auto-columns: minmax(248px, 82vw) !important;
   }
 }
+
+/* Mobile cart confirmation: swipeable ticket QR rail */
+.crt-ticket-rail-wrap {
+  position: relative;
+}
+
+.crt-ticket-arrow {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  .crt-issued-tickets {
+    overflow: hidden !important;
+  }
+
+  .crt-issued-head {
+    display: grid !important;
+    gap: 16px !important;
+  }
+
+  .crt-issued-head .crt-primary {
+    width: 100% !important;
+  }
+
+  .crt-ticket-rail-wrap {
+    margin: 0 -18px;
+    padding: 0 18px;
+  }
+
+  .crt-ticket-grid {
+    display: grid !important;
+    grid-auto-flow: column !important;
+    grid-auto-columns: minmax(274px, 86vw) !important;
+    grid-template-columns: none !important;
+    gap: 14px !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scroll-snap-type: x mandatory;
+    scroll-padding-left: 18px;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    padding: 0 0 8px;
+  }
+
+  .crt-ticket-grid::-webkit-scrollbar {
+    display: none;
+  }
+
+  .crt-ticket-card {
+    width: 100% !important;
+    min-width: 0 !important;
+    scroll-snap-align: start;
+  }
+
+  .crt-ticket-arrow {
+    position: absolute;
+    z-index: 2;
+    top: 50%;
+    display: grid;
+    width: 42px;
+    height: 42px;
+    place-items: center;
+    transform: translateY(-50%);
+    border: 1px solid rgba(226,232,240,0.92);
+    border-radius: 999px;
+    background: rgba(255,255,255,0.94);
+    color: #111827;
+    box-shadow: 0 12px 30px rgba(15,23,42,0.14);
+    font-size: 34px;
+    font-weight: 500;
+    line-height: 1;
+  }
+
+  .crt-ticket-arrow.prev {
+    left: 8px;
+  }
+
+  .crt-ticket-arrow.next {
+    right: 8px;
+  }
+}
+
+@media (max-width: 390px) {
+  .crt-ticket-grid {
+    grid-auto-columns: minmax(260px, 85vw) !important;
+  }
+}
