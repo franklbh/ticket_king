@@ -41,6 +41,7 @@ class PublicCatalogService:
                 return []
 
             booked_items, booked_orders, booked_slots = self._booked_items_for_date_sync(db, target_date)
+            showpass_counts = self._showpass_counts_for_date_sync(db, target_date)
 
         booked_items = [
             item for item in booked_items
@@ -60,6 +61,7 @@ class PublicCatalogService:
                 events=catalog["events"],
                 slots=booked_slots,
             )
+            availability = max(availability - showpass_counts.get(str(slot["id"]), 0), 0)
             if availability <= 0:
                 continue
             capacity = self._effective_capacity(slot, event_requirements, catalog["resources"])
@@ -234,6 +236,23 @@ class PublicCatalogService:
             orders[str(row["order_id"])] = order
             slots[str(row["slot_id"])] = slot
         return booked_items, orders, slots
+
+    def _showpass_counts_for_date_sync(self, db: Any, target_date: date) -> dict[str, int]:
+        """Returns {slot_id: active_showpass_quantity} for all slots on target_date."""
+        rows = db.execute(
+            text(
+                """
+                SELECT st.our_slot_id, SUM(st.quantity) AS total
+                FROM public.showpass_tickets st
+                JOIN public.slots s ON s.id = st.our_slot_id
+                WHERE s.business_date = :target_date
+                  AND st.status = 'active'
+                GROUP BY st.our_slot_id
+                """
+            ),
+            {"target_date": target_date},
+        ).mappings().all()
+        return {str(row["our_slot_id"]): int(row["total"]) for row in rows}
 
     def _slot_availability(
         self,
