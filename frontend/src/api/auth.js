@@ -1,5 +1,8 @@
 import { requireSupabaseClient } from './supabase'
 
+const authRedirectBaseUrl = (import.meta.env.VITE_BASE_URL || window.location.origin)
+  .replace(/\/$/, '')
+
 export function getDisplayName(user) {
   if (!user) return ''
   return user.user_metadata?.name || user.email?.split('@')[0] || 'there'
@@ -20,7 +23,7 @@ export async function signUpWithEmail({ email, name, password }) {
     password,
     options: {
       data: { name },
-      emailRedirectTo: `${window.location.origin}/auth/callback`,
+      emailRedirectTo: `${authRedirectBaseUrl}/auth/callback`,
     },
   })
 
@@ -46,7 +49,7 @@ export async function signOut() {
 export async function sendPasswordReset(email) {
   const client = requireSupabaseClient()
   const { data, error } = await client.auth.resetPasswordForEmail(email, {
-    redirectTo: `${window.location.origin}/reset-password`,
+    redirectTo: `${authRedirectBaseUrl}/reset-password`,
   })
 
   if (error) throw error
