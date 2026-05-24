@@ -15588,3 +15588,57 @@ body:has(.btk-page) .topbar {
     grid-auto-columns: minmax(260px, 85vw) !important;
   }
 }
+
+/* Booking page product carousel arrows */
+.btk-product {
+  position: relative;
+}
+
+.btk-product-arrow {
+  position: absolute;
+  z-index: 3;
+  top: 50%;
+  display: grid;
+  width: 46px;
+  height: 46px;
+  place-items: center;
+  transform: translateY(-50%);
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.96);
+  color: #111827;
+  box-shadow: 0 14px 34px rgba(15,23,42,0.16);
+  font-size: 38px;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.btk-product-arrow.prev {
+  left: 12px;
+}
+
+.btk-product-arrow.next {
+  right: 12px;
+}
+
+.btk-product-arrow:hover {
+  border-color: #a78bfa;
+  color: #5b21d6;
+}
+
+@media (max-width: 768px) {
+  .btk-product-arrow {
+    width: 42px;
+    height: 42px;
+    font-size: 34px;
+  }
+
+  .btk-product-arrow.prev {
+    left: 8px;
+  }
+
+  .btk-product-arrow.next {
+    right: 8px;
+  }
+}

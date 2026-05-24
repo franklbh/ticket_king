@@ -146,6 +146,14 @@ function BookingPage({
     setTicketLines((lines) => lines.length > 1 ? lines.filter((line) => line.key !== key) : lines)
   }
 
+  const switchExperienceByStep = (direction) => {
+    if (!bookingExperiences.length || !bookingExperience?.id) return
+    const currentIndex = bookingExperiences.findIndex((item) => item.id === bookingExperience.id)
+    const startIndex = currentIndex >= 0 ? currentIndex : 0
+    const nextIndex = (startIndex + direction + bookingExperiences.length) % bookingExperiences.length
+    chooseRelatedExperience(bookingExperiences[nextIndex].id)
+  }
+
   const chooseRelatedExperience = (experienceId) => {
     lastAutoCartSelectionRef.current = null
     onBookingExperienceChange?.(experienceId)
@@ -170,6 +178,9 @@ function BookingPage({
             <button className="btk-back" onClick={onClose} type="button">← Back to experiences</button>
 
             <section className="btk-product">
+              {bookingExperiences.length > 1 && (
+                <button className="btk-product-arrow prev" onClick={() => switchExperienceByStep(-1)} type="button" aria-label="Previous experience">‹</button>
+              )}
               <div className="btk-product-image" style={selectedImage ? { backgroundImage: `url(${selectedImage})` } : { background: bookingExperience?.cardGradient }}>
                 <span>{bookingExperience?.category === 'arcade' ? 'VR Game' : 'VR Show'}</span>
               </div>
@@ -178,6 +189,9 @@ function BookingPage({
                 <p>{bookingExperience?.subtitle || bookingExperience?.description || 'Step into an immersive VR journey brought to life.'}</p>
                 <div className="btk-meta"><span>◷ Duration: {bookingExperience?.duration} min</span><span>♙ Ages: {bookingExperience?.minAge}+</span></div>
               </div>
+              {bookingExperiences.length > 1 && (
+                <button className="btk-product-arrow next" onClick={() => switchExperienceByStep(1)} type="button" aria-label="Next experience">›</button>
+              )}
             </section>
 
             <section className="btk-picker">
