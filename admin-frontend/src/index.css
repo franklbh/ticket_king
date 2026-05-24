@@ -721,6 +721,45 @@ body {
     flex: 1;
   }
 
+  .create-order-step-head {
+    align-items: stretch !important;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .create-order-date-picker-wrap,
+  .create-order-date-trigger.MuiButton-root {
+    width: 100%;
+  }
+
+  .create-order-date-trigger.MuiButton-root {
+    min-height: 44px;
+    justify-content: center;
+  }
+
+  .create-order-date-popover {
+    left: 50%;
+    right: auto;
+    width: min(340px, calc(100vw - 32px));
+    transform: translateX(-50%);
+  }
+
+  .create-order-current-date {
+    align-items: flex-start !important;
+    flex-wrap: wrap;
+    padding: 12px !important;
+    line-height: 1.35;
+  }
+
+  .create-order-current-date span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .create-order-theme-grid {
+    grid-template-columns: 1fr !important;
+  }
+
   .date-range-filter-fields .MuiInputBase-root {
     font-size: 13px;
   }
@@ -1323,6 +1362,146 @@ table tr:hover {
   box-shadow: 0 0 0 2px rgba(99,102,241,0.15);
 }
 
+.create-order-date-picker-wrap {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+.create-order-date-trigger.MuiButton-root {
+  white-space: nowrap;
+}
+
+.create-order-date-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 50;
+  width: min(320px, calc(100vw - 32px));
+  padding: 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 20px 55px rgba(15, 23, 42, 0.18);
+}
+
+.create-order-date-popover-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.create-order-date-popover-head strong {
+  color: #111827;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.create-order-date-popover-head div {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.create-order-date-popover-head button,
+.create-order-date-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: #2563eb;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.create-order-date-popover-head button {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  color: #111827;
+}
+
+.create-order-date-popover-head button:hover,
+.create-order-date-actions button:hover,
+.create-order-date-grid button:hover {
+  background: #eef2ff;
+}
+
+.create-order-date-weekdays,
+.create-order-date-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.create-order-date-weekdays {
+  margin-bottom: 6px;
+}
+
+.create-order-date-weekdays span {
+  text-align: center;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.create-order-date-grid span {
+  height: 34px;
+}
+
+.create-order-date-grid button {
+  min-width: 0;
+  height: 34px;
+  border: 0;
+  border-radius: 8px;
+  background: #fff;
+  color: #111827;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.create-order-date-grid button.selected {
+  background: #2563eb;
+  color: #fff;
+}
+
+.create-order-date-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+
+.create-order-date-actions button {
+  min-height: 34px;
+  padding: 0 10px;
+  border-radius: 8px;
+}
+
+.create-order-payment-grid {
+  min-width: 0;
+}
+
+.create-order-payment-button.MuiButton-root {
+  min-width: 0;
+  text-transform: none;
+}
+
+.create-order-summary-grid {
+  min-width: 0;
+}
+
+.create-order-summary-grid > * {
+  min-width: 0;
+}
+
+.create-order-footer-actions {
+  gap: 12px;
+}
+
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -1368,3 +1547,87 @@ table tr:hover {
 .page-btn:hover { background: #f9fafb; }
 .page-btn.active { background: #6366f1; color: #fff; border-color: #6366f1; }
 .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+@media (max-width: 760px) {
+  .create-order-step-head {
+    align-items: stretch !important;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .create-order-date-picker-wrap,
+  .create-order-date-trigger.MuiButton-root {
+    width: 100%;
+  }
+
+  .create-order-date-trigger.MuiButton-root {
+    min-height: 44px;
+    justify-content: center;
+  }
+
+  .create-order-date-popover {
+    left: 50%;
+    right: auto;
+    width: min(340px, calc(100vw - 32px));
+    transform: translateX(-50%);
+  }
+
+  .create-order-current-date {
+    align-items: flex-start !important;
+    flex-wrap: wrap;
+    padding: 12px !important;
+    line-height: 1.35;
+  }
+
+  .create-order-current-date span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .create-order-theme-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .create-order-payment-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+  }
+
+  .create-order-payment-button.MuiButton-root {
+    min-height: 74px !important;
+    padding: 10px 8px !important;
+    font-size: 12px !important;
+    line-height: 1.15;
+  }
+
+  .create-order-payment-button i {
+    font-size: 20px !important;
+  }
+
+  .create-order-summary-grid {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+
+  .create-order-footer-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .create-order-footer-actions .MuiButton-root {
+    width: 100%;
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 380px) {
+  .create-order-payment-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .create-order-payment-button.MuiButton-root {
+    min-height: 58px !important;
+    flex-direction: row !important;
+    gap: 10px !important;
+  }
+}

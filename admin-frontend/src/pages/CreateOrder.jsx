@@ -12,6 +12,7 @@ import { useEventsQuery, useSlotsQuery, useTicketTypesQuery } from '../hooks/cat
 import LoadingIndicator from '../components/LoadingIndicator'
 import { AdminAlert, AdminCard, PageHeader } from '../components/AdminUI'
 import { dedupeBy } from '../utils/collections'
+import { todayIso } from '../utils/date'
 
 const PAYMENT_METHODS = [
   { id: 'Cash', label: 'Cash', icon: 'fa-money-bill-wave' },
@@ -21,6 +22,26 @@ const PAYMENT_METHODS = [
   { id: 'Other', label: 'Other', icon: 'fa-ellipsis-h' },
 ]
 const GST_RATE = 0.05
+
+function dateKeyFromDate(date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function monthStartFromDateKey(dateKey) {
+  const date = new Date(`${dateKey}T12:00:00`)
+  return new Date(date.getFullYear(), date.getMonth(), 1)
+}
+
+function shiftMonth(date, delta) {
+  return new Date(date.getFullYear(), date.getMonth() + delta, 1)
+}
+
+function monthTitle(date) {
+  return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+}
 
 function money(value) {
   return Math.round((Number(value) || 0) * 100) / 100
@@ -52,8 +73,9 @@ export default function CreateOrder() {
   const { lang } = useLang()
   const t = useT(lang)
   const [step, setStep] = useState(1)
-  const [selectedDate, setSelectedDate] = useState('')
-  const [showDatePicker, setShowDatePicker] = useState(false)
+  const [selectedDate, setSelectedDate] = useState(() => todayIso())
+  const [datePickerOpen, setDatePickerOpen] = useState(false)
+  const [datePickerMonth, setDatePickerMonth] = useState(() => monthStartFromDateKey(todayIso()))
   const [selectedTheme, setSelectedTheme] = useState('')
   const [selectedSlot, setSelectedSlot] = useState(null)
   const [ticketSelections, setTicketSelections] = useState({})
@@ -128,6 +150,38 @@ export default function CreateOrder() {
     setPriceOverride(null)
     setAppliedCoupon(null)
     setCouponMessage('')
+  }
+
+  function handleDateChange(value) {
+    if (!value) return
+    setSelectedDate(value)
+    setDatePickerMonth(monthStartFromDateKey(value))
+    setSelectedTheme('')
+    setSelectedSlot(null)
+    setTicketSelections({})
+    clearCheckoutAdjustments()
+  }
+
+  function openDatePicker() {
+    setDatePickerMonth(monthStartFromDateKey(selectedDate || todayIso()))
+    setDatePickerOpen(open => !open)
+  }
+
+  const datePickerCells = (() => {
+    const leadingBlanks = datePickerMonth.getDay()
+    const daysInMonth = new Date(datePickerMonth.getFullYear(), datePickerMonth.getMonth() + 1, 0).getDate()
+    return [
+      ...Array.from({ length: leadingBlanks }, (_, idx) => ({ key: `blank-${idx}`, blank: true })),
+      ...Array.from({ length: daysInMonth }, (_, idx) => {
+        const date = new Date(datePickerMonth.getFullYear(), datePickerMonth.getMonth(), idx + 1)
+        return { key: dateKeyFromDate(date), day: idx + 1 }
+      }),
+    ]
+  })()
+
+  function selectPickerDate(value) {
+    handleDateChange(value)
+    setDatePickerOpen(false)
   }
 
   const totalTickets = Object.values(ticketSelections).reduce((s, v) => s + v, 0)
@@ -290,37 +344,79 @@ export default function CreateOrder() {
       {/* Step 1: Select Time Slot */}
       {step === 1 && (
         <AdminCard>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div className="create-order-step-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <h2 style={{ fontSize: 16, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, color: '#6366f1' }}>
               <i className="fa fa-clock" />
               {t.step1}
             </h2>
-            <Button
-              variant="outlined"
-              size="small"
-              onClick={() => setShowDatePicker(d => !d)}
-              startIcon={<i className="fa fa-calendar" />}
-            >
-              {t.selectOtherDate}
-            </Button>
+            <span className="create-order-date-picker-wrap">
+              <Button
+                className="create-order-date-trigger"
+                variant="outlined"
+                size="small"
+                onClick={openDatePicker}
+                startIcon={<i className="fa fa-calendar" />}
+                aria-expanded={datePickerOpen}
+                type="button"
+              >
+                {t.selectOtherDate}
+              </Button>
+              {datePickerOpen && (
+                <div className="create-order-date-popover" role="dialog" aria-label={t.selectOtherDate}>
+                  <div className="create-order-date-popover-head">
+                    <strong>{monthTitle(datePickerMonth)}</strong>
+                    <div>
+                      <button
+                        type="button"
+                        onClick={() => setDatePickerMonth(month => shiftMonth(month, -1))}
+                        aria-label="Previous month"
+                      >
+                        <i className="fa fa-chevron-left" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDatePickerMonth(month => shiftMonth(month, 1))}
+                        aria-label="Next month"
+                      >
+                        <i className="fa fa-chevron-right" />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="create-order-date-weekdays" aria-hidden="true">
+                    {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => (
+                      <span key={`${day}-${index}`}>{day}</span>
+                    ))}
+                  </div>
+                  <div className="create-order-date-grid">
+                    {datePickerCells.map(cell => cell.blank ? (
+                      <span key={cell.key} />
+                    ) : (
+                      <button
+                        key={cell.key}
+                        type="button"
+                        className={cell.key === selectedDate ? 'selected' : ''}
+                        onClick={() => selectPickerDate(cell.key)}
+                      >
+                        {cell.day}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="create-order-date-actions">
+                    <button type="button" onClick={() => setDatePickerOpen(false)}>
+                      Close
+                    </button>
+                  </div>
+                </div>
+              )}
+            </span>
           </div>
 
-          <div style={{ background: '#dbeafe', borderLeft: '4px solid #3b82f6', padding: '10px 14px', borderRadius: 4, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 6, fontSize: 14 }}>
+          <div className="create-order-current-date" style={{ background: '#dbeafe', borderLeft: '4px solid #3b82f6', padding: '10px 14px', borderRadius: 4, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 6, fontSize: 14 }}>
             <i className="fa fa-calendar-day" style={{ color: '#3b82f6' }} />
             <strong>{t.currentDate}:</strong>
-              {showDatePicker || !selectedDate ? (
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={e => { setSelectedDate(e.target.value); setShowDatePicker(false); setSelectedTheme(''); setSelectedSlot(null); setTicketSelections({}); clearCheckoutAdjustments() }}
-                style={{ border: 'none', background: 'transparent', fontWeight: 600, color: '#6366f1', cursor: 'pointer' }}
-                autoFocus
-              />
-            ) : (
-              <span style={{ fontWeight: 600, color: '#6366f1' }}>
-                {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-CA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-              </span>
-            )}
+            <span style={{ fontWeight: 600, color: '#6366f1' }}>
+              {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-CA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+            </span>
           </div>
 
           {availableSlots.length === 0 ? (
@@ -334,7 +430,7 @@ export default function CreateOrder() {
                 <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 8 }}>
                   Select theme first
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10 }}>
+                <div className="create-order-theme-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10 }}>
                   {themeOptions.map(event => {
                     const isSelected = String(selectedTheme) === String(event.id)
                     const count = availableSlots.filter(slot => String(slot.event) === String(event.id)).length
@@ -529,9 +625,10 @@ export default function CreateOrder() {
             <i className="fa fa-credit-card" style={{ color: '#6366f1' }} /> Step 4: Payment Method & Summary
           </h2>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(120px, 1fr))', gap: 10, marginBottom: 18 }}>
+          <div className="create-order-payment-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(120px, 1fr))', gap: 10, marginBottom: 18 }}>
             {PAYMENT_METHODS.map(pm => (
               <Button
+                className="create-order-payment-button"
                 key={pm.id}
                 onClick={() => setPayment(pm.id)}
                 variant={payment === pm.id ? 'contained' : 'outlined'}
@@ -559,7 +656,7 @@ export default function CreateOrder() {
           </div>
 
           <div style={{ background: '#f9fafb', borderRadius: 10, padding: 16, marginBottom: 18, border: '1px solid #eef2f7' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1.25fr 1fr', gap: 18 }}>
+            <div className="create-order-summary-grid" style={{ display: 'grid', gridTemplateColumns: '1.25fr 1fr', gap: 18 }}>
               <div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 10 }}>Order details</div>
                 <div style={{ display: 'grid', gap: 7, fontSize: 13, color: '#4b5563' }}>
@@ -653,7 +750,7 @@ export default function CreateOrder() {
             <strong>If checked,</strong> order status will be marked as <strong>Completed</strong>, and tickets will be <strong>Used</strong>. Ticket email will <strong>NOT</strong> be sent, but if marketing is enabled and email is filled, marketing email will be triggered.
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 20 }}>
+          <div className="create-order-footer-actions" style={{ display: 'flex', justifyContent: 'space-between', marginTop: 20 }}>
             <Button variant="outlined" onClick={() => setStep(3)} startIcon={<i className="fa fa-arrow-left" />}>{t.back}</Button>
             <Button variant="contained" onClick={handleConfirm} disabled={!payment || creatingOrder} size="large" startIcon={<i className="fa fa-check-circle" />}>
               Create Order & Complete Payment
