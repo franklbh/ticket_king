@@ -26,6 +26,7 @@ function BookingPage({
   weekdayLabels,
 }) {
   const [ticketLines, setTicketLines] = useState([{ key: 'ticket-1', ticketTypeId: 'adult', quantity: 1 }])
+  const [rawTicketQty, setRawTicketQty] = useState({})
   const [showAllSlots, setShowAllSlots] = useState(false)
   const lastAutoCartSelectionRef = useRef(null)
   const onAddToCartRef = useRef(onAddToCart)
@@ -117,6 +118,11 @@ function BookingPage({
   }, [bookingExperience, canAdd, selectedDate, selectedTime, ticketById, ticketLines, ticketOptions])
 
   const updateTicketType = (key, ticketTypeId) => {
+    setRawTicketQty((values) => {
+      const next = { ...values }
+      delete next[key]
+      return next
+    })
     setTicketLines((lines) => lines.map((line) => (
       line.key === key
         ? { ...line, ticketTypeId, quantity: Math.max(line.quantity, minQtyForType(ticketTypeId)) }
@@ -125,9 +131,38 @@ function BookingPage({
   }
 
   const updateTicketQty = (key, delta) => {
+    setRawTicketQty((values) => {
+      const next = { ...values }
+      delete next[key]
+      return next
+    })
     setTicketLines((lines) => lines.map((line) => {
       if (line.key !== key) return line
       return { ...line, quantity: Math.max(minQtyForType(line.ticketTypeId), line.quantity + delta) }
+    }))
+  }
+
+  const setTicketQty = (line, value) => {
+    const digits = value.replace(/\D/g, '').slice(0, 2)
+    setRawTicketQty((values) => ({ ...values, [line.key]: digits }))
+    if (!digits) return
+    const minQty = minQtyForType(line.ticketTypeId)
+    const quantity = Math.max(minQty, Math.min(99, Number(digits)))
+    setRawTicketQty((values) => ({ ...values, [line.key]: String(quantity) }))
+    setTicketLines((lines) => lines.map((item) => (
+      item.key === line.key ? { ...item, quantity } : item
+    )))
+  }
+
+  const commitTicketQty = (line) => {
+    setRawTicketQty((values) => {
+      const next = { ...values }
+      delete next[line.key]
+      return next
+    })
+    setTicketLines((lines) => lines.map((item) => {
+      if (item.key !== line.key) return item
+      return { ...item, quantity: Math.max(minQtyForType(item.ticketTypeId), item.quantity || 0) }
     }))
   }
 
@@ -143,6 +178,11 @@ function BookingPage({
   }
 
   const removeTicketLine = (key) => {
+    setRawTicketQty((values) => {
+      const next = { ...values }
+      delete next[key]
+      return next
+    })
     setTicketLines((lines) => lines.length > 1 ? lines.filter((line) => line.key !== key) : lines)
   }
 
@@ -159,6 +199,7 @@ function BookingPage({
     onBookingExperienceChange?.(experienceId)
     setSelectedTime(null)
     setTicketLines([{ key: 'ticket-1', ticketTypeId: localizedTicketTypes[0]?.id || 'adult', quantity: 1 }])
+    setRawTicketQty({})
     setShowAllSlots(false)
     requestAnimationFrame(() => {
       bookingRef?.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -264,7 +305,15 @@ function BookingPage({
                       <span>{selectedTicket?.info || `Standard admission for ${selectedTicket?.label || 'ticket'}.`}</span>
                       <div className="btk-qty">
                         <button onClick={() => updateTicketQty(line.key, -1)} disabled={line.quantity <= minQty} type="button">-</button>
-                        <strong>{line.quantity}</strong>
+                        <input
+                          aria-label={`${selectedTicket?.label || 'Ticket'} quantity`}
+                          inputMode="numeric"
+                          min={minQty}
+                          onBlur={() => commitTicketQty(line)}
+                          onChange={(event) => setTicketQty(line, event.target.value)}
+                          type="text"
+                          value={rawTicketQty[line.key] ?? line.quantity}
+                        />
                         <button onClick={() => updateTicketQty(line.key, 1)} type="button">+</button>
                       </div>
                       <strong>{currency(lineSubtotal(line))}</strong>
