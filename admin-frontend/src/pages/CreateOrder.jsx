@@ -8,7 +8,7 @@ import { useLang } from '../context/authHooks'
 import { useT } from '../i18n/translations'
 import { createWalkInOrder, validateCoupon } from '../api/adminApi'
 import { useAdminMutation } from '../hooks/useAdminApi'
-import { useSlotsQuery, useTicketTypesQuery } from '../hooks/catalog'
+import { useEventsQuery, useSlotsQuery, useTicketTypesQuery } from '../hooks/catalog'
 import LoadingIndicator from '../components/LoadingIndicator'
 import { AdminAlert, AdminCard, PageHeader } from '../components/AdminUI'
 import { dedupeBy } from '../utils/collections'
@@ -54,6 +54,7 @@ export default function CreateOrder() {
   const [step, setStep] = useState(1)
   const [selectedDate, setSelectedDate] = useState('')
   const [showDatePicker, setShowDatePicker] = useState(false)
+  const [selectedTheme, setSelectedTheme] = useState('')
   const [selectedSlot, setSelectedSlot] = useState(null)
   const [ticketSelections, setTicketSelections] = useState({})
   const [customer, setCustomer] = useState({ firstName: '', lastName: '', phone: '', email: '', remarks: '' })
@@ -74,15 +75,38 @@ export default function CreateOrder() {
     true,
     { initialData: [] }
   )
+  const { data: events = [], error: eventsError, loading: loadingEvents } = useEventsQuery({ initialData: [] })
   const { mutate: createOrderMutation, loading: creatingOrder } = useAdminMutation(createWalkInOrder, {
     successMessage: 'Order created.',
   })
 
   const availableSlots = selectedDate ? slots.filter(s => s.date === selectedDate && s.status === 'active') : []
-  const enabledTypes = dedupeBy(ticketTypes.filter(tp => tp.status === 'enabled'), tp => tp.name)
+  const themeOptions = events
+    .filter(event => String(event.status || 'active').toLowerCase() === 'active')
+    .filter(event => availableSlots.some(slot => String(slot.event) === String(event.id)))
+  const selectedThemeSlots = selectedTheme
+    ? availableSlots.filter(slot => String(slot.event) === String(selectedTheme))
+    : []
+  const themeNameById = new Map(events.map(event => [String(event.id), event.name]))
+  const matchingTypeRows = selectedTheme
+    ? ticketTypes.filter(tp => String(tp.event) === String(selectedTheme))
+    : ticketTypes
+  const enabledTypes = dedupeBy(
+    (matchingTypeRows.length ? matchingTypeRows : ticketTypes).filter(tp => tp.status === 'enabled'),
+    tp => tp.name
+  )
+
+  function handleThemeSelect(eventId) {
+    if (String(eventId) === String(selectedTheme)) return
+    setSelectedTheme(String(eventId))
+    setSelectedSlot(null)
+    setTicketSelections({})
+    clearCheckoutAdjustments()
+  }
 
   function handleSlotSelect(slot) {
     setSelectedSlot(slot)
+    setSelectedTheme(String(slot.event || selectedTheme))
     setTicketSelections({})
     clearCheckoutAdjustments()
   }
@@ -173,6 +197,7 @@ export default function CreateOrder() {
 
   function resetOrder() {
     setStep(1)
+    setSelectedTheme('')
     setSelectedSlot(null)
     setTicketSelections({})
     setCustomer({ firstName: '', lastName: '', phone: '', email: '', remarks: '' })
@@ -244,7 +269,7 @@ export default function CreateOrder() {
     )
   }
 
-  if ((selectedDate && loadingSlots) || loadingTypes) {
+  if ((selectedDate && loadingSlots) || loadingTypes || loadingEvents) {
     return <LoadingIndicator label="Loading live slots and ticket types..." />
   }
 
@@ -255,9 +280,9 @@ export default function CreateOrder() {
         title={t.createOrderTitle}
         subtitle={t.createOrderSub}
       />
-      {(slotsError || typesError || submitError) && (
+      {(slotsError || typesError || eventsError || submitError) && (
         <AdminAlert tone="warning">
-          {submitError || `Backend catalog data could not be fully loaded: ${(slotsError || typesError)?.message}`}
+          {submitError || `Backend catalog data could not be fully loaded: ${(slotsError || typesError || eventsError)?.message}`}
         </AdminAlert>
       )}
       <StepIndicator step={step} />
@@ -287,7 +312,7 @@ export default function CreateOrder() {
               <input
                 type="date"
                 value={selectedDate}
-                onChange={e => { setSelectedDate(e.target.value); setShowDatePicker(false); setSelectedSlot(null) }}
+                onChange={e => { setSelectedDate(e.target.value); setShowDatePicker(false); setSelectedTheme(''); setSelectedSlot(null); setTicketSelections({}); clearCheckoutAdjustments() }}
                 style={{ border: 'none', background: 'transparent', fontWeight: 600, color: '#6366f1', cursor: 'pointer' }}
                 autoFocus
               />
@@ -304,8 +329,54 @@ export default function CreateOrder() {
               {t.noSlotsAvailable}
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
-              {availableSlots.map(slot => {
+            <>
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 8 }}>
+                  Select theme first
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10 }}>
+                  {themeOptions.map(event => {
+                    const isSelected = String(selectedTheme) === String(event.id)
+                    const count = availableSlots.filter(slot => String(slot.event) === String(event.id)).length
+                    return (
+                      <button
+                        key={event.id}
+                        onClick={() => handleThemeSelect(event.id)}
+                        type="button"
+                        style={{
+                          padding: '12px 14px',
+                          borderRadius: 8,
+                          textAlign: 'left',
+                          border: isSelected ? '2px solid #6366f1' : '1px solid #e5e7eb',
+                          background: isSelected ? '#eef2ff' : '#fff',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <div style={{ fontWeight: 800, color: '#111827' }}>{event.name}</div>
+                        <div style={{ marginTop: 4, fontSize: 12, color: '#64748b' }}>
+                          {count} time slot{count === 1 ? '' : 's'}
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {!selectedTheme ? (
+                <div style={{ textAlign: 'center', padding: 28, color: '#64748b', background: '#f8fafc', borderRadius: 8, border: '1px dashed #cbd5e1' }}>
+                  Select a theme to see its available time slots.
+                </div>
+              ) : selectedThemeSlots.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: 28, color: '#9ca3af' }}>
+                  No time slots are available for this theme on the selected date.
+                </div>
+              ) : (
+                <>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 8 }}>
+                    Time slots for {themeNameById.get(String(selectedTheme)) || 'selected theme'}
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
+                    {selectedThemeSlots.map(slot => {
                 const sold = slot.websiteSeats + slot.inStoreSeats
                 const remaining = Math.max(0, slot.totalSeats - sold)
                 const isSelected = selectedSlot?.id === slot.id
@@ -333,8 +404,11 @@ export default function CreateOrder() {
                     </div>
                   </button>
                 )
-              })}
-            </div>
+                    })}
+                  </div>
+                </>
+              )}
+            </>
           )}
 
           {selectedSlot && (

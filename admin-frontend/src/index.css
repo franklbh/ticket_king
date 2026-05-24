@@ -162,6 +162,76 @@ body {
   white-space: nowrap;
 }
 
+.orders-filter-grid {
+  display: grid;
+  grid-template-columns:
+    minmax(130px, 150px)
+    minmax(150px, 185px)
+    minmax(130px, 150px)
+    minmax(260px, 295px)
+    minmax(260px, 295px)
+    max-content;
+  gap: 12px;
+  align-items: end;
+  width: 100%;
+  min-width: 0;
+  margin-bottom: 12px;
+}
+
+.orders-filter-grid > * {
+  min-width: 0;
+}
+
+.orders-filter-range {
+  min-width: 0;
+  width: 100%;
+}
+
+.orders-filter-actions {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+
+.orders-filter-actions .MuiButton-root {
+  min-height: 42px;
+  white-space: nowrap;
+}
+
+.date-range-filter-fields {
+  width: 100%;
+}
+
+@media (max-width: 1535px) {
+  .orders-filter-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .orders-filter-range {
+    grid-column: span 1;
+  }
+
+  .orders-filter-actions {
+    grid-column: span 1;
+    justify-content: flex-end;
+  }
+}
+
+@media (max-width: 1180px) {
+  .orders-filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .orders-filter-range {
+    grid-column: span 2;
+  }
+
+  .orders-filter-actions {
+    grid-column: span 2;
+  }
+}
+
 .logs-chip-grid {
   display: grid;
   grid-template-columns: 96px repeat(auto-fit, minmax(104px, 1fr));
@@ -355,6 +425,38 @@ body {
   min-height: 0;
   flex-direction: column;
   gap: 12px;
+}
+
+.scanner-camera-card {
+  height: min(760px, calc(100dvh - 88px));
+  min-height: min(760px, calc(100dvh - 88px));
+}
+
+.scanner-camera-viewport {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  background: #0f172a;
+}
+
+.scanner-camera-video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.scanner-frame {
+  position: relative;
+  width: min(44vw, 46vh, 360px);
+  width: min(44vw, 46dvh, 360px);
+  height: min(44vw, 46vh, 360px);
+  height: min(44vw, 46dvh, 360px);
+}
+
+.scanner-recent-card {
+  min-height: 260px;
 }
 
 .loading-indicator {
@@ -606,6 +708,28 @@ body {
     flex: 1;
   }
 
+  .orders-filter-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .orders-filter-range,
+  .orders-filter-actions {
+    grid-column: auto;
+  }
+
+  .orders-filter-actions .MuiButton-root {
+    flex: 1;
+  }
+
+  .date-range-filter-fields .MuiInputBase-root {
+    font-size: 13px;
+  }
+
+  .date-range-filter-fields .MuiInputBase-input {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
   .logs-chip-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -633,6 +757,13 @@ body {
     gap: 16px;
   }
 
+  .scanner-page {
+    height: auto;
+    min-height: 100vh;
+    min-height: 100dvh;
+    overflow-y: auto;
+  }
+
   .scanner-header {
     grid-template-columns: minmax(0, 1fr) max-content;
     gap: 10px;
@@ -652,12 +783,35 @@ body {
   }
 
   .scanner-body {
-    grid-template-columns: 1fr;
-    overflow: auto;
+    display: flex;
+    min-height: 0;
+    flex-direction: column;
+    gap: 12px;
+    overflow: visible;
+    padding: 12px;
   }
 
-  .scanner-side-panel {
-    min-height: 420px;
+  .scanner-camera-card,
+  .scanner-side-panel,
+  .scanner-recent-card {
+    flex: none;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  .scanner-camera-card {
+    height: auto;
+  }
+
+  .scanner-camera-viewport {
+    height: clamp(440px, 58dvh, 620px);
+    min-height: 440px;
+    flex: none;
+  }
+
+  .scanner-frame {
+    width: min(72vw, 320px);
+    height: min(72vw, 320px);
   }
 
   .loading-indicator-page {
@@ -769,6 +923,11 @@ body {
   .scanner-body {
     gap: 10px;
     padding: 10px;
+  }
+
+  .scanner-camera-viewport {
+    height: 440px;
+    min-height: 440px;
   }
 }
 

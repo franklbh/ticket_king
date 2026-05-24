@@ -545,12 +545,14 @@ export default function Orders() {
 
       {/* Filters */}
       <FilterCard>
-        <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1fr_1fr_1fr_1.5fr_1.5fr_auto] mb-3">
+        <div className="orders-filter-grid">
           <TextFilter label={t.orderID} placeholder="Enter order ID..." value={filters.orderId} onChange={value => setFilters(f => ({ ...f, orderId: value }))} />
           <TextFilter label={t.userInfo} placeholder="Enter name/phone/email..." value={filters.userInfo} onChange={value => setFilters(f => ({ ...f, userInfo: value }))} />
           <TextFilter label={t.couponCode} placeholder={t.couponCode} value={filters.couponCode} onChange={value => setFilters(f => ({ ...f, couponCode: value }))} />
-          <DateRangeFilter label={t.orderDateRange} from={filters.orderDateFrom} to={filters.orderDateTo} onFromChange={value => setFilters(f => ({ ...f, orderDateFrom: value }))} onToChange={value => setFilters(f => ({ ...f, orderDateTo: value }))} />
-          <div>
+          <div className="orders-filter-range">
+            <DateRangeFilter label={t.orderDateRange} from={filters.orderDateFrom} to={filters.orderDateTo} onFromChange={value => setFilters(f => ({ ...f, orderDateFrom: value }))} onToChange={value => setFilters(f => ({ ...f, orderDateTo: value }))} />
+          </div>
+          <div className="orders-filter-range">
             <DateRangeFilter label={t.slotDateRange} from={filters.slotDateFrom} to={filters.slotDateTo} onFromChange={value => setFilters(f => ({ ...f, slotDateFrom: value }))} onToChange={value => setFilters(f => ({ ...f, slotDateTo: value }))} />
             {filters.slotStart && (
               <div style={{ marginTop: 5, fontSize: 12, color: '#4f46e5', fontWeight: 600, whiteSpace: 'nowrap' }}>
@@ -558,7 +560,7 @@ export default function Orders() {
               </div>
             )}
           </div>
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
+          <div className="orders-filter-actions">
             <ApplyFiltersButton onClick={applyFilters} />
             <ResetFiltersButton onClick={resetFilters} label={t.reset} />
           </div>

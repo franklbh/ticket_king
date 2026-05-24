@@ -108,8 +108,8 @@ function MarketingPage({
   const [heroIndex, setHeroIndex] = useState(0)
   const [heroTimerResetKey, setHeroTimerResetKey] = useState(0)
   const [navScrolled, setNavScrolled] = useState(false)
+  const [themePickerOpen, setThemePickerOpen] = useState(false)
   const heroCount = localizedExperiences?.length || 6
-  const activeHero = (localizedExperiences || [])[heroIndex] || (localizedExperiences || [])[0] || {}
   const resetHeroTimer = () => setHeroTimerResetKey((key) => key + 1)
   const goToHero = (index) => {
     setHeroIndex(index)
@@ -210,9 +210,8 @@ function MarketingPage({
             <div className="mkt-hero-cta-stack">
               <button
                 className="mkt-hero-primary"
-                onClick={() => onBuyTicket(activeHero)}
+                onClick={() => setThemePickerOpen(true)}
                 type="button"
-                style={{ background: activeHero.accent, boxShadow: `0 8px 28px ${activeHero.accentGlow || 'rgba(0,0,0,0.35)'}` }}
               >
                 {t('bookExperience')}
               </button>
@@ -369,6 +368,55 @@ function MarketingPage({
         </div>
         <div className="footer-copy">© {new Date().getFullYear()} We Are VR · Lansdowne Centre, Richmond BC</div>
       </footer>
+
+      {themePickerOpen && (
+        <div className="mkt-theme-picker-backdrop" role="presentation" onMouseDown={() => setThemePickerOpen(false)}>
+          <div
+            className="mkt-theme-picker"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="mkt-theme-picker-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="mkt-theme-picker-head">
+              <div>
+                <p className="mkt-theme-picker-kicker">Book Experience</p>
+                <h2 id="mkt-theme-picker-title">Choose an experience</h2>
+              </div>
+              <button className="mkt-theme-picker-close" type="button" onClick={() => setThemePickerOpen(false)} aria-label="Close experience picker">
+                ×
+              </button>
+            </div>
+            <div className="mkt-theme-picker-grid">
+              {(localizedExperiences || []).map((exp) => {
+                const image = exp.heroImg || exp.gallery?.[0]
+                return (
+                  <button
+                    key={exp.id}
+                    className="mkt-theme-option"
+                    type="button"
+                    onClick={() => {
+                      setThemePickerOpen(false)
+                      onBuyTicket(exp)
+                    }}
+                  >
+                    <span
+                      className="mkt-theme-option-image"
+                      style={image ? { backgroundImage: `url(${image})` } : { background: exp.cardGradient }}
+                      aria-hidden="true"
+                    />
+                    <span className="mkt-theme-option-copy">
+                      <strong>{exp.title}</strong>
+                      <small>{exp.category === 'arcade' ? 'VR Game' : 'VR Show'} · {exp.duration} min</small>
+                    </span>
+                    <span className="mkt-theme-option-arrow" aria-hidden="true">›</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

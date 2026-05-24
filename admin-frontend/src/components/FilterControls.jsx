@@ -61,7 +61,7 @@ export function DateRangeFilter({ label, from, to, onFromChange, onToChange }) {
       <Typography variant="caption" color="text.secondary" fontWeight={800} sx={{ display: 'block', mb: 0.5 }}>
         {label}
       </Typography>
-      <Box sx={{ display: 'grid', gridTemplateColumns: 'minmax(150px, 1fr) minmax(150px, 1fr)', gap: 1 }}>
+      <Box className="date-range-filter-fields" sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 0.75, minWidth: 0 }}>
         <TextField
           fullWidth
           size="small"
@@ -69,7 +69,7 @@ export function DateRangeFilter({ label, from, to, onFromChange, onToChange }) {
           value={from || ''}
           aria-label={`${label} from`}
           onChange={event => onFromChange(event.target.value)}
-          sx={controlSx}
+          sx={{ ...controlSx, minWidth: 0 }}
         />
         <TextField
           fullWidth
@@ -78,7 +78,7 @@ export function DateRangeFilter({ label, from, to, onFromChange, onToChange }) {
           value={to || ''}
           aria-label={`${label} to`}
           onChange={event => onToChange(event.target.value)}
-          sx={controlSx}
+          sx={{ ...controlSx, minWidth: 0 }}
         />
       </Box>
     </Box>

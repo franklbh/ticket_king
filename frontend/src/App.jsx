@@ -145,6 +145,17 @@ function App() {
     t,
   })
 
+  const clearCart = useCallback(() => {
+    setCartItems([])
+    localStorage.removeItem('wearevr_cart')
+    setShowCart(false)
+  }, [])
+
+  const handleLogout = useCallback(async () => {
+    clearCart()
+    await logout()
+  }, [clearCart, logout])
+
   useEffect(() => {
     if (!currentUser) return
     const displayName = getDisplayName(currentUser)
@@ -816,7 +827,7 @@ function App() {
             authReady={authReady}
             cartCount={cartCount}
             currentUser={currentUser}
-            onLogout={logout}
+            onLogout={handleLogout}
             onOpenAuth={() => openAuthScreen('login')}
             onOpenBookings={openBookingsPage}
             onOpenCart={() => setShowCart(true)}
@@ -856,7 +867,7 @@ function App() {
           experience={selectedExperience}
           onBack={backToExperienceSection}
           onBuyTicket={addExperienceTicketsToCart}
-          onLogout={logout}
+          onLogout={handleLogout}
           onOpenAuth={() => openAuthScreen('login')}
           onOpenBookings={openBookingsPage}
           onOpenCart={() => setShowCart(true)}
@@ -875,7 +886,7 @@ function App() {
           experiences={localizedExperiences}
           initialSection={bookingsInitialSection}
           onGoHome={() => { setView('main'); setShowBooking(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
-          onLogout={logout}
+          onLogout={handleLogout}
           onOpenAuth={() => openAuthScreen('login')}
           onOpenCart={() => setShowCart(true)}
           onOpenNav={() => setShowNavMenu(true)}
@@ -902,7 +913,7 @@ function App() {
               newsletterMessage={newsletterMessage}
               onBuyTicket={startBookingWithAuth}
               onGoHome={() => { setView('main'); setShowBooking(false) }}
-              onLogout={logout}
+              onLogout={handleLogout}
               onOpenAuth={() => openAuthScreen('login')}
               onOpenBookings={openBookingsPage}
               onOpenCart={() => setShowCart(true)}

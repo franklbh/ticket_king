@@ -425,12 +425,21 @@ function ExperienceDetailPage({
   const [showVideo, setShowVideo] = useState(false)
   const [lightboxIdx, setLightboxIdx] = useState(null)
   const [showAllGallery, setShowAllGallery] = useState(false)
+  const [bookingBeforeDetails, setBookingBeforeDetails] = useState(false)
 
   const similar = allExperiences.filter((e) => e.id !== experience.id)
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' })
   }, [experience.id])
+
+  useEffect(() => {
+    const query = window.matchMedia('(max-width: 768px)')
+    const updateLayout = () => setBookingBeforeDetails(query.matches)
+    updateLayout()
+    query.addEventListener('change', updateLayout)
+    return () => query.removeEventListener('change', updateLayout)
+  }, [])
 
   const gallery = experience.gallery
   const mainImg = experience.heroImg || null
@@ -533,6 +542,12 @@ function ExperienceDetailPage({
               <span className="exp2-tagline">{experience.tagline}</span>
             </div>
           </div>
+
+          {bookingBeforeDetails && (
+            <div className="exp2-mobile-booking">
+              <BookingWidget experience={experience} cartItems={cartItems} onAddToCart={onBuyTicket} />
+            </div>
+          )}
 
           {/* About */}
           <section className="exp2-section exp2-reveal">
@@ -699,11 +714,13 @@ function ExperienceDetailPage({
         </div>
 
         {/* ── RIGHT: Booking Widget ── */}
-        <div className="exp2-sidebar-col">
-          <div className="exp2-widget-sticky">
-            <BookingWidget experience={experience} cartItems={cartItems} onAddToCart={onBuyTicket} />
+        {!bookingBeforeDetails && (
+          <div className="exp2-sidebar-col">
+            <div className="exp2-widget-sticky">
+              <BookingWidget experience={experience} cartItems={cartItems} onAddToCart={onBuyTicket} />
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* ── Modals ── */}
