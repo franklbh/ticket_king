@@ -15713,3 +15713,181 @@ body:has(.btk-page) .topbar {
   padding-bottom: 10px !important;
   margin-bottom: 16px !important;
 }
+
+/* Homepage theme picker opened by the generic hero Book Experience CTA */
+.mkt-theme-picker-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(2, 6, 23, 0.62);
+  backdrop-filter: blur(10px);
+}
+
+.mkt-theme-picker {
+  width: min(760px, 100%);
+  max-height: min(760px, calc(100vh - 48px));
+  overflow: auto;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 28px 90px rgba(2, 6, 23, 0.32);
+}
+
+.mkt-theme-picker-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px 24px 16px;
+  border-bottom: 1px solid #e5e7eb;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(10px);
+}
+
+.mkt-theme-picker-kicker {
+  margin: 0 0 4px;
+  color: #16a34a;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.mkt-theme-picker h2 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 28px;
+  line-height: 1.1;
+}
+
+.mkt-theme-picker-close {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 30px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.mkt-theme-picker-close:hover {
+  background: #eef2ff;
+  color: #4f46e5;
+}
+
+.mkt-theme-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding: 18px 24px 24px;
+}
+
+.mkt-theme-option {
+  display: grid;
+  grid-template-columns: 94px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #fff;
+  color: #0f172a;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.mkt-theme-option:hover {
+  transform: translateY(-1px);
+  border-color: #8b5cf6;
+  box-shadow: 0 12px 28px rgba(99, 102, 241, 0.16);
+}
+
+.mkt-theme-option-image {
+  display: block;
+  width: 94px;
+  aspect-ratio: 4 / 3;
+  border-radius: 10px;
+  background-position: center;
+  background-size: cover;
+}
+
+.mkt-theme-option-copy {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.mkt-theme-option-copy strong {
+  overflow: hidden;
+  color: #111827;
+  font-size: 17px;
+  font-weight: 900;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mkt-theme-option-copy small {
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.mkt-theme-option-arrow {
+  color: #7c3aed;
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+@media (max-width: 720px) {
+  .mkt-theme-picker-backdrop {
+    align-items: flex-end;
+    padding: 12px;
+  }
+
+  .mkt-theme-picker {
+    max-height: min(720px, calc(100vh - 24px));
+    border-radius: 18px;
+  }
+
+  .mkt-theme-picker-head {
+    padding: 18px 18px 14px;
+  }
+
+  .mkt-theme-picker h2 {
+    font-size: 23px;
+  }
+
+  .mkt-theme-picker-grid {
+    grid-template-columns: 1fr;
+    padding: 14px 18px 18px;
+  }
+}
+
+@media (max-width: 430px) {
+  .mkt-theme-option {
+    grid-template-columns: 78px minmax(0, 1fr) auto;
+    gap: 11px;
+  }
+
+  .mkt-theme-option-image {
+    width: 78px;
+  }
+
+  .mkt-theme-option-copy strong {
+    font-size: 15px;
+  }
+}
