@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { isDateTimePeak } from '../data/showData'
 import { badge, currency } from '../utils/format'
+import { getExperiencePriceFrom, getPricesForSlot } from '../utils/pricing'
 
 function BookingPage({
   availableSlots = [],
@@ -46,17 +46,17 @@ function BookingPage({
 
   const liveSlots = useMemo(() => availableSlots.map((slot) => {
     const time = slot.label || [slot.startTime, slot.endTime].filter(Boolean).join(' - ')
-    const peak = selectedDate ? isDateTimePeak(selectedDate.date, time) : false
-    const prices = bookingExperience ? (peak ? bookingExperience.peakPrices : bookingExperience.offPeakPrices) : {}
+    const prices = getPricesForSlot(bookingExperience, selectedDate?.date)
+    const weekend = selectedDate?.date ? [0, 6].includes(selectedDate.date.getDay()) : false
     return {
       id: slot.id,
       eventId: slot.eventId,
       slotId: slot.id,
       time,
       label: time,
-      price: slot.price ?? prices.adult ?? localizedTicketTypes[0]?.price ?? 0,
+      price: prices.adult ?? slot.price ?? localizedTicketTypes[0]?.price ?? 0,
       availableSeats: slot.availableSeats,
-      peak,
+      peak: weekend,
     }
   }), [availableSlots, bookingExperience, localizedTicketTypes, selectedDate])
 
@@ -350,7 +350,7 @@ function BookingPage({
                         <div className="btk-exp-body">
                           <strong>{experience.title}</strong>
                           <small>{experience.subtitle || experience.tagline}</small>
-                          <div><span>from {currency(experience.priceFrom || 37.95)}</span><button onClick={() => chooseRelatedExperience(experience.id)} type="button">Add +</button></div>
+                          <div><span>from {currency(getExperiencePriceFrom(experience) || 37.95)}</span><button onClick={() => chooseRelatedExperience(experience.id)} type="button">Add +</button></div>
                         </div>
                       </article>
                     )

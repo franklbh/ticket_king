@@ -3,6 +3,7 @@ import BrandLogo from '../components/BrandLogo'
 import HeaderActions from '../components/HeaderActions'
 import { GOOGLE_MAPS_URL } from '../constants/venue'
 import { mapInstructionPdf } from '../data/showData'
+import { getExperiencePriceFrom } from '../utils/pricing'
 
 function HeroChevron({ direction }) {
   const points = direction === 'left' ? '15 18 9 12 15 6' : '9 18 15 12 9 6'
@@ -61,7 +62,7 @@ function ExperienceCard({ exp, onSelect, onBook, t }) {
         </div>
         <div className="vr-card-footer">
           <div className="vr-card-price">
-            {t('from')} <strong>${exp.priceFrom.toFixed(2)}</strong><span>{t('perPerson')}</span>
+            {t('from')} <strong>${getExperiencePriceFrom(exp).toFixed(2)}</strong><span>{t('perPerson')}</span>
           </div>
           <button
             className="vr-card-book-btn"

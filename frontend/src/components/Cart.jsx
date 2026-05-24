@@ -895,9 +895,12 @@ export default function Cart({
                     <article className="crt-cart-row" key={item.id}>
                       <div className="crt-exp-cell"><ItemImage item={item} className="crt-cart-thumb" /><strong>{item.show_title}</strong></div>
                       <div className="crt-date-cell"><span>{item.session_date}</span><span>{item.session_time}</span></div>
-                      <select value={item.ticket_type_id} onChange={(event) => updateTicketTypeWithMinimum(item, event.target.value)}>
-                        {item.ticket_options?.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
-                      </select>
+                      <div className="crt-ticket-type-field">
+                        <span className="crt-ticket-type-label">Ticket type</span>
+                        <select aria-label={`Ticket type for ${item.show_title}`} value={item.ticket_type_id} onChange={(event) => updateTicketTypeWithMinimum(item, event.target.value)}>
+                          {item.ticket_options?.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+                        </select>
+                      </div>
                       <div className="crt-inline-qty">
                         <button onClick={() => updateQtyWithMinimum(item, item.quantity - 1)} disabled={item.quantity <= minQtyForTicketType(item.ticket_type_id)} type="button">-</button>
                         <strong>{item.quantity}</strong>
@@ -905,7 +908,14 @@ export default function Cart({
                       </div>
                       <span>{fmt(item.unit_price)}</span>
                       <strong>{fmt(item.unit_price * item.quantity)}</strong>
-                      <button className="crt-remove" onClick={() => onRemove(item.id)} type="button">⌫</button>
+                      <button className="crt-remove" onClick={() => onRemove(item.id)} type="button" aria-label={`Remove ${item.show_title} from cart`}>
+                        <span className="crt-remove-icon crt-remove-icon-desktop" aria-hidden="true">⌫</span>
+                        <svg className="crt-remove-icon crt-remove-icon-mobile" viewBox="0 0 32 24" aria-hidden="true">
+                          <path d="M12 3h15a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H12L3 12l9-9Z" />
+                          <path d="m16.5 8.5 7 7M23.5 8.5l-7 7" />
+                        </svg>
+                        <span className="crt-remove-text">Remove</span>
+                      </button>
                       {item.quantity > 0 && item.quantity < minQtyForTicketType(item.ticket_type_id) && (
                         <div className="crt-row-warning crt-cart-row-warning">
                           {item.ticket_type_id === 'group' ? 'Group tickets require at least 6 people.' : 'Family tickets require at least 3 people.'}
@@ -920,6 +930,9 @@ export default function Cart({
 
             {step === 'contact' && (
               <main className="crt-main">
+                <button className="crt-step-back-top" onClick={() => setStep('review')} type="button">
+                  ← Back to cart
+                </button>
                 {!currentUser && (
                   <div className="crt-account-box">
                     <div className="crt-tabs">
