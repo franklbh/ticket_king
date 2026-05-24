@@ -30,6 +30,11 @@ class WalkInOrderCreate(BaseModel):
     payment_method: str
     mark_used_immediately: bool = False
     admin_adjustment: float = Field(default=0, alias="adminAdjustment")
+    addon_amount: float = Field(default=0, ge=0, alias="addonAmount")
+    platform_fee: float = Field(default=0, ge=0, alias="platformFee")
+    payment_fee: float = Field(default=0, ge=0, alias="paymentFee")
+    gst: float | None = Field(default=None, ge=0)
+    pst: float = Field(default=0, ge=0)
     coupon_code: str | None = Field(default=None, alias="couponCode")
     coupon_discount: float = Field(default=0, ge=0, alias="couponDiscount")
 

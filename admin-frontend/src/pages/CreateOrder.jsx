@@ -47,6 +47,36 @@ function money(value) {
   return Math.round((Number(value) || 0) * 100) / 100
 }
 
+function moneyFromInput(value) {
+  const amount = Number(value)
+  if (!Number.isFinite(amount) || amount < 0) return 0
+  return money(amount)
+}
+
+function createFeeDraft(totalAmount, fees = null) {
+  return {
+    ticketTotal: (fees?.ticketTotal ?? totalAmount).toFixed(2),
+    addonTotal: (fees?.addonTotal ?? 0).toFixed(2),
+    couponDiscount: (fees?.couponDiscount ?? 0).toFixed(2),
+    platformFee: (fees?.platformFee ?? 0).toFixed(2),
+    paymentFee: (fees?.paymentFee ?? 0).toFixed(2),
+    gstTax: (fees?.gstTax ?? money(totalAmount * GST_RATE)).toFixed(2),
+    pstTax: (fees?.pstTax ?? 0).toFixed(2),
+  }
+}
+
+function normalizeFeeDraft(draft) {
+  return {
+    ticketTotal: moneyFromInput(draft.ticketTotal),
+    addonTotal: moneyFromInput(draft.addonTotal),
+    couponDiscount: moneyFromInput(draft.couponDiscount),
+    platformFee: moneyFromInput(draft.platformFee),
+    paymentFee: moneyFromInput(draft.paymentFee),
+    gstTax: moneyFromInput(draft.gstTax),
+    pstTax: moneyFromInput(draft.pstTax),
+  }
+}
+
 function StepIndicator({ step }) {
   const steps = [1, 2, 3, 4]
   return (
@@ -82,7 +112,10 @@ export default function CreateOrder() {
   const [customer, setCustomer] = useState({ firstName: '', lastName: '', phone: '', email: '', remarks: '' })
   const [payment, setPayment] = useState('')
   const [markUsed, setMarkUsed] = useState(false)
-  const [priceOverride, setPriceOverride] = useState(null)
+  const [manualFees, setManualFees] = useState(null)
+  const [feeDraft, setFeeDraft] = useState(() => createFeeDraft(0))
+  const [feeConfirmOpen, setFeeConfirmOpen] = useState(false)
+  const [feeEditorOpen, setFeeEditorOpen] = useState(false)
   const [appliedCoupon, setAppliedCoupon] = useState(null)
   const [couponMessage, setCouponMessage] = useState('')
   const [applyingCoupon, setApplyingCoupon] = useState(false)
@@ -147,7 +180,10 @@ export default function CreateOrder() {
   }
 
   function clearCheckoutAdjustments() {
-    setPriceOverride(null)
+    setManualFees(null)
+    setFeeDraft(createFeeDraft(0))
+    setFeeConfirmOpen(false)
+    setFeeEditorOpen(false)
     setAppliedCoupon(null)
     setCouponMessage('')
   }
@@ -191,12 +227,25 @@ export default function CreateOrder() {
     const price = tp.priceType === 'fixed' ? (tp.price || 0) : (selectedSlot?.price || 37.95) + (tp.priceAdj || 0)
     return sum + price * count
   }, 0)
-  const adjustedTicketAmount = priceOverride == null ? totalAmount : priceOverride
+  const adjustedTicketAmount = manualFees ? manualFees.ticketTotal : totalAmount
+  const addonAmount = manualFees ? manualFees.addonTotal : 0
+  const platformFee = manualFees ? manualFees.platformFee : 0
+  const paymentFee = manualFees ? manualFees.paymentFee : 0
   const adminAdjustment = money(adjustedTicketAmount - totalAmount)
-  const couponDiscount = Math.min(appliedCoupon?.discount || 0, adjustedTicketAmount)
-  const taxableAmount = Math.max(0, adjustedTicketAmount - couponDiscount)
-  const gstAmount = taxableAmount * GST_RATE
-  const totalDue = taxableAmount + gstAmount
+  const feeSubtotal = Math.max(0, adjustedTicketAmount + addonAmount + platformFee + paymentFee)
+  const couponDiscount = Math.min(manualFees ? manualFees.couponDiscount : (appliedCoupon?.discount || 0), feeSubtotal)
+  const taxableAmount = Math.max(0, feeSubtotal - couponDiscount)
+  const gstAmount = manualFees ? manualFees.gstTax : taxableAmount * GST_RATE
+  const pstAmount = manualFees ? manualFees.pstTax : 0
+  const totalDue = taxableAmount + gstAmount + pstAmount
+  const feeDraftTotal = (() => {
+    const values = normalizeFeeDraft(feeDraft)
+    return money(
+      Math.max(0, values.ticketTotal + values.addonTotal + values.platformFee + values.paymentFee - values.couponDiscount) +
+      values.gstTax +
+      values.pstTax
+    )
+  })()
   const customerName = [customer.firstName, customer.lastName].filter(Boolean).join(' ')
   const ticketValidationError = Object.entries(ticketSelections).reduce((message, [typeId, count]) => {
     if (message) return message
@@ -241,6 +290,11 @@ export default function CreateOrder() {
         admin_adjustment: adminAdjustment,
         coupon_code: appliedCoupon?.code || null,
         coupon_discount: Number(couponDiscount.toFixed(2)),
+        addon_amount: Number(addonAmount.toFixed(2)),
+        platform_fee: Number(platformFee.toFixed(2)),
+        payment_fee: Number(paymentFee.toFixed(2)),
+        gst: Number(gstAmount.toFixed(2)),
+        pst: Number(pstAmount.toFixed(2)),
       })
       setLastOrderId(created?.order?.id || created?.order?.orderNumber || created?.order?.order_number)
       setOrderComplete(true)
@@ -263,19 +317,46 @@ export default function CreateOrder() {
   }
 
   function changePrice() {
-    const value = window.prompt('New ticket total before GST', adjustedTicketAmount.toFixed(2))
-    if (value === null) return
-    const amount = Number(value)
-    if (!Number.isFinite(amount) || amount < 0) {
-      setCouponMessage('Enter a valid amount.')
-      return
-    }
-    setPriceOverride(money(amount))
+    setFeeDraft(createFeeDraft(totalAmount, manualFees))
+    setFeeConfirmOpen(true)
+  }
+
+  function confirmFeeModification() {
     setAppliedCoupon(null)
-    setCouponMessage('Custom price applied. Add a coupon after changing price if needed.')
+    setCouponMessage('')
+    setFeeConfirmOpen(false)
+    setFeeEditorOpen(true)
+    setManualFees(normalizeFeeDraft(feeDraft))
+  }
+
+  function updateFeeDraft(field, value) {
+    setFeeDraft(prev => {
+      const next = { ...prev, [field]: value }
+      setManualFees(normalizeFeeDraft(next))
+      return next
+    })
+  }
+
+  function cancelFeeModification() {
+    setManualFees(null)
+    setFeeDraft(createFeeDraft(totalAmount))
+    setFeeEditorOpen(false)
+    setCouponMessage('Custom fee modification removed.')
+  }
+
+  function formatMoneyInput(field) {
+    setFeeDraft(prev => {
+      const next = { ...prev, [field]: moneyFromInput(prev[field]).toFixed(2) }
+      setManualFees(normalizeFeeDraft(next))
+      return next
+    })
   }
 
   async function applyCoupon() {
+    if (manualFees) {
+      setCouponMessage('Use Coupon Discount in Modify Fees while custom fee editing is enabled.')
+      return
+    }
     if (appliedCoupon) {
       setAppliedCoupon(null)
       setCouponMessage('Coupon removed.')
@@ -685,17 +766,35 @@ export default function CreateOrder() {
                   <div style={{ height: 1, background: '#e5e7eb', margin: '2px 0' }} />
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#374151' }}>
                     <span>Ticket Total</span>
-                    <span>${totalAmount.toFixed(2)}</span>
+                    <span>${adjustedTicketAmount.toFixed(2)}</span>
                   </div>
-                  {priceOverride != null && (
+                  {adminAdjustment !== 0 && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: adminAdjustment < 0 ? '#dc2626' : '#047857' }}>
                       <span>Price adjustment</span>
                       <span>{adminAdjustment < 0 ? '-' : '+'}${Math.abs(adminAdjustment).toFixed(2)}</span>
                     </div>
                   )}
-                  {appliedCoupon && (
+                  {(manualFees || addonAmount > 0) && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#374151' }}>
+                      <span>Addon Total</span>
+                      <span>${addonAmount.toFixed(2)}</span>
+                    </div>
+                  )}
+                  {(manualFees || platformFee > 0) && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#374151' }}>
+                      <span>Platform Processing Fee</span>
+                      <span>${platformFee.toFixed(2)}</span>
+                    </div>
+                  )}
+                  {(manualFees || paymentFee > 0) && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#374151' }}>
+                      <span>Payment Processing Fee</span>
+                      <span>${paymentFee.toFixed(2)}</span>
+                    </div>
+                  )}
+                  {(appliedCoupon || manualFees) && couponDiscount > 0 && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#dc2626' }}>
-                      <span>Coupon ({appliedCoupon.code})</span>
+                      <span>{appliedCoupon ? `Coupon (${appliedCoupon.code})` : 'Coupon Discount'}</span>
                       <span>-${couponDiscount.toFixed(2)}</span>
                     </div>
                   )}
@@ -703,6 +802,12 @@ export default function CreateOrder() {
                     <span>GST (5%)</span>
                     <span>${gstAmount.toFixed(2)}</span>
                   </div>
+                  {(manualFees || pstAmount > 0) && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#374151' }}>
+                      <span>PST Tax</span>
+                      <span>${pstAmount.toFixed(2)}</span>
+                    </div>
+                  )}
                   <div style={{ height: 1, background: '#d1d5db', margin: '2px 0' }} />
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: 18, color: '#111827' }}>
                     <span>Total</span>
@@ -730,7 +835,7 @@ export default function CreateOrder() {
                     </Button>
                   </div>
                   {couponMessage && (
-                    <div style={{ fontSize: 12, color: appliedCoupon || priceOverride != null ? '#047857' : '#b45309', textAlign: 'right' }}>
+                    <div style={{ fontSize: 12, color: appliedCoupon || manualFees ? '#047857' : '#b45309', textAlign: 'right' }}>
                       {couponMessage}
                     </div>
                   )}
@@ -738,6 +843,63 @@ export default function CreateOrder() {
               </div>
             </div>
           </div>
+
+          {feeEditorOpen && (
+            <div className="fee-modifier-panel">
+              <div className="fee-modifier-warning">
+                <i className="fa fa-exclamation-triangle" />
+                <span>Warning: Modifying fees will affect order amount calculation, please proceed with caution!</span>
+              </div>
+
+              <div className="fee-modifier-grid">
+                {[
+                  ['ticketTotal', 'Ticket Total'],
+                  ['addonTotal', 'Addon Total (e.g. VIP)'],
+                  ['couponDiscount', 'Coupon Discount'],
+                  ['platformFee', 'Platform Processing Fee'],
+                  ['paymentFee', 'Payment Processing Fee (e.g. Credit Card)'],
+                  ['gstTax', 'GST Tax'],
+                  ['pstTax', 'PST Tax'],
+                ].map(([field, label]) => (
+                  <label
+                    key={field}
+                    className={field === 'couponDiscount' ? 'fee-modifier-field wide' : 'fee-modifier-field'}
+                  >
+                    <span>{label}</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={feeDraft[field]}
+                      onChange={e => updateFeeDraft(field, e.target.value)}
+                      onBlur={() => formatMoneyInput(field)}
+                      inputMode="decimal"
+                    />
+                    {field === 'couponDiscount' && (
+                      <small>Example: Enter 10 for $10 off ticket price. Total and taxes will be reduced accordingly.</small>
+                    )}
+                  </label>
+                ))}
+              </div>
+
+              <div className="fee-modifier-total">
+                <span>Total</span>
+                <strong>${feeDraftTotal.toFixed(2)}</strong>
+              </div>
+
+              <div className="fee-modifier-footer">
+                <Button
+                  variant="contained"
+                  onClick={cancelFeeModification}
+                  startIcon={<i className="fa fa-times" />}
+                  sx={{ bgcolor: '#6b7280', '&:hover': { bgcolor: '#4b5563' } }}
+                >
+                  Cancel
+                </Button>
+                <p>Modified prices apply automatically when creating order, no save needed. Click Cancel to restore.</p>
+              </div>
+            </div>
+          )}
 
           <FormControlLabel
             sx={{ display: 'flex', justifyContent: 'center', mb: 1.5, mx: 0 }}
@@ -757,6 +919,48 @@ export default function CreateOrder() {
             </Button>
           </div>
         </AdminCard>
+      )}
+
+      {feeConfirmOpen && (
+        <div className="fee-confirm-overlay" role="presentation">
+          <div className="fee-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="fee-confirm-title">
+            <div className="fee-confirm-header">
+              <h2 id="fee-confirm-title">
+                <i className="fa fa-exclamation-triangle" />
+                Confirm Modify Fees
+              </h2>
+              <button type="button" onClick={() => setFeeConfirmOpen(false)} aria-label="Close">
+                <i className="fa fa-times" />
+              </button>
+            </div>
+            <div className="fee-confirm-body">
+              <div className="fee-confirm-warning">
+                <i className="fa fa-exclamation-circle" />
+                <span>
+                  This feature is only for special cases. Modifying fees will change the order amount structure. Are you sure you want to continue?
+                </span>
+              </div>
+            </div>
+            <div className="fee-confirm-actions">
+              <Button
+                variant="contained"
+                onClick={() => setFeeConfirmOpen(false)}
+                startIcon={<i className="fa fa-times" />}
+                sx={{ bgcolor: '#6b7280', '&:hover': { bgcolor: '#4b5563' } }}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="contained"
+                onClick={confirmFeeModification}
+                startIcon={<i className="fa fa-check" />}
+                sx={{ bgcolor: '#ef4444', '&:hover': { bgcolor: '#dc2626' } }}
+              >
+                Yes, Modify Fees
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

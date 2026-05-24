@@ -1502,6 +1502,233 @@ table tr:hover {
   gap: 12px;
 }
 
+.fee-confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: rgba(15, 23, 42, 0.42);
+}
+
+.fee-confirm-modal {
+  width: min(520px, 100%);
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 20px 56px rgba(15, 23, 42, 0.24);
+}
+
+.fee-confirm-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 22px;
+  border-top: 5px solid #ef4444;
+  border-bottom: 1px solid #eef2f7;
+  background: #fff;
+  color: #111827;
+}
+
+.fee-confirm-header h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.fee-confirm-header h2 i {
+  color: #ef4444;
+  font-size: 18px;
+}
+
+.fee-confirm-header button {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #64748b;
+  cursor: pointer;
+  font-size: 18px;
+}
+
+.fee-confirm-header button:hover {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #ef4444;
+}
+
+.fee-confirm-body {
+  padding: 22px;
+}
+
+.fee-confirm-warning {
+  display: flex;
+  gap: 10px;
+  padding: 14px 16px;
+  border-left: 4px solid #f59e0b;
+  border-radius: 8px;
+  background: #fffbeb;
+  color: #7c5700;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.fee-confirm-warning i {
+  margin-top: 2px;
+  flex: 0 0 auto;
+  color: #b45309;
+}
+
+.fee-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 22px 20px;
+  border-top: 1px solid #e5e7eb;
+  background: #f8fafc;
+}
+
+.fee-confirm-actions .MuiButton-root {
+  min-height: 40px;
+  padding-inline: 18px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 750;
+  text-transform: none;
+}
+
+.fee-modifier-panel {
+  margin-bottom: 18px;
+  padding: 18px;
+  border: 1px solid #fbbf24;
+  border-radius: 10px;
+  background: #fef3c7;
+}
+
+.fee-modifier-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 14px;
+  color: #7c5700;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.fee-modifier-warning i {
+  margin-top: 2px;
+  flex: 0 0 auto;
+}
+
+.fee-modifier-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.fee-modifier-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fee-modifier-field.wide {
+  grid-column: 1 / -1;
+}
+
+.fee-modifier-field span,
+.fee-modifier-total span {
+  color: #6b7280;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.fee-modifier-field input {
+  width: 100%;
+  min-width: 0;
+  height: 42px;
+  border: 1px solid #d1d5db;
+  border-radius: 7px;
+  background: #fff;
+  color: #111827;
+  padding: 0 12px;
+  font-size: 17px;
+  font-weight: 600;
+  outline: none;
+}
+
+.fee-modifier-field input:focus {
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.16);
+}
+
+.fee-modifier-field small {
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.fee-modifier-total {
+  display: grid;
+  gap: 6px;
+  margin-top: 14px;
+  padding: 12px;
+  border-radius: 8px;
+  background: #e0f2fe;
+}
+
+.fee-modifier-total strong {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 7px;
+  background: #fff;
+  color: #111827;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.fee-modifier-footer {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 14px;
+  flex-direction: column;
+}
+
+.fee-modifier-footer p {
+  margin: 0;
+  color: #6b7280;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: right;
+}
+
+.fee-modifier-footer .MuiButton-root {
+  flex: 0 0 auto;
+  text-transform: none;
+}
+
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -1617,6 +1844,67 @@ table tr:hover {
   .create-order-footer-actions .MuiButton-root {
     width: 100%;
     min-height: 44px;
+  }
+
+  .fee-confirm-overlay {
+    align-items: center;
+    padding: 16px;
+  }
+
+  .fee-confirm-modal {
+    width: min(420px, 100%);
+    max-height: calc(100dvh - 32px);
+    overflow-y: auto;
+    border-radius: 10px;
+  }
+
+  .fee-confirm-header {
+    padding: 16px;
+  }
+
+  .fee-confirm-header h2 {
+    font-size: 18px;
+  }
+
+  .fee-confirm-body {
+    padding: 16px;
+  }
+
+  .fee-confirm-warning {
+    padding: 13px 14px;
+    font-size: 14px;
+  }
+
+  .fee-confirm-actions {
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px 16px 16px;
+  }
+
+  .fee-confirm-actions .MuiButton-root {
+    width: 100%;
+  }
+
+  .fee-modifier-panel {
+    padding: 14px;
+  }
+
+  .fee-modifier-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .fee-modifier-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .fee-modifier-footer .MuiButton-root {
+    width: 100%;
+    min-height: 42px;
+  }
+
+  .fee-modifier-footer p {
+    text-align: left;
   }
 }
 
