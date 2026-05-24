@@ -346,7 +346,7 @@ export default function Scanner() {
       <div className="scanner-body">
 
         {/* Left — Camera */}
-        <ScannerCard className="flex flex-col">
+        <ScannerCard className="scanner-camera-card flex flex-col">
           <ScannerSectionTitle
             icon="fa-camera"
             title={`QR ${t.scannerTitle}`}
@@ -358,10 +358,12 @@ export default function Scanner() {
             )}
           />
           {/* Camera viewport */}
-          <div style={{ flex: 1, position: 'relative', background: '#0f172a', overflow: 'hidden' }}>
+          <div
+            className="scanner-camera-viewport"
+          >
             <video
               ref={videoRef}
-              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+              className="scanner-camera-video"
               muted playsInline
             />
             <canvas ref={canvasRef} style={{ display: 'none' }} />
@@ -381,7 +383,7 @@ export default function Scanner() {
             {/* Corner frame */}
             {cameraOn && (
               <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
-                <div style={{ width: 200, height: 200, position: 'relative' }}>
+                <div className="scanner-frame">
                   {[
                     { top: 0, left: 0, borderTop: '3px solid #fff', borderLeft: '3px solid #fff', borderRadius: '6px 0 0 0' },
                     { top: 0, right: 0, borderTop: '3px solid #fff', borderRight: '3px solid #fff', borderRadius: '0 6px 0 0' },
@@ -395,7 +397,7 @@ export default function Scanner() {
                     position: 'absolute', inset: -9999, margin: 'auto',
                     boxShadow: '0 0 0 9999px rgba(0,0,0,0.4)',
                     borderRadius: 4,
-                    width: 200, height: 200,
+                    width: '100%', height: '100%',
                     pointerEvents: 'none',
                   }} />
                 </div>
@@ -506,7 +508,7 @@ export default function Scanner() {
           </ScannerCard>
 
           {/* Recent Scans */}
-          <ScannerCard className="flex min-h-0 flex-1 flex-col">
+          <ScannerCard className="scanner-recent-card flex min-h-0 flex-1 flex-col">
             <ScannerSectionTitle
               icon="fa-history"
               title={t.recentScans}
