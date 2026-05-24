@@ -220,7 +220,10 @@ function BookingPage({
 
             <section className="btk-product">
               {bookingExperiences.length > 1 && (
-                <button className="btk-product-arrow prev" onClick={() => switchExperienceByStep(-1)} type="button" aria-label="Previous experience">‹</button>
+                <button className="btk-product-arrow prev" onClick={() => switchExperienceByStep(-1)} type="button" aria-label="Previous experience">
+                  <span aria-hidden="true">‹</span>
+                  <strong>See other experiences</strong>
+                </button>
               )}
               <div className="btk-product-image" style={selectedImage ? { backgroundImage: `url(${selectedImage})` } : { background: bookingExperience?.cardGradient }}>
                 <span>{bookingExperience?.category === 'arcade' ? 'VR Game' : 'VR Show'}</span>
@@ -231,7 +234,10 @@ function BookingPage({
                 <div className="btk-meta"><span>◷ Duration: {bookingExperience?.duration} min</span><span>♙ Ages: {bookingExperience?.minAge}+</span></div>
               </div>
               {bookingExperiences.length > 1 && (
-                <button className="btk-product-arrow next" onClick={() => switchExperienceByStep(1)} type="button" aria-label="Next experience">›</button>
+                <button className="btk-product-arrow next" onClick={() => switchExperienceByStep(1)} type="button" aria-label="Next experience">
+                  <strong>See other experiences</strong>
+                  <span aria-hidden="true">›</span>
+                </button>
               )}
             </section>
 

@@ -15621,20 +15621,36 @@ body:has(.btk-page) .topbar {
   position: absolute;
   z-index: 3;
   top: 50%;
-  display: grid;
-  width: 46px;
-  height: 46px;
-  place-items: center;
+  display: inline-flex;
+  min-width: 46px;
+  min-height: 46px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   transform: translateY(-50%);
   border: 1px solid #e2e8f0;
   border-radius: 999px;
   background: rgba(255,255,255,0.96);
   color: #111827;
   box-shadow: 0 14px 34px rgba(15,23,42,0.16);
-  font-size: 38px;
-  font-weight: 500;
+  padding: 0 14px;
+  font-size: 15px;
+  font-weight: 800;
   line-height: 1;
   cursor: pointer;
+}
+
+.btk-product-arrow span {
+  font-size: 30px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.btk-product-arrow strong {
+  max-width: 92px;
+  font-size: 12px;
+  line-height: 1.1;
+  text-align: left;
 }
 
 .btk-product-arrow.prev {
@@ -15652,9 +15668,19 @@ body:has(.btk-page) .topbar {
 
 @media (max-width: 768px) {
   .btk-product-arrow {
-    width: 42px;
-    height: 42px;
-    font-size: 34px;
+    min-width: 42px;
+    min-height: 42px;
+    padding: 0 10px;
+    gap: 6px;
+  }
+
+  .btk-product-arrow span {
+    font-size: 26px;
+  }
+
+  .btk-product-arrow strong {
+    max-width: 70px;
+    font-size: 10px;
   }
 
   .btk-product-arrow.prev {
