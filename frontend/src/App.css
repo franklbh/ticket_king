@@ -15642,3 +15642,25 @@ body:has(.btk-page) .topbar {
     right: 8px;
   }
 }
+
+/* Mobile product detail: show booking before details */
+.exp2-mobile-booking {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .exp2-mobile-booking {
+    display: block;
+    margin: 0 0 32px;
+  }
+
+  .exp2-mobile-booking .bw-widget {
+    border-radius: 18px;
+  }
+}
+
+/* Booking widget month scroller spacing */
+.bw-month-row {
+  padding-bottom: 10px !important;
+  margin-bottom: 16px !important;
+}
