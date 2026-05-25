@@ -17,7 +17,7 @@ declare
   end_date date := date '2026-08-31';
   first_start time := time '10:00';
   step_minutes integer := 30;
-  slot_duration_minutes integer := 45;
+  slot_duration_minutes integer := 30;
   price numeric := 45.95;
 begin
   insert into public.slots (

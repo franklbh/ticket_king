@@ -24,6 +24,55 @@ const PAYMENT_METHODS = [
 ]
 const GST_RATE = 0.05
 
+function buildThemeOptions(events, availableSlots) {
+  const slotCountByEvent = availableSlots.reduce((counts, slot) => {
+    const eventId = String(slot.event)
+    counts.set(eventId, (counts.get(eventId) || 0) + 1)
+    return counts
+  }, new Map())
+
+  const activeEventsWithSlots = events
+    .filter(event => String(event.status || 'active').toLowerCase() === 'active')
+    .filter(event => slotCountByEvent.has(String(event.id)))
+
+  return activeEventsWithSlots.map(event => {
+    const eventId = String(event.id)
+    return {
+      key: `event-${eventId}`,
+      eventId,
+      name: event.name,
+      count: slotCountByEvent.get(eventId) || 0,
+    }
+  })
+}
+
+const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+function minutesFromTime(value) {
+  const [hours = '0', minutes = '0'] = String(value || '').slice(0, 5).split(':')
+  return Number(hours) * 60 + Number(minutes)
+}
+
+function weekdayForDate(dateKey) {
+  return DAY_LABELS[new Date(`${dateKey}T12:00:00`).getDay()]
+}
+
+function ticketTypeMatchesSlot(ticketType, slot) {
+  if (!slot) return false
+  if (String(ticketType.status || '').toLowerCase() !== 'enabled') return false
+  if (String(ticketType.event) !== String(slot.event)) return false
+  if (ticketType.validFrom && slot.date < ticketType.validFrom) return false
+  if (ticketType.validTo && slot.date > ticketType.validTo) return false
+
+  const weekday = weekdayForDate(slot.date)
+  if (Array.isArray(ticketType.weekdays) && ticketType.weekdays.length && !ticketType.weekdays.includes(weekday)) return false
+
+  const slotStart = minutesFromTime(slot.startTime)
+  const typeStart = minutesFromTime(ticketType.timeStart)
+  const typeEnd = minutesFromTime(ticketType.timeEnd)
+  return slotStart >= typeStart && slotStart <= typeEnd
+}
+
 function dateKeyFromDate(date) {
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')
@@ -137,24 +186,25 @@ export default function CreateOrder() {
   })
 
   const availableSlots = selectedDate ? slots.filter(s => s.date === selectedDate && s.status === 'active') : []
-  const themeOptions = events
-    .filter(event => String(event.status || 'active').toLowerCase() === 'active')
-    .filter(event => availableSlots.some(slot => String(slot.event) === String(event.id)))
+  const themeOptions = buildThemeOptions(events, availableSlots)
+  const selectedThemeOption = themeOptions.find(option => option.key === selectedTheme)
+  const selectedEventId = selectedThemeOption?.eventId || ''
   const selectedThemeSlots = selectedTheme
-    ? availableSlots.filter(slot => String(slot.event) === String(selectedTheme))
+    ? availableSlots.filter(slot => String(slot.event) === String(selectedEventId))
     : []
-  const themeNameById = new Map(events.map(event => [String(event.id), event.name]))
+  const themeNameByKey = new Map(themeOptions.map(option => [option.key, option.name]))
   const matchingTypeRows = selectedTheme
-    ? ticketTypes.filter(tp => String(tp.event) === String(selectedTheme))
+    ? ticketTypes.filter(tp => String(tp.event) === String(selectedEventId))
     : ticketTypes
   const enabledTypes = dedupeBy(
-    (matchingTypeRows.length ? matchingTypeRows : ticketTypes).filter(tp => tp.status === 'enabled'),
+    (selectedSlot ? matchingTypeRows.filter(tp => ticketTypeMatchesSlot(tp, selectedSlot)) : [])
+      .sort((a, b) => Number(a.id) - Number(b.id)),
     tp => tp.name
   )
 
-  function handleThemeSelect(eventId) {
-    if (String(eventId) === String(selectedTheme)) return
-    setSelectedTheme(String(eventId))
+  function handleThemeSelect(themeKey) {
+    if (String(themeKey) === String(selectedTheme)) return
+    setSelectedTheme(String(themeKey))
     setSelectedSlot(null)
     setTicketSelections({})
     clearCheckoutAdjustments()
@@ -162,7 +212,8 @@ export default function CreateOrder() {
 
   function handleSlotSelect(slot) {
     setSelectedSlot(slot)
-    setSelectedTheme(String(slot.event || selectedTheme))
+    const themeForSlot = themeOptions.find(option => option.eventId === String(slot.event))
+    setSelectedTheme(themeForSlot?.key || selectedTheme)
     setTicketSelections({})
     clearCheckoutAdjustments()
   }
@@ -513,13 +564,12 @@ export default function CreateOrder() {
                   Select theme first
                 </div>
                 <div className="create-order-theme-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10 }}>
-                  {themeOptions.map(event => {
-                    const isSelected = String(selectedTheme) === String(event.id)
-                    const count = availableSlots.filter(slot => String(slot.event) === String(event.id)).length
+                  {themeOptions.map(option => {
+                    const isSelected = selectedTheme === option.key
                     return (
                       <button
-                        key={event.id}
-                        onClick={() => handleThemeSelect(event.id)}
+                        key={option.key}
+                        onClick={() => handleThemeSelect(option.key)}
                         type="button"
                         style={{
                           padding: '12px 14px',
@@ -530,9 +580,9 @@ export default function CreateOrder() {
                           cursor: 'pointer',
                         }}
                       >
-                        <div style={{ fontWeight: 800, color: '#111827' }}>{event.name}</div>
+                        <div style={{ fontWeight: 800, color: '#111827' }}>{option.name}</div>
                         <div style={{ marginTop: 4, fontSize: 12, color: '#64748b' }}>
-                          {count} time slot{count === 1 ? '' : 's'}
+                          {option.count} time slot{option.count === 1 ? '' : 's'}
                         </div>
                       </button>
                     )
@@ -551,7 +601,7 @@ export default function CreateOrder() {
               ) : (
                 <>
                   <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 8 }}>
-                    Time slots for {themeNameById.get(String(selectedTheme)) || 'selected theme'}
+                    Time slots for {themeNameByKey.get(selectedTheme) || 'selected theme'}
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
                     {selectedThemeSlots.map(slot => {
@@ -600,12 +650,12 @@ export default function CreateOrder() {
       {/* Step 2: Select Tickets */}
       {step === 2 && (
         <AdminCard>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div className="create-order-ticket-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <h2 style={{ fontSize: 16, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
               <i className="fa fa-ticket" style={{ color: '#6366f1' }} />
               {t.step2}
             </h2>
-            <div style={{ fontSize: 13, color: '#6b7280' }}>
+            <div className="create-order-ticket-selected" style={{ fontSize: 13, color: '#6b7280' }}>
               Selected: {selectedSlot.date} {selectedSlot.startTime}-{selectedSlot.endTime}
             </div>
           </div>
@@ -620,14 +670,14 @@ export default function CreateOrder() {
               const count = ticketSelections[tp.id] || 0
               const price = tp.priceType === 'fixed' ? tp.price : (selectedSlot.price + (tp.priceAdj || 0))
               return (
-                <div key={tp.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', border: '1px solid #e5e7eb', borderRadius: 8, background: count > 0 ? '#fef2f2' : '#fff' }}>
-                  <div>
+                <div className="create-order-ticket-row" key={tp.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', border: '1px solid #e5e7eb', borderRadius: 8, background: count > 0 ? '#fef2f2' : '#fff' }}>
+                  <div className="create-order-ticket-info">
                     <div style={{ fontWeight: 600, fontSize: 14 }}>{tp.name}</div>
                     <div style={{ fontSize: 13, color: '#6b7280', marginTop: 2 }}>
                       ${price?.toFixed(2)} · 1 seat{tp.name.includes('Family Bundle') ? ' · Min: 3' : tp.name.includes('Group Ticket') ? ' · Min: 6' : ''}
                     </div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div className="create-order-ticket-controls" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <button
                       onClick={() => updateTicketCount(tp.id, -1)}
                       disabled={count === 0}

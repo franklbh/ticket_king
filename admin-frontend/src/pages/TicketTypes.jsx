@@ -1,8 +1,8 @@
-import { useState, useMemo } from 'react'
+import { Fragment, useState, useMemo } from 'react'
 import Button from '@mui/material/Button'
 import { useLang } from '../context/authHooks'
 import { useT } from '../i18n/translations'
-import { createTicketType, updateTicketType } from '../api/adminApi'
+import { createEvent, createTicketType, updateTicketType } from '../api/adminApi'
 import { AdminAlert, EmptyTableRow, FilterCard, PageHeader, TableShell } from '../components/AdminUI'
 import LoadingIndicator from '../components/LoadingIndicator'
 import { ResetFiltersButton, SelectFilter, TextFilter } from '../components/FilterControls'
@@ -30,15 +30,14 @@ function ticketTypePayload(form) {
 
 const ALL_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
-const TYPE_META = {
-  'Adult':                      { icon: 'fa-user',   desc: 'Standard adult admission' },
-  'Child (7-15)':               { icon: 'fa-child',  desc: 'Ages 7–15' },
-  'Senior (65+)':               { icon: 'fa-user',   desc: 'Ages 65 and above' },
-  'Group (6+ people)':          { icon: 'fa-users',  desc: 'Minimum 6 people, per person' },
-  'Family (2 adults + 1 child)':{ icon: 'fa-home',   desc: '2 adults + 1 child, per person' },
-  'Early Bird':                 { icon: 'fa-clock',  desc: 'Limited period offer' },
-  'VIP':                        { icon: 'fa-star',   desc: 'VIP Lounge add-on experience' },
-}
+const EVENT_STYLE_PALETTE = [
+  { icon: 'fa-ticket-alt', accent: '#059669', tint: '#ecfdf5' },
+  { icon: 'fa-ticket-alt', accent: '#2563eb', tint: '#eff6ff' },
+  { icon: 'fa-ticket-alt', accent: '#7c3aed', tint: '#f5f3ff' },
+  { icon: 'fa-ticket-alt', accent: '#0891b2', tint: '#ecfeff' },
+  { icon: 'fa-ticket-alt', accent: '#be123c', tint: '#fff1f2' },
+  { icon: 'fa-ticket-alt', accent: '#4f46e5', tint: '#eef2ff' },
+]
 
 const LANGS = [
   { key: 'en', label: 'English' },
@@ -63,38 +62,174 @@ function LangTabs({ active, onSelect }) {
   )
 }
 
-function TypeModal({ type, events, onClose, onSave }) {
+function priceTierFromRemarks(remarks = '') {
+  const normalized = String(remarks).toLowerCase()
+  if (normalized.includes('higher') || (normalized.includes('peak') && !normalized.includes('off-peak'))) return 'higher'
+  return 'lower'
+}
+
+function stripPriceTierRemark(remarks = '') {
+  return String(remarks)
+    .replace(/^(lower price|higher price|off-peak|peak)\s*(·|-)?\s*[^,;]*\s*/i, '')
+    .trim()
+}
+
+function slugify(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
+function eventStyle(index = 0) {
+  return EVENT_STYLE_PALETTE[index % EVENT_STYLE_PALETTE.length]
+}
+
+function eventToGroup(event, index = 0) {
+  const style = eventStyle(index)
+  return {
+    key: `event-${event.id}`,
+    label: event.name,
+    icon: style.icon,
+    accent: style.accent,
+    tint: style.tint,
+    primaryEventId: event.id,
+    eventIds: [String(event.id)],
+    rows: [],
+    periods: { lower: [], higher: [] },
+  }
+}
+
+function TypeModal({ type, events, eventGroups, onClose, onSave, onCreateEvent }) {
+  const [extraEventGroups, setExtraEventGroups] = useState([])
+  const availableEventGroups = [...eventGroups, ...extraEventGroups.filter(extra => !eventGroups.some(group => group.key === extra.key))]
+  const eventOptions = events
+    .map(event => ({
+      ...event,
+      id: String(event.id),
+      rawId: event.id,
+      displayName: event.name,
+      groupKey: availableEventGroups.find(group => group.eventIds.includes(String(event.id)))?.key || `event-${event.id}`,
+    }))
   const initName = typeof type?.name === 'object' ? type.name : { en: type?.name || '', zhHans: '', zhHant: '' }
+  const initialTier = priceTierFromRemarks(type?.remarks)
+  const initialEventOption = eventOptions.find(event => event.id === String(type?.event)) || eventOptions[0]
+  const initialGroup = availableEventGroups.find(group => group.key === initialEventOption?.groupKey) || availableEventGroups[0]
+  const initialPeriod = firstPeriod(initialGroup, initialTier)
+  const initialEvent = type?.event || initialEventOption?.id || initialPeriod?.eventId || initialGroup?.primaryEventId || 1
   const [form, setForm] = useState({
-    event: type?.event || 1,
+    event: initialEvent,
+    eventGroupKey: initialEventOption?.groupKey || initialGroup?.key || '',
     name: initName,
     notice: type?.notice || { en: '', zhHans: '', zhHant: '' },
-    remarks: type?.remarks || '',
-    price: type?.price || 0,
-    priceAdj: type?.priceAdj || 0,
+    priceTier: initialTier,
+    remarks: stripPriceTierRemark(type?.remarks || ''),
+    price: type?.price == null ? '' : String(type.price),
+    priceAdj: type?.priceAdj == null ? '' : String(type.priceAdj),
     validFrom: type?.validFrom || '2000-01-01',
     validTo: type?.validTo || '2099-12-31',
-    timeStart: type?.timeStart || '00:00',
-    timeEnd: type?.timeEnd || '23:59',
+    timeStart: type?.timeStart || initialPeriod?.timeStart || '00:00',
+    timeEnd: type?.timeEnd || initialPeriod?.timeEnd || '23:59',
     discount: type?.discount || { percent: 0, start: '', end: '', message: { en: '', zhHans: '', zhHant: '' } },
-    weekdays: type?.weekdays || ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],
+    weekdays: type?.weekdays || initialPeriod?.weekdays || ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],
     enabled: type ? type.status !== 'disabled' : true,
   })
   const [nameLang, setNameLang] = useState('en')
   const [noticeLang, setNoticeLang] = useState('en')
   const [discMsgLang, setDiscMsgLang] = useState('en')
+  const [showNewEvent, setShowNewEvent] = useState(false)
+  const [newEvent, setNewEvent] = useState({ name: '', slug: '' })
+  const [creatingEvent, setCreatingEvent] = useState(false)
 
   function toggleDay(d) {
     setForm(f => ({ ...f, weekdays: f.weekdays.includes(d) ? f.weekdays.filter(x => x !== d) : [...f.weekdays, d] }))
   }
 
+  const selectedGroup = availableEventGroups.find(group => group.key === form.eventGroupKey)
+  const selectedPeriod = firstPeriod(selectedGroup, form.priceTier)
+
+  function periodSummary(period) {
+    return period ? period.label : 'Custom schedule'
+  }
+
+  function setEvent(eventId) {
+    setForm(f => {
+      const option = eventOptions.find(item => item.id === String(eventId))
+      const group = availableEventGroups.find(item => item.key === option?.groupKey)
+      const period = firstPeriod(group, f.priceTier)
+      return {
+        ...f,
+        eventGroupKey: option?.groupKey || '',
+        event: option?.rawId || eventId,
+        ...(period ? {
+          weekdays: period.weekdays,
+          timeStart: period.timeStart,
+          timeEnd: period.timeEnd,
+        } : {}),
+      }
+    })
+  }
+
+  function setPriceTier(priceTier) {
+    setForm(f => {
+      const group = availableEventGroups.find(item => item.key === f.eventGroupKey)
+      const period = firstPeriod(group, priceTier)
+      return {
+        ...f,
+        priceTier,
+        ...(period ? {
+          weekdays: period.weekdays,
+          timeStart: period.timeStart,
+          timeEnd: period.timeEnd,
+        } : {}),
+      }
+    })
+  }
+
   function handleSave() {
-    onSave({ ...form, name: form.name.en, status: form.enabled ? 'enabled' : 'disabled' })
+    const tierLabel = form.priceTier === 'higher' ? 'Higher price' : 'Lower price'
+    const remarks = [tierLabel, selectedGroup?.label, form.remarks].filter(Boolean).join(' · ')
+    onSave({
+      ...form,
+      price: form.price === '' ? 0 : Number(form.price),
+      priceAdj: form.priceAdj === '' ? 0 : Number(form.priceAdj),
+      remarks,
+      name: form.name.en,
+      status: form.enabled ? 'enabled' : 'disabled',
+    })
+  }
+
+  async function handleCreateEvent() {
+    const name = newEvent.name.trim()
+    if (!name) return
+    setCreatingEvent(true)
+    try {
+      const event = await onCreateEvent({
+        name,
+        slug: newEvent.slug.trim() || slugify(name),
+        status: 'active',
+      })
+      const group = eventToGroup(event)
+      setExtraEventGroups(groups => [...groups.filter(item => item.key !== group.key), group])
+      setForm(f => ({
+        ...f,
+        event: event.id,
+        eventGroupKey: group.key,
+        weekdays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
+        timeStart: '10:00',
+        timeEnd: '19:00',
+      }))
+      setNewEvent({ name: '', slug: '' })
+      setShowNewEvent(false)
+    } finally {
+      setCreatingEvent(false)
+    }
   }
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-box" style={{ maxWidth: 600, maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+      <div className="modal-box ticket-type-modal-box" style={{ maxWidth: 600, maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <h3 style={{ margin: 0, fontWeight: 700 }}>{type ? 'Edit Ticket Type Rule' : 'Create Ticket Type Rule'}</h3>
           <button onClick={onClose} style={{ border: 'none', background: 'transparent', fontSize: 20, cursor: 'pointer', color: '#6b7280' }}>×</button>
@@ -103,12 +238,55 @@ function TypeModal({ type, events, onClose, onSave }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {/* Event */}
           <div>
-            <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>
-              Event <span style={{ color: '#ef4444' }}>*</span>
-            </label>
-            <select className="form-select" value={form.event} onChange={e => setForm(f => ({ ...f, event: Number(e.target.value) }))}>
-              {events.map(ev => <option key={ev.id} value={ev.id}>{ev.name}</option>)}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
+              <label style={{ fontSize: 13, fontWeight: 500, display: 'block' }}>
+                Event <span style={{ color: '#ef4444' }}>*</span>
+              </label>
+              <button
+                type="button"
+                onClick={() => setShowNewEvent(value => !value)}
+                style={{ border: 'none', background: 'transparent', color: '#2563eb', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}
+              >
+                {showNewEvent ? 'Cancel New Event' : '+ New Event'}
+              </button>
+            </div>
+            <select className="form-select" value={String(form.event)} onChange={e => setEvent(e.target.value)}>
+              {eventOptions.map(event => (
+                <option key={event.id} value={event.id}>
+                  {event.displayName}
+                </option>
+              ))}
             </select>
+            {showNewEvent && (
+              <div style={{ marginTop: 10, border: '1px solid #bfdbfe', background: '#eff6ff', borderRadius: 8, padding: 12 }}>
+                <div className="ticket-type-modal-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div>
+                    <label style={{ fontSize: 12, fontWeight: 700, display: 'block', marginBottom: 4 }}>Event Name</label>
+                    <input
+                      className="form-input"
+                      value={newEvent.name}
+                      onChange={e => setNewEvent(value => ({ ...value, name: e.target.value, slug: value.slug || slugify(e.target.value) }))}
+                      placeholder="e.g. New VR Show"
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 12, fontWeight: 700, display: 'block', marginBottom: 4 }}>Slug</label>
+                    <input
+                      className="form-input"
+                      value={newEvent.slug}
+                      onChange={e => setNewEvent(value => ({ ...value, slug: slugify(e.target.value) }))}
+                      placeholder="new-vr-show"
+                    />
+                  </div>
+                </div>
+                <div className="ticket-type-new-event-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 10 }}>
+                  <button type="button" className="btn-secondary" onClick={() => setShowNewEvent(false)}>Cancel</button>
+                  <button type="button" className="btn-primary" onClick={handleCreateEvent} disabled={creatingEvent || !newEvent.name.trim()}>
+                    {creatingEvent ? 'Creating...' : 'Create Event'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Ticket Name */}
@@ -127,31 +305,83 @@ function TypeModal({ type, events, onClose, onSave }) {
             <input className="form-input" value={form.notice[noticeLang]} onChange={e => setForm(f => ({ ...f, notice: { ...f.notice, [noticeLang]: e.target.value } }))} placeholder="Optional notice shown to customers..." />
           </div>
 
+          {/* Pricing Period */}
+          <div>
+            <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 8 }}>
+              Pricing Period <span style={{ color: '#ef4444' }}>*</span>
+            </label>
+            <div className="ticket-type-modal-tier-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <button
+                type="button"
+                onClick={() => setPriceTier('lower')}
+                style={{
+                  border: form.priceTier === 'lower' ? '2px solid #059669' : '1px solid #bbf7d0',
+                  background: form.priceTier === 'lower' ? '#dcfce7' : '#f0fdf4',
+                  color: '#047857',
+                  borderRadius: 8,
+                  padding: '12px',
+                  fontSize: 13,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                }}
+              >
+                <div>Lower Price</div>
+                <div style={{ marginTop: 4, fontSize: 12, fontWeight: 600, color: '#065f46' }}>
+                  {periodSummary(firstPeriod(selectedGroup, 'lower'))}
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setPriceTier('higher')}
+                style={{
+                  border: form.priceTier === 'higher' ? '2px solid #d97706' : '1px solid #fde68a',
+                  background: form.priceTier === 'higher' ? '#fef3c7' : '#fffbeb',
+                  color: '#b45309',
+                  borderRadius: 8,
+                  padding: '12px',
+                  fontSize: 13,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                }}
+              >
+                <div>Higher Price</div>
+                <div style={{ marginTop: 4, fontSize: 12, fontWeight: 600, color: '#92400e' }}>
+                  {periodSummary(firstPeriod(selectedGroup, 'higher'))}
+                </div>
+              </button>
+            </div>
+            <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 5 }}>
+              Choose one of the available time windows for this event. This also decides which price column the rule appears in.
+            </div>
+          </div>
+
           {/* Remarks */}
           <div>
             <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>
-              Remarks
+              Internal Notes
               <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 400, marginLeft: 6 }}>Internal use only — not shown to customers</span>
             </label>
-            <textarea className="form-input" rows={2} value={form.remarks} onChange={e => setForm(f => ({ ...f, remarks: e.target.value }))} placeholder="e.g. Off-peak tier, admin notes..." style={{ resize: 'vertical' }} />
+            <textarea className="form-input" rows={2} value={form.remarks} onChange={e => setForm(f => ({ ...f, remarks: e.target.value }))} placeholder="Optional admin notes..." style={{ resize: 'vertical' }} />
           </div>
 
           {/* Price */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div className="ticket-type-modal-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div>
               <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Fixed Price ($)</label>
-              <input className="form-input" type="number" step="0.01" value={form.price} onChange={e => setForm(f => ({ ...f, price: Number(e.target.value) }))} />
+              <input className="form-input" type="number" step="0.01" value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))} />
               <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 3 }}>Base ticket price</div>
             </div>
             <div>
               <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Float Price (±)</label>
-              <input className="form-input" type="number" step="0.01" value={form.priceAdj} onChange={e => setForm(f => ({ ...f, priceAdj: Number(e.target.value) }))} placeholder="0.00" />
+              <input className="form-input" type="number" step="0.01" value={form.priceAdj} onChange={e => setForm(f => ({ ...f, priceAdj: e.target.value }))} placeholder="0.00" />
               <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 3 }}>Dynamic adjustment amount</div>
             </div>
           </div>
 
           {/* Valid From / Until */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div className="ticket-type-modal-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div>
               <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Valid From</label>
               <input className="form-input" type="date" value={form.validFrom} onChange={e => setForm(f => ({ ...f, validFrom: e.target.value || '2000-01-01' }))} />
@@ -162,23 +392,32 @@ function TypeModal({ type, events, onClose, onSave }) {
             </div>
           </div>
 
-          {/* Time Range */}
-          <div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div>
-                <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Start Time</label>
-                <input className="form-input" type="time" value={form.timeStart} onChange={e => setForm(f => ({ ...f, timeStart: e.target.value || '00:00' }))} />
-              </div>
-              <div>
-                <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>End Time</label>
-                <input className="form-input" type="time" value={form.timeEnd} onChange={e => setForm(f => ({ ...f, timeEnd: e.target.value || '23:59' }))} />
+          {selectedGroup && selectedPeriod ? (
+            <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: 14, background: '#f8fafc' }}>
+              <div style={{ fontSize: 12, fontWeight: 800, color: '#475569', marginBottom: 6 }}>Selected Time Window</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>{periodSummary(selectedPeriod)}</div>
+              <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
+                Saved as {form.weekdays.join(', ')} · {form.timeStart}–{form.timeEnd}
               </div>
             </div>
-            <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>Available time range (inclusive start, exclusive end)</div>
-          </div>
+          ) : (
+            <div>
+              <div className="ticket-type-modal-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Start Time</label>
+                  <input className="form-input" type="time" value={form.timeStart} onChange={e => setForm(f => ({ ...f, timeStart: e.target.value || '00:00' }))} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>End Time</label>
+                  <input className="form-input" type="time" value={form.timeEnd} onChange={e => setForm(f => ({ ...f, timeEnd: e.target.value || '23:59' }))} />
+                </div>
+              </div>
+              <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>Available time range (inclusive start, exclusive end)</div>
+            </div>
+          )}
 
           {/* Discount Settings */}
-          <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: 16 }}>
+          <div className="ticket-type-discount-card" style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14 }}>
               <i className="fa fa-tag" style={{ color: '#d97706' }} />
               <span style={{ fontSize: 13, fontWeight: 700, color: '#d97706' }}>Discount Settings</span>
@@ -192,7 +431,7 @@ function TypeModal({ type, events, onClose, onSave }) {
                 </div>
                 <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 3 }}>e.g. enter 25 for 25% off</div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="ticket-type-modal-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
                   <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Discount Start</label>
                   <input className="form-input" type="datetime-local" value={form.discount.start} onChange={e => setForm(f => ({ ...f, discount: { ...f.discount, start: e.target.value } }))} />
@@ -211,20 +450,21 @@ function TypeModal({ type, events, onClose, onSave }) {
             </div>
           </div>
 
-          {/* Weekdays */}
-          <div>
-            <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 8 }}>
-              Available Weekdays <span style={{ color: '#ef4444' }}>*</span>
-            </label>
-            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-              {ALL_DAYS.map(d => (
-                <label key={d} style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
-                  <input type="checkbox" checked={form.weekdays.includes(d)} onChange={() => toggleDay(d)} style={{ accentColor: '#6366f1', width: 14, height: 14 }} />
-                  <span style={{ fontSize: 13, color: '#374151' }}>{d}</span>
-                </label>
-              ))}
+          {(!selectedGroup || !selectedPeriod) && (
+            <div>
+              <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 8 }}>
+                Available Weekdays <span style={{ color: '#ef4444' }}>*</span>
+              </label>
+              <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                {ALL_DAYS.map(d => (
+                  <label key={d} style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={form.weekdays.includes(d)} onChange={() => toggleDay(d)} style={{ accentColor: '#6366f1', width: 14, height: 14 }} />
+                    <span style={{ fontSize: 13, color: '#374151' }}>{d}</span>
+                  </label>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Enable */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#f5f3ff', borderRadius: 8, border: '1px solid #e0e7ff' }}>
@@ -233,7 +473,7 @@ function TypeModal({ type, events, onClose, onSave }) {
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 24 }}>
+        <div className="ticket-type-modal-footer" style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 24 }}>
           <button className="btn-secondary" onClick={onClose}>Cancel</button>
           <button className="btn-primary" onClick={handleSave}>Save</button>
         </div>
@@ -242,20 +482,12 @@ function TypeModal({ type, events, onClose, onSave }) {
   )
 }
 
-const SCHEDULE_TIERS = [
-  {
-    key: 'off-peak', label: 'Off-Peak',
-    color: '#059669', bg: '#f0fdf4', border: '#bbf7d0',
-    rules: ['Mon – Thu · 10:00 – 19:30', 'Fri · 10:00 – 14:00'],
-  },
-  {
-    key: 'peak', label: 'Peak',
-    color: '#d97706', bg: '#fffbeb', border: '#fde68a',
-    rules: ['Fri · 14:00 – 20:30', 'Sat – Sun · 10:00 – 20:30'],
-  },
-]
+const TIER_STYLES = {
+  lower: { label: 'Lower Price', color: '#059669', bg: '#f0fdf4', border: '#bbf7d0' },
+  higher: { label: 'Higher Price', color: '#d97706', bg: '#fffbeb', border: '#fde68a' },
+}
 
-function PriceCell({ price, color, bg, border, editing, editValue, onStart, onChange, onCommit, onCancel }) {
+function PriceCell({ price, suffix = '', color, bg, border, editing, editValue, onStart, onChange, onCommit, onCancel, missingLabel, onCreateMissing, creatingMissing }) {
   if (editing) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
@@ -272,17 +504,184 @@ function PriceCell({ price, color, bg, border, editing, editValue, onStart, onCh
       </div>
     )
   }
-  if (price == null) return <span style={{ color: '#d1d5db', fontSize: 13 }}>—</span>
+  if (price == null) {
+    if (onCreateMissing) {
+      return (
+        <button type="button" onClick={onCreateMissing} disabled={creatingMissing} style={{
+          background: '#fff',
+          border: `1px dashed ${border}`,
+          borderRadius: 7,
+          padding: '7px 12px',
+          cursor: creatingMissing ? 'default' : 'pointer',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
+          fontSize: 12,
+          fontWeight: 800,
+          color,
+          whiteSpace: 'nowrap',
+          opacity: creatingMissing ? 0.6 : 1,
+        }}>
+          <i className="fa fa-plus" style={{ fontSize: 10 }} />
+          {creatingMissing ? 'Creating...' : missingLabel}
+        </button>
+      )
+    }
+    return <span style={{ color: '#d1d5db', fontSize: 13 }}>—</span>
+  }
   return (
     <button type="button" onClick={onStart} style={{
       background: bg, border: `1px solid ${border}`, borderRadius: 7,
       padding: '7px 14px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 7,
-      fontSize: 16, fontWeight: 800, color,
+      fontSize: 16, fontWeight: 800, color, whiteSpace: 'nowrap', minWidth: 96, justifyContent: 'center',
     }}>
-      ${price.toFixed(2)}
+      ${price.toFixed(2)}{suffix}
       <i className="fa fa-pencil-alt" style={{ fontSize: 10, opacity: 0.5 }} />
     </button>
   )
+}
+
+function normalizeTime(value) {
+  return String(value || '').slice(0, 5)
+}
+
+function isActiveEvent(event) {
+  return String(event?.status || 'active').toLowerCase() === 'active'
+}
+
+function isLowerRule(row) {
+  const remarks = String(row?.remarks || '').toLowerCase()
+  return remarks.includes('lower') || remarks.includes('off-peak')
+}
+
+function isHigherRule(row) {
+  const remarks = String(row?.remarks || '').toLowerCase()
+  return remarks.includes('higher') || (remarks.includes('peak') && !remarks.includes('off-peak'))
+}
+
+function rowTier(row) {
+  if (isHigherRule(row)) return 'higher'
+  return 'lower'
+}
+
+function formatWeekdays(days = []) {
+  const set = new Set(days)
+  if (['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].every(day => set.has(day)) && set.size === 5) return 'Mon–Fri'
+  if (['Sat', 'Sun'].every(day => set.has(day)) && set.size === 2) return 'Sat–Sun'
+  if (['Sun', 'Mon', 'Tue', 'Wed', 'Thu'].every(day => set.has(day)) && set.size === 5) return 'Sun–Thu'
+  if (['Fri', 'Sat'].every(day => set.has(day)) && set.size === 2) return 'Fri–Sat'
+  return days.join(', ')
+}
+
+function periodKeyFromRow(row) {
+  return `${rowTier(row)}|${[...(row.weekdays || [])].sort().join(',')}|${normalizeTime(row.timeStart)}|${normalizeTime(row.timeEnd)}`
+}
+
+function periodFromRow(row) {
+  const tier = rowTier(row)
+  const timeStart = normalizeTime(row.timeStart)
+  const timeEnd = normalizeTime(row.timeEnd)
+  return {
+    key: periodKeyFromRow(row),
+    tier,
+    eventId: row.event,
+    weekdays: row.weekdays || [],
+    timeStart,
+    timeEnd,
+    label: `${formatWeekdays(row.weekdays || [])} ${timeStart}–${timeEnd}`,
+  }
+}
+
+function uniquePeriods(rows, tier) {
+  const periods = new Map()
+  rows.filter(row => rowTier(row) === tier).forEach(row => {
+    const period = periodFromRow(row)
+    if (!periods.has(period.key)) periods.set(period.key, period)
+  })
+  return [...periods.values()]
+}
+
+function firstPeriod(group, tier) {
+  return group?.periods?.[tier]?.[0] || null
+}
+
+function ruleForTier(rows, tier) {
+  return rows.find(row => rowTier(row) === tier)
+}
+
+function buildEventGroups(events, ticketTypes) {
+  const groups = new Map()
+  events.filter(isActiveEvent).forEach((event, index) => {
+    const style = eventStyle(index)
+    const key = `event-${event.id}`
+    if (!groups.has(key)) {
+      groups.set(key, {
+        key,
+        label: event.name,
+        icon: style.icon,
+        accent: style.accent,
+        tint: style.tint,
+        primaryEventId: event.id,
+        eventIds: [],
+        rows: [],
+        periods: { lower: [], higher: [] },
+      })
+    }
+    groups.get(key).eventIds.push(String(event.id))
+  })
+
+  groups.forEach(group => {
+    const eventRows = ticketTypes.filter(row => group.eventIds.includes(String(row.event)) && row.status !== 'archived')
+    const enabledRows = eventRows.filter(row => row.status === 'enabled')
+    group.periods = {
+      lower: uniquePeriods(enabledRows, 'lower'),
+      higher: uniquePeriods(enabledRows, 'higher'),
+    }
+
+    const names = [...new Set(eventRows.map(row => row.name).filter(Boolean))]
+    group.rows = names.map(name => {
+      const liveRows = eventRows.filter(row => row.name === name)
+      const lowerRule = ruleForTier(liveRows, 'lower')
+      const higherRule = ruleForTier(liveRows, 'higher')
+      const anyEnabled = liveRows.some(row => row.status === 'enabled')
+      return {
+        name,
+        key: `${group.key}-${name}`,
+        event: { id: lowerRule?.event || higherRule?.event || group.primaryEventId },
+        group,
+        lowerRule,
+        higherRule,
+        lowerPeriod: lowerRule ? periodFromRow(lowerRule) : firstPeriod(group, 'lower'),
+        higherPeriod: higherRule ? periodFromRow(higherRule) : firstPeriod(group, 'higher'),
+        lowerPrice: lowerRule?.price ?? null,
+        higherPrice: higherRule?.price ?? null,
+        liveRows,
+        status: liveRows.length ? (anyEnabled ? 'enabled' : 'disabled') : 'missing',
+        anyEnabled,
+        firstRow: lowerRule || higherRule || liveRows[0],
+        perPerson: /group|family/i.test(name),
+      }
+    })
+  })
+
+  return [...groups.values()]
+}
+
+function ticketRulePayloadFromPeriod(group, ticket, tier, eventId, period, price) {
+  return {
+    event: eventId,
+    name: ticket.name,
+    priceType: 'fixed',
+    price,
+    priceAdj: 0,
+    weekdays: period?.weekdays || [],
+    validFrom: null,
+    validTo: null,
+    timeStart: period?.timeStart || null,
+    timeEnd: period?.timeEnd || null,
+    remarks: `${tier === 'lower' ? 'Lower price' : 'Higher price'} · ${group.label}`,
+    status: 'enabled',
+  }
 }
 
 export default function TicketTypes() {
@@ -292,7 +691,7 @@ export default function TicketTypes() {
     false,
     { initialData: [] }
   )
-  const { data: events = [] } = useEventsQuery({ initialData: [] })
+  const { data: events = [], reload: reloadEvents } = useEventsQuery({ initialData: [] })
   const types = loadedTypes || []
 
   const saveType = useAdminMutation(
@@ -303,36 +702,37 @@ export default function TicketTypes() {
     },
     { invalidateQueries: adminQueryKeys.ticketTypes, successMessage: 'Ticket type saved.' }
   )
+  const saveEvent = useAdminMutation(
+    payload => createEvent(payload),
+    { invalidateQueries: adminQueryKeys.events, successMessage: 'Event created.' }
+  )
   const [filters, setFilters] = useState({ search: '', status: 'all' })
   const [modal, setModal] = useState(null)
   const [editingCell, setEditingCell] = useState(null) // { name, tier }
   const [editValue, setEditValue] = useState('')
 
-  const rows = useMemo(() => {
-    const seen = new Set()
-    const names = types.filter(tp => { if (seen.has(tp.name)) return false; seen.add(tp.name); return true }).map(tp => tp.name)
-    return names
-      .filter(name => {
-        if (filters.search && !name.toLowerCase().includes(filters.search.toLowerCase())) return false
-        const nr = types.filter(tp => tp.name === name)
-        if (filters.status !== 'all' && !nr.some(r => r.status === filters.status)) return false
-        return true
+  const eventGroups = useMemo(() => buildEventGroups(events, types), [events, types])
+
+  const groups = useMemo(() => {
+    const search = filters.search.trim().toLowerCase()
+    return eventGroups
+      .map(group => ({
+        ...group,
+        rows: group.rows.filter(row => {
+          if (filters.status !== 'all' && row.status !== filters.status) return false
+          if (!search) return true
+          return `${group.label} ${row.name}`.toLowerCase().includes(search)
+        }),
+      }))
+      .filter(group => {
+        if (group.rows.length) return true
+        if (filters.status !== 'all') return false
+        if (!search) return true
+        return group.label.toLowerCase().includes(search)
       })
-      .map(name => {
-        const nr = types.filter(tp => tp.name === name)
-        const offPeakRows = nr.filter(r => r.remarks?.toLowerCase().includes('off-peak'))
-        const peakRows = nr.filter(r => r.remarks?.toLowerCase().includes('peak') && !r.remarks?.toLowerCase().includes('off-peak'))
-        return {
-          name,
-          offPeakPrice: offPeakRows[0]?.price ?? null,
-          peakPrice: peakRows[0]?.price ?? null,
-          singlePrice: (!offPeakRows.length && !peakRows.length) ? nr[0]?.price ?? null : null,
-          anyEnabled: nr.some(r => r.status === 'enabled'),
-          meta: TYPE_META[name] || { icon: 'fa-tag', desc: '' },
-          firstRow: nr[0],
-        }
-      })
-  }, [types, filters])
+  }, [eventGroups, filters])
+
+  const visibleCount = groups.reduce((total, group) => total + group.rows.length, 0)
 
   async function handleSave(form) {
     const existing = modal === 'create' ? null : modal
@@ -341,16 +741,41 @@ export default function TicketTypes() {
     reload()
   }
 
-  async function toggleStatus(name) {
-    const rows = types.filter(tp => tp.name === name)
+  async function handleCreateEvent(payload) {
+    const event = await saveEvent.mutate(payload)
+    await reloadEvents()
+    return event
+  }
+
+  async function openCreateModal() {
+    await reloadEvents()
+    setModal('create')
+  }
+
+  const createMissingRule = useAdminMutation(
+    async (row, tier) => {
+      const copyPrice = tier === 'lower' ? row.higherPrice : row.lowerPrice
+      const period = tier === 'lower' ? row.lowerPeriod : row.higherPeriod
+      return createTicketType(ticketRulePayloadFromPeriod(row.group, row, tier, period?.eventId || row.group.primaryEventId, period, copyPrice ?? 0))
+    },
+    {
+      invalidateQueries: adminQueryKeys.ticketTypes,
+      successMessage: 'Ticket price rule created.',
+      onSuccess: () => reload(),
+    }
+  )
+
+  async function toggleStatus(row) {
+    const rows = row.liveRows
+    if (!rows.length) return
     const anyEnabled = rows.some(r => r.status === 'enabled')
     const nextStatus = anyEnabled ? 'disabled' : 'enabled'
     await Promise.all(rows.map(row => updateTicketType(row.id, { ...ticketTypePayload(row), status: nextStatus })))
     reload()
   }
 
-  function startEdit(name, tier, price) {
-    setEditingCell({ name, tier })
+  function startEdit(row, tier, price) {
+    setEditingCell({ key: row.key, tier, row })
     setEditValue(price?.toFixed(2) ?? '0.00')
   }
 
@@ -358,20 +783,20 @@ export default function TicketTypes() {
     if (!editingCell) return
     const newPrice = parseFloat(editValue)
     if (!isNaN(newPrice) && newPrice >= 0) {
-      const isOffPeak = editingCell.tier === 'off-peak'
-      let targets = types.filter(tp => {
-        if (tp.name !== editingCell.name) return false
-        const remarks = tp.remarks?.toLowerCase() ?? ''
-        return isOffPeak
-          ? remarks.includes('off-peak')
-          : remarks.includes('peak') && !remarks.includes('off-peak')
-      })
-      if (!targets.length) {
-        targets = types.filter(tp => tp.name === editingCell.name)
+      const target = editingCell.tier === 'lower' ? editingCell.row.lowerRule : editingCell.row.higherRule
+      if (target) {
+        await updateTicketType(target.id, { ...ticketTypePayload({ ...target, price: newPrice }), price: newPrice })
+      } else if (editingCell.row.event) {
+        const period = editingCell.tier === 'lower' ? editingCell.row.lowerPeriod : editingCell.row.higherPeriod
+        await createTicketType(ticketRulePayloadFromPeriod(
+          editingCell.row.group,
+          editingCell.row,
+          editingCell.tier,
+          period?.eventId || editingCell.row.group.primaryEventId,
+          period,
+          newPrice,
+        ))
       }
-      await Promise.all(
-        targets.map(row => updateTicketType(row.id, { ...ticketTypePayload({ ...row, price: newPrice }), price: newPrice }))
-      )
       reload()
     }
     setEditingCell(null)
@@ -387,8 +812,10 @@ export default function TicketTypes() {
         <TypeModal
           type={modal === 'create' ? null : modal}
           events={events}
+          eventGroups={eventGroups}
           onClose={() => setModal(null)}
           onSave={handleSave}
+          onCreateEvent={handleCreateEvent}
         />
       )}
       {loadError && (
@@ -399,29 +826,33 @@ export default function TicketTypes() {
       <PageHeader
         icon="fa-tags"
         title={t.ticketTypesManagement}
-        subtitle="Click any price to edit inline"
+        subtitle="Manage ticket rules, prices, and schedules for each experience."
         actions={
-          <Button variant="contained" onClick={() => setModal('create')} startIcon={<i className="fa fa-plus" />}>
-            {t.createTicketType}
+          <Button variant="contained" onClick={openCreateModal} startIcon={<i className="fa fa-plus" />}>
+            Create Ticket Type
           </Button>
         }
       />
 
       {/* Schedule reference */}
       <div className="ticket-type-schedule-grid">
-        {SCHEDULE_TIERS.map(s => (
-          <div key={s.key} style={{ flex: 1, background: s.bg, border: `1px solid ${s.border}`, borderRadius: 8, padding: '10px 16px' }}>
-            <div style={{ fontSize: 11, fontWeight: 800, color: s.color, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>
-              <i className="fa fa-clock" style={{ marginRight: 5 }} />{s.label} Schedule
+        {['lower', 'higher'].map(tier => {
+          const style = TIER_STYLES[tier]
+          const rules = [...new Set(eventGroups.flatMap(group => group.periods[tier].map(period => `${group.label} · ${period.label}`)))]
+          return (
+          <div key={tier} style={{ flex: 1, background: style.bg, border: `1px solid ${style.border}`, borderRadius: 8, padding: '10px 16px' }}>
+            <div style={{ fontSize: 11, fontWeight: 800, color: style.color, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>
+              <i className="fa fa-clock" style={{ marginRight: 5 }} />{style.label} Schedule
             </div>
-            {s.rules.map(rule => (
+            {rules.length ? rules.map(rule => (
               <div key={rule} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#374151', marginBottom: 2 }}>
-                <i className="fa fa-circle" style={{ fontSize: 4, color: s.color }} />
+                <i className="fa fa-circle" style={{ fontSize: 4, color: style.color }} />
                 {rule}
               </div>
-            ))}
+            )) : <div style={{ fontSize: 12, color: '#94a3b8' }}>No configured periods</div>}
           </div>
-        ))}
+          )
+        })}
       </div>
 
       {/* Filters */}
@@ -441,29 +872,36 @@ export default function TicketTypes() {
               { value: 'all', label: t.allStatus },
               { value: 'enabled', label: t.enabled },
               { value: 'disabled', label: t.disabled },
+              { value: 'missing', label: 'Missing' },
             ]}
           />
           <ResetFiltersButton label={t.reset} onClick={() => setFilters({ search: '', status: 'all' })} />
         </div>
       </FilterCard>
+      <div style={{ margin: '0 0 12px', fontSize: 13, color: '#64748b' }}>
+        {visibleCount} ticket types found
+      </div>
 
       {/* Price Matrix Table */}
-      <TableShell>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      <TableShell className="ticket-type-table-shell">
+        <table className="ticket-type-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
-              <th style={{ padding: '12px 18px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: '#6b7280', background: '#f8fafc', borderBottom: '2px solid #e5e7eb', width: '35%' }}>
+              <th style={{ padding: '12px 18px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: '#6b7280', background: '#f8fafc', borderBottom: '2px solid #e5e7eb', width: '34%' }}>
                 Ticket Type
               </th>
               <th style={{ padding: '12px 18px', textAlign: 'center', background: '#f0fdf4', borderBottom: '2px solid #86efac', borderLeft: '1px solid #d1fae5' }}>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: '#059669' }}>
-                  <i className="fa fa-moon" />Off-Peak
+                  <i className="fa fa-arrow-down" />Lower Price
                 </span>
               </th>
               <th style={{ padding: '12px 18px', textAlign: 'center', background: '#fffbeb', borderBottom: '2px solid #fbbf24', borderLeft: '1px solid #fde68a' }}>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: '#d97706' }}>
-                  <i className="fa fa-sun" />Peak
+                  <i className="fa fa-arrow-up" />Higher Price
                 </span>
+              </th>
+              <th style={{ padding: '12px 18px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: '#6b7280', background: '#f8fafc', borderBottom: '2px solid #e5e7eb', borderLeft: '1px solid #e5e7eb', width: '27%' }}>
+                Schedule / Time Window
               </th>
               <th style={{ padding: '12px 18px', textAlign: 'center', fontSize: 12, fontWeight: 600, color: '#6b7280', background: '#f8fafc', borderBottom: '2px solid #e5e7eb', borderLeft: '1px solid #e5e7eb' }}>
                 Status
@@ -474,80 +912,107 @@ export default function TicketTypes() {
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 ? (
-              <EmptyTableRow colSpan={5}>{t.noTicketTypesFound}</EmptyTableRow>
-            ) : rows.map((row, idx) => (
-              <tr key={row.name} style={{
-                borderBottom: idx < rows.length - 1 ? '1px solid #f3f4f6' : 'none',
-                opacity: row.anyEnabled ? 1 : 0.55,
-                background: row.anyEnabled ? '#fff' : '#fafafa',
-              }}>
-                {/* Type info */}
-                <td style={{ padding: '13px 18px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
-                    <div style={{ width: 36, height: 36, borderRadius: 9, background: row.anyEnabled ? '#eef2ff' : '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <i className={`fa ${row.meta.icon}`} style={{ color: row.anyEnabled ? '#6366f1' : '#9ca3af', fontSize: 14 }} />
+            {groups.length === 0 ? (
+              <EmptyTableRow colSpan={6}>{t.noTicketTypesFound}</EmptyTableRow>
+            ) : groups.map(group => (
+              <Fragment key={group.key}>
+                <tr key={`${group.key}-header`} style={{ background: group.tint }}>
+                  <td colSpan={6} style={{ padding: '11px 18px', borderTop: '1px solid #e5e7eb', borderLeft: `4px solid ${group.accent}` }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontWeight: 800, color: '#111827', whiteSpace: 'nowrap' }}>
+                      <span style={{ width: 32, height: 32, borderRadius: 999, background: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 3px rgba(15,23,42,0.12)', flexShrink: 0 }}>
+                        <i className={`fa ${group.icon}`} style={{ color: group.accent, fontSize: 13 }} />
+                      </span>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{group.fullName || group.label}</span>
+                      <span className="badge badge-green" style={{ marginLeft: 4, flexShrink: 0 }}>Active</span>
                     </div>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>{row.name}</div>
-                      <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 1 }}>{row.meta.desc}</div>
-                    </div>
-                  </div>
-                </td>
-
-                {/* Off-Peak price */}
-                <td style={{ padding: '13px 18px', textAlign: 'center', borderLeft: '1px solid #d1fae5' }}>
-                  <PriceCell
-                    price={row.offPeakPrice ?? row.singlePrice}
-                    color="#059669" bg="#f0fdf4" border="#bbf7d0"
-                    editing={editingCell?.name === row.name && editingCell?.tier === 'off-peak'}
-                    editValue={editValue}
-                    onStart={() => startEdit(row.name, 'off-peak', row.offPeakPrice ?? row.singlePrice)}
-                    onChange={setEditValue}
-                    onCommit={commitEdit}
-                    onCancel={() => setEditingCell(null)}
-                  />
-                </td>
-
-                {/* Peak price */}
-                <td style={{ padding: '13px 18px', textAlign: 'center', borderLeft: '1px solid #fde68a' }}>
-                  <PriceCell
-                    price={row.peakPrice}
-                    color="#d97706" bg="#fffbeb" border="#fde68a"
-                    editing={editingCell?.name === row.name && editingCell?.tier === 'peak'}
-                    editValue={editValue}
-                    onStart={() => startEdit(row.name, 'peak', row.peakPrice)}
-                    onChange={setEditValue}
-                    onCommit={commitEdit}
-                    onCancel={() => setEditingCell(null)}
-                  />
-                </td>
-
-                {/* Status */}
-                <td style={{ padding: '13px 18px', textAlign: 'center', borderLeft: '1px solid #e5e7eb' }}>
-                  <span className={`badge ${row.anyEnabled ? 'badge-green' : 'badge-disabled'}`}>
-                    {row.anyEnabled ? t.enabled : t.disabled}
-                  </span>
-                </td>
-
-                {/* Actions */}
-                <td style={{ padding: '13px 18px', textAlign: 'center', borderLeft: '1px solid #e5e7eb' }}>
-                  <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
-                    <Button variant="contained" size="small" onClick={() => setModal(row.firstRow)} startIcon={<i className="fa fa-edit" />}>
-                      {t.edit}
-                    </Button>
-                    <Button
-                      onClick={() => toggleStatus(row.name)}
-                      size="small"
-                      variant="contained"
-                      color={row.anyEnabled ? 'warning' : 'success'}
-                      startIcon={<i className={`fa fa-${row.anyEnabled ? 'ban' : 'check'}`} />}
-                    >
-                      {row.anyEnabled ? t.disable : t.enable}
-                    </Button>
-                  </div>
-                </td>
-              </tr>
+                  </td>
+                </tr>
+                {group.rows.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} style={{ padding: '18px', borderBottom: '1px solid #f3f4f6', color: '#64748b', fontSize: 13 }}>
+                      No ticket types configured for {group.label} yet. Use Create Ticket Type to add rules for this event.
+                    </td>
+                  </tr>
+                ) : group.rows.map(row => (
+                  <tr key={row.key} style={{
+                    borderBottom: '1px solid #f3f4f6',
+                    opacity: row.status === 'disabled' ? 0.55 : 1,
+                    background: row.status === 'missing' ? '#fffdf7' : '#fff',
+                  }}>
+                    <td style={{ padding: '12px 18px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>{row.name}</div>
+                      </div>
+                    </td>
+                    <td style={{ padding: '12px 18px', textAlign: 'center', borderLeft: '1px solid #d1fae5' }}>
+                      <PriceCell
+                        price={row.lowerPrice}
+                        suffix={row.perPerson ? ' pp' : ''}
+                        color={group.accent}
+                        bg={group.tint}
+                        border={group.accent}
+                        editing={editingCell?.key === row.key && editingCell?.tier === 'lower'}
+                        editValue={editValue}
+                        onStart={() => startEdit(row, 'lower', row.lowerPrice)}
+                        onChange={setEditValue}
+                        onCommit={commitEdit}
+                        onCancel={() => setEditingCell(null)}
+                        missingLabel="Create Lower"
+                        onCreateMissing={row.event ? () => createMissingRule.mutate(row, 'lower') : null}
+                        creatingMissing={createMissingRule.loading}
+                      />
+                    </td>
+                    <td style={{ padding: '12px 18px', textAlign: 'center', borderLeft: '1px solid #fde68a' }}>
+                      <PriceCell
+                        price={row.higherPrice}
+                        suffix={row.perPerson ? ' pp' : ''}
+                        color="#d97706" bg="#fffbeb" border="#fde68a"
+                        editing={editingCell?.key === row.key && editingCell?.tier === 'higher'}
+                        editValue={editValue}
+                        onStart={() => startEdit(row, 'higher', row.higherPrice)}
+                        onChange={setEditValue}
+                        onCommit={commitEdit}
+                        onCancel={() => setEditingCell(null)}
+                        missingLabel="Create Higher"
+                        onCreateMissing={row.event ? () => createMissingRule.mutate(row, 'higher') : null}
+                        creatingMissing={createMissingRule.loading}
+                      />
+                    </td>
+                    <td style={{ padding: '12px 18px', borderLeft: '1px solid #e5e7eb', fontSize: 12, lineHeight: 1.5, color: '#334155' }}>
+                      <div>{row.lowerPeriod?.label || 'No lower-price period'}</div>
+                      <div>{row.higherPeriod?.label || 'No higher-price period'}</div>
+                    </td>
+                    <td style={{ padding: '12px 18px', textAlign: 'center', borderLeft: '1px solid #e5e7eb' }}>
+                      <span className={`badge ${row.status === 'enabled' ? 'badge-green' : 'badge-disabled'}`}>
+                        {row.status === 'missing' ? 'Missing' : row.status === 'enabled' ? t.enabled : t.disabled}
+                      </span>
+                    </td>
+                    <td style={{ padding: '12px 18px', textAlign: 'center', borderLeft: '1px solid #e5e7eb' }}>
+                      <div className="ticket-type-actions" style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+                        <Button
+                          className="ticket-type-action-button"
+                          variant="contained"
+                          size="small"
+                          onClick={() => setModal(row.firstRow)}
+                          startIcon={<i className="fa fa-edit" />}
+                        >
+                          {t.edit}
+                        </Button>
+                        <Button
+                          className="ticket-type-action-button"
+                          onClick={() => toggleStatus(row)}
+                          size="small"
+                          variant="contained"
+                          color={row.anyEnabled ? 'warning' : 'success'}
+                          startIcon={<i className={`fa fa-${row.anyEnabled ? 'ban' : 'check'}`} />}
+                        >
+                          {row.anyEnabled ? t.disable : t.enable}
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </Fragment>
             ))}
           </tbody>
         </table>
