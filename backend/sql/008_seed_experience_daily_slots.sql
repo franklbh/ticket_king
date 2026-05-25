@@ -1,13 +1,18 @@
--- Seed public bookable Terracotta Army VR slots.
+-- Seed public bookable slots for Panda VR, Back to Jurassic, and Game A.
 -- Run after 005_resource_cart_schema.sql.
 --
--- Adjust these values before running in Supabase if the production schedule changes:
---   start_date / end_date: which dates to create
---   first_start / close time: slots start at 10:00 and end by closing time
---     Sunday-Thursday close at 19:00, Friday-Saturday close at 20:00
---   step_minutes: spacing between start times
---   slot_duration_minutes: event length shown to customers
---   price: customer-facing base price
+-- Frontend mapping:
+--   Panda VR          -> events.slug = 'panda-vr'
+--   Back to Jurassic  -> events.slug = 'dino-vr'
+--   Game A            -> events.slug = 'game-a'
+--
+-- Slot cadence:
+--   Panda VR and Back to Jurassic: 30-minute slots every 30 minutes.
+--   Game A: 15-minute slots every 15 minutes.
+--
+-- Business hours:
+--   Sunday-Thursday: slots must end by 19:00.
+--   Friday-Saturday: slots must end by 20:00.
 --
 -- Safe to re-run. Existing event/date/start-time rows are updated, not duplicated.
 
@@ -16,9 +21,6 @@ declare
   start_date date := date '2026-05-17';
   end_date date := date '2026-08-31';
   first_start time := time '10:00';
-  step_minutes integer := 30;
-  slot_duration_minutes integer := 45;
-  price numeric := 45.95;
 begin
   insert into public.slots (
     id,
@@ -47,19 +49,25 @@ begin
     ),
     d.day,
     t.start_time,
-    t.start_time + make_interval(mins => slot_duration_minutes),
+    t.start_time + make_interval(mins => seed.slot_duration_minutes),
     concat(
       to_char(t.start_time, 'HH24:MI'),
       '-',
-      to_char(t.start_time + make_interval(mins => slot_duration_minutes), 'HH24:MI')
+      to_char(t.start_time + make_interval(mins => seed.slot_duration_minutes), 'HH24:MI')
     ),
     'America/Vancouver',
-    20,
+    seed.capacity,
     'active',
-    price,
+    seed.price,
     now(),
     now()
-  from public.events e
+  from (
+    values
+      ('panda-vr', 30, 30, 10, 34.95::numeric),
+      ('dino-vr', 30, 30, 10, 35.95::numeric),
+      ('game-a', 15, 15, 8, 35.95::numeric)
+  ) as seed(slug, slot_duration_minutes, slot_step_minutes, capacity, price)
+  join public.events e on e.slug = seed.slug
   cross join generate_series(start_date, end_date, interval '1 day') as d(day)
   cross join lateral (
     select first_start + make_interval(mins => offset_minutes) as start_time
@@ -70,11 +78,10 @@ begin
           (case when extract(isodow from d.day) in (5, 6) then time '20:00' else time '19:00' end)
           - first_start
         )) / 60
-      )::integer - slot_duration_minutes,
-      step_minutes
+      )::integer - seed.slot_duration_minutes,
+      seed.slot_step_minutes
     ) as offsets(offset_minutes)
   ) as t
-  where e.slug = 'terracotta-warriors'
   on conflict (event_id, business_date, start_time)
   where event_id is not null
   do update set
