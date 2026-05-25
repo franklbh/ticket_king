@@ -569,10 +569,22 @@ class AdminRepository:
                         and lower(coalesce(o.payment_status, '')) in ('pending', 'paid', 'processing', 'authorized')
                       group by o.slot_id
                     ),
+                    showpass_counts as (
+                      select
+                        st.our_slot_id as slot_id,
+                        0 as walkin_sold,
+                        sum(st.quantity) as online_sold
+                      from public.showpass_tickets st
+                      where st.our_slot_id is not null
+                        and lower(coalesce(st.status, '')) = 'active'
+                      group by st.our_slot_id
+                    ),
                     combined as (
                       select * from item_counts
                       union all
                       select * from legacy_ticket_counts
+                      union all
+                      select * from showpass_counts
                     )
                     select
                       slot_id,
