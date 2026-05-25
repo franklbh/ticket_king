@@ -952,6 +952,40 @@ body {
     justify-content: flex-end;
   }
 
+  .create-order-cart-summary {
+    padding: 12px !important;
+  }
+
+  .create-order-cart-total {
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 15px !important;
+  }
+
+  .create-order-cart-total-amount {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  .create-order-cart-line {
+    align-items: flex-start;
+    gap: 8px !important;
+  }
+
+  .create-order-cart-line-text {
+    display: block;
+    flex: 1;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: normal !important;
+    line-height: 1.35;
+  }
+
+  .create-order-cart-remove {
+    margin-left: auto;
+    padding: 0 !important;
+  }
+
   .date-range-filter-fields .MuiInputBase-root {
     font-size: 13px;
   }
@@ -1718,6 +1752,18 @@ table tr:hover {
 
 .create-order-ticket-selected,
 .create-order-ticket-info {
+  overflow-wrap: anywhere;
+}
+
+.create-order-cart-summary,
+.create-order-cart-total,
+.create-order-cart-lines,
+.create-order-cart-line,
+.create-order-cart-line-text {
+  min-width: 0;
+}
+
+.create-order-cart-line-text {
   overflow-wrap: anywhere;
 }
 
