@@ -28,7 +28,13 @@ def _verify_signature(body: bytes, header: str) -> None:
         body,
         hashlib.sha256,
     ).hexdigest()
-    if not hmac.compare_digest(expected, header):
+    # Strip common prefix in case Showpass sends "sha256=<hex>"
+    normalized = header.removeprefix("sha256=")
+    if not hmac.compare_digest(expected, normalized):
+        import logging
+        logging.getLogger(__name__).warning(
+            "Showpass signature mismatch. received=%r expected=%r", header, expected
+        )
         raise HTTPException(status_code=400, detail="Invalid signature")
 
 
