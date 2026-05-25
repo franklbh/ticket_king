@@ -2,6 +2,7 @@ import hashlib
 import hmac
 import json
 from datetime import date, datetime, time
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, HTTPException, Request
 from sqlalchemy import text
@@ -19,21 +20,131 @@ CANCEL_EVENTS = {"refund", "void"}
 IGNORE_EVENTS = {"transfer", "transferred"}
 
 
-def _verify_signature(body: bytes, header: str) -> None:
-    """HMAC-SHA256 verification. Skip if no secret configured (dev mode)."""
+def _verify_signature(payload: dict, header: str) -> None:
+    """HMAC-SHA1 verification over the Showpass payload id."""
     if not settings.showpass_webhook_secret:
         return
+
+    payload_id = payload.get("id")
+    if payload_id is None:
+        raise HTTPException(status_code=400, detail="Missing signature payload id")
+
+    received = header.strip().strip('"')
+    if received.startswith("sha1="):
+        received = received.removeprefix("sha1=")
+
     expected = hmac.new(
-        settings.showpass_webhook_secret.encode(),
-        body,
+        settings.showpass_webhook_secret.encode("utf-8"),
+        str(payload_id).encode("utf-8"),
         hashlib.sha1,
     ).hexdigest()
-    if not hmac.compare_digest(expected, header):
+    if not hmac.compare_digest(expected, received):
         import logging
+
         logging.getLogger(__name__).warning(
-            "Showpass signature mismatch. received=%r expected=%r", header, expected
+            "Showpass signature mismatch. payload_id=%r received=%r expected=%r",
+            payload_id,
+            received,
+            expected,
         )
         raise HTTPException(status_code=400, detail="Invalid signature")
+
+
+def _parse_payload(body: bytes) -> dict:
+    try:
+        payload = json.loads(body)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload") from exc
+
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+    return payload
+
+
+def _normalize_event_type(payload: dict) -> str:
+    raw_event = str(payload.get("event_type") or payload.get("event") or "").lower()
+    return raw_event.removeprefix("invoice.")
+
+
+def _nested_data(payload: dict) -> dict:
+    data = payload.get("data")
+    return data if isinstance(data, dict) else {}
+
+
+def _first_dict(items) -> dict:
+    if isinstance(items, list):
+        for item in items:
+            if isinstance(item, dict):
+                return item
+    return {}
+
+
+def _showpass_line_item(payload: dict) -> dict:
+    data = _nested_data(payload)
+    return _first_dict(data.get("invoice_items")) or _first_dict(data.get("ticket_items"))
+
+
+def _event_id(payload: dict) -> str:
+    data = _nested_data(payload)
+    item = _showpass_line_item(payload)
+    return str(payload.get("event_id") or data.get("event_id") or item.get("event_id") or "")
+
+
+def _order_id(payload: dict) -> str:
+    data = _nested_data(payload)
+    return str(payload.get("order_id") or data.get("transaction_id") or payload.get("id") or "")
+
+
+def _quantity(payload: dict, showpass_event_id: str) -> int:
+    if payload.get("quantity") is not None:
+        return int(payload.get("quantity") or 1)
+
+    data = _nested_data(payload)
+    invoice_items = data.get("invoice_items")
+    if isinstance(invoice_items, list):
+        quantities = [
+            int(item.get("quantity") or 0)
+            for item in invoice_items
+            if isinstance(item, dict) and str(item.get("event_id") or "") == showpass_event_id
+        ]
+        if quantities:
+            return sum(quantities)
+
+    ticket_items = data.get("ticket_items")
+    if isinstance(ticket_items, list):
+        tickets = [
+            item
+            for item in ticket_items
+            if isinstance(item, dict) and str(item.get("event_id") or "") == showpass_event_id
+        ]
+        if tickets:
+            return len(tickets)
+
+    return 1
+
+
+def _event_datetime(payload: dict) -> tuple[date | None, time | None]:
+    item = _showpass_line_item(payload)
+    raw_dt = (
+        payload.get("start_datetime")
+        or payload.get("event_starts_on")
+        or item.get("event_starts_on")
+    )
+    if not raw_dt:
+        return None, None
+
+    try:
+        dt = datetime.fromisoformat(str(raw_dt).replace("Z", "+00:00"))
+    except (ValueError, AttributeError):
+        return None, None
+
+    if dt.tzinfo is not None:
+        try:
+            dt = dt.astimezone(ZoneInfo(settings.admin_default_timezone))
+        except ZoneInfoNotFoundError:
+            dt = dt.replace(tzinfo=None)
+
+    return dt.date(), dt.time().replace(tzinfo=None, second=0, microsecond=0)
 
 
 def _resolve_slot_id(db, showpass_event_id: str, event_date: date, start_time: time):
@@ -65,10 +176,10 @@ def _resolve_slot_id(db, showpass_event_id: str, event_date: date, start_time: t
 async def showpass_webhook(request: Request):
     body = await request.body()
     sig = request.headers.get("X-Showpass-Signature", "")
-    _verify_signature(body, sig)
+    payload = _parse_payload(body)
+    _verify_signature(payload, sig)
 
-    payload = json.loads(body)
-    event_type = str(payload.get("event") or "").lower()
+    event_type = _normalize_event_type(payload)
 
     if event_type in IGNORE_EVENTS:
         return {"status": "ignored"}
@@ -76,19 +187,10 @@ async def showpass_webhook(request: Request):
     if event_type not in PURCHASE_EVENTS | CANCEL_EVENTS:
         return {"status": "unknown_event"}
 
-    order_id = str(payload.get("order_id") or "")
-    showpass_event_id = str(payload.get("event_id") or "")
-    quantity = int(payload.get("quantity") or 1)
-
-    # Parse date/time from "start_datetime" (ISO 8601) or separate fields
-    raw_dt = payload.get("start_datetime") or ""
-    try:
-        dt = datetime.fromisoformat(str(raw_dt).replace("Z", "+00:00"))
-        evt_date = dt.date()
-        evt_time = dt.time().replace(tzinfo=None, second=0, microsecond=0)
-    except (ValueError, AttributeError):
-        evt_date = None
-        evt_time = None
+    order_id = _order_id(payload)
+    showpass_event_id = _event_id(payload)
+    quantity = _quantity(payload, showpass_event_id)
+    evt_date, evt_time = _event_datetime(payload)
 
     if not order_id or not showpass_event_id:
         raise HTTPException(status_code=422, detail="Missing order_id or event_id")
