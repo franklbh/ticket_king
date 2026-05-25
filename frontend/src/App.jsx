@@ -23,7 +23,7 @@ import { getDisplayName } from './api/auth'
 import { useCustomerAuth } from './hooks/useCustomerAuth'
 import { currency } from './utils/format'
 import { getPricesForSlot, hasSeniorTicket } from './utils/pricing'
-import { isReasonableName, isReasonablePhone, isStrictEmail } from './utils/validation'
+import { formatNorthAmericanPhone, isReasonableName, isReasonablePhone, isStrictEmail } from './utils/validation'
 
 const BACKEND_EVENT_SLUGS = {
   'terracotta-warriors': 'terracotta-warriors',
@@ -109,7 +109,13 @@ function App() {
   const [bookingExperience, setBookingExperience] = useState(vrExperiences[0])
   const [showNavMenu, setShowNavMenu] = useState(false)
   const [cartItems, setCartItems] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('wearevr_cart') || '[]') } catch { return [] }
+    try {
+      const storedItems = JSON.parse(localStorage.getItem('wearevr_cart') || '[]')
+      return storedItems.map((item) => {
+        const experience = allExperiences.find((entry) => entry.id === item.show_id)
+        return experience ? { ...item, show_title: experience.title } : item
+      })
+    } catch { return [] }
   })
   const [showCart, setShowCart] = useState(false)
   const [bookingsInitialSection, setBookingsInitialSection] = useState('bookings')
@@ -163,7 +169,7 @@ function App() {
     const first = parts[0] || currentUser.email?.split('@')[0] || ''
     const last = parts.slice(1).join(' ')
     const email = currentUser.email || ''
-    const phone = currentUser.user_metadata?.phone || ''
+    const phone = formatNorthAmericanPhone(currentUser.user_metadata?.phone || '')
     setContact((previous) => ({
       ...previous,
       first: previous.first || first,
@@ -219,7 +225,7 @@ function App() {
     const vipTotal = vipQty * 20
     const subtotal = ticketTotal + vipTotal
     const couponDiscount = Math.min(appliedCoupon?.discountAmount || 0, subtotal)
-    const processingFee = numTickets > 0 ? 1.8 * numTickets + 0.04 * ticketTotal : 0
+    const processingFee = numTickets > 0 ? 1.8 * numTickets + 0.025 * ticketTotal : 0
     const tax = numTickets > 0 ? 0.05 * ticketTotal : 0
     const fees = processingFee + tax
     return { numTickets, ticketTotal, vipTotal, subtotal, couponDiscount, fees, processingFee, tax, grand: Math.max(0, subtotal - couponDiscount) + fees }
@@ -537,7 +543,7 @@ function App() {
   }
   const markContactTouched = (field) => setContactTouched((prev) => ({ ...prev, [field]: true }))
   const updateContact = (field, value) => {
-    setContact((prev) => ({ ...prev, [field]: value }))
+    setContact((prev) => ({ ...prev, [field]: field === 'phone' ? formatNorthAmericanPhone(value) : value }))
   }
   const applyCoupon = async () => {
     const code = couponCode.trim()
@@ -1049,9 +1055,7 @@ function App() {
           handleSignup={handleSignup}
           items={cartItems}
           onUpdateQty={(id, qty) => setCartItems(prev => {
-            const updated = qty <= 0
-              ? prev.filter(i => i.id !== id)
-              : prev.map(i => i.id === id ? { ...i, quantity: qty } : i)
+            const updated = prev.map(i => i.id === id ? { ...i, quantity: Math.max(0, Number(qty) || 0) } : i)
             localStorage.setItem('wearevr_cart', JSON.stringify(updated))
             return updated
           })}

@@ -70,7 +70,7 @@ function BookingPage({
   const lineSubtotal = (line) => (ticketById(line.ticketTypeId)?.price || 0) * line.quantity
   const subtotal = ticketLines.reduce((sum, line) => sum + lineSubtotal(line), 0)
   const ticketQty = ticketLines.reduce((sum, line) => sum + line.quantity, 0)
-  const processingFee = ticketQty > 0 ? 1.8 * ticketQty + 0.04 * subtotal : 0
+  const processingFee = ticketQty > 0 ? 1.8 * ticketQty + 0.025 * subtotal : 0
   const tax = ticketQty > 0 ? 0.05 * subtotal : 0
   const grand = subtotal + processingFee + tax
   const canAdd = Boolean(
@@ -308,7 +308,7 @@ function BookingPage({
                       <select value={line.ticketTypeId} onChange={(event) => updateTicketType(line.key, event.target.value)}>
                         {localizedTicketTypes.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
                       </select>
-                      <span>{selectedTicket?.info || `Standard admission for ${selectedTicket?.label || 'ticket'}.`}</span>
+                      <span>{selectedTicket?.info || `General Admission for ${selectedTicket?.label || 'ticket'}`}</span>
                       <div className="btk-qty">
                         <button onClick={() => updateTicketQty(line.key, -1)} disabled={line.quantity <= minQty} type="button">-</button>
                         <input
@@ -350,7 +350,7 @@ function BookingPage({
                         <div className="btk-exp-body">
                           <strong>{experience.title}</strong>
                           <small>{experience.subtitle || experience.tagline}</small>
-                          <div><span>from {currency(getExperiencePriceFrom(experience) || 37.95)}</span><button onClick={() => chooseRelatedExperience(experience.id)} type="button">Add +</button></div>
+                          <div><span>from {currency(getExperiencePriceFrom(experience) || 37.95)}</span><button onClick={() => chooseRelatedExperience(experience.id)} type="button">Add</button></div>
                         </div>
                       </article>
                     )
@@ -423,7 +423,7 @@ function ProcessingFeeLabel() {
           !
         </button>
         <span className="processing-fee-tooltip" role="tooltip">
-          Includes a $1.80 platform fee per ticket plus a 4% bank/card processing fee.
+          Includes a $1.80 platform fee per ticket plus a 2.5% payment processing fee.
         </span>
       </span>
     </span>

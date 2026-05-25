@@ -13,6 +13,7 @@ import LoadingIndicator from '../components/LoadingIndicator'
 import { AdminAlert, AdminCard, PageHeader } from '../components/AdminUI'
 import { dedupeBy } from '../utils/collections'
 import { todayIso } from '../utils/date'
+import { formatNorthAmericanPhone } from '../utils/phone'
 
 const PAYMENT_METHODS = [
   { id: 'Cash', label: 'Cash', icon: 'fa-money-bill-wave' },
@@ -682,7 +683,7 @@ export default function CreateOrder() {
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div>
-                <TextField fullWidth size="small" label={t.phone} value={customer.phone} onChange={e => setCustomer(c => ({ ...c, phone: e.target.value }))} />
+                <TextField fullWidth size="small" label={t.phone} value={customer.phone} onChange={e => setCustomer(c => ({ ...c, phone: formatNorthAmericanPhone(e.target.value) }))} />
               </div>
               <div>
                 <TextField fullWidth size="small" label={t.email} type="email" value={customer.email} onChange={e => setCustomer(c => ({ ...c, email: e.target.value }))} />

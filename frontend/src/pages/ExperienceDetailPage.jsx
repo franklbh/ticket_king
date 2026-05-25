@@ -143,7 +143,8 @@ function BookingWidget({ experience, cartItems, onAddToCart }) {
   ]
   const totalQty = Object.values(qty).reduce((s, n) => s + n, 0)
   const totalPrice = TICKET_TYPES.reduce((s, t) => s + qty[t.id] * t.price, 0)
-  const canAddToCart = Boolean(selectedDate && selTime && totalQty > 0)
+  const invalidTicketSelections = TICKET_TYPES.filter((ticket) => ticket.minQty && qty[ticket.id] > 0 && qty[ticket.id] < ticket.minQty)
+  const canAddToCart = Boolean(selectedDate && selTime && totalQty > 0 && invalidTicketSelections.length === 0)
   const ticketOptions = TICKET_TYPES.map((ticket) => ({ id: ticket.id, label: ticket.label, price: ticket.price }))
   const ticketsFromQuantities = (quantities) => TICKET_TYPES
     .filter((ticket) => quantities[ticket.id] > 0)
@@ -327,39 +328,47 @@ function BookingWidget({ experience, cartItems, onAddToCart }) {
 
         {/* Ticket types */}
         <div className="bw-tickets">
-          {TICKET_TYPES.map((ticket) => (
-            <div key={ticket.id} className="bw-ticket-row">
-              <div className="bw-ticket-info">
-                <span className="bw-ticket-title-line">
-                  <span className="bw-ticket-label">{ticket.label}</span>
-                  {ticket.notice && (
-                    <span className="bw-ticket-notice-wrap">
-                      <button className="bw-ticket-notice-icon" type="button" aria-label={ticket.notice}>!</button>
-                      <span className="bw-ticket-notice" role="tooltip">{ticket.notice}</span>
-                    </span>
-                  )}
-                </span>
-                <span className="bw-ticket-desc">{ticket.desc}</span>
-              </div>
-              <div className="bw-ticket-right">
-                <span className="bw-ticket-price">${ticket.price.toFixed(2)}</span>
-                <div className="bw-qty">
-                  <button className="bw-qty-btn" onClick={() => changeQty(ticket, -1)} disabled={qty[ticket.id] === 0} type="button">−</button>
-                  <input
-                    className="bw-qty-num"
-                    type="text"
-                    min="0"
-                    inputMode="numeric"
-                    value={rawQty[ticket.id] !== undefined ? rawQty[ticket.id] : qty[ticket.id]}
-                    onChange={(event) => setTicketQty(ticket, event.target.value)}
-                    onBlur={() => commitTicketQty(ticket)}
-                    aria-label={`${ticket.label} quantity`}
-                  />
-                  <button className="bw-qty-btn" onClick={() => changeQty(ticket, 1)} type="button">+</button>
+          {TICKET_TYPES.map((ticket) => {
+            const isInvalid = ticket.minQty && qty[ticket.id] > 0 && qty[ticket.id] < ticket.minQty
+            return (
+              <div key={ticket.id} className={`bw-ticket-row ${isInvalid ? 'bw-ticket-row-invalid' : ''}`}>
+                <div className="bw-ticket-info">
+                  <span className="bw-ticket-title-line">
+                    <span className="bw-ticket-label">{ticket.label}</span>
+                    {ticket.notice && (
+                      <span className="bw-ticket-notice-wrap">
+                        <button className="bw-ticket-notice-icon" type="button" aria-label={ticket.notice}>!</button>
+                        <span className="bw-ticket-notice" role="tooltip">{ticket.notice}</span>
+                      </span>
+                    )}
+                  </span>
+                  <span className="bw-ticket-desc">{ticket.desc}</span>
                 </div>
+                <div className="bw-ticket-right">
+                  <span className="bw-ticket-price">${ticket.price.toFixed(2)}</span>
+                  <div className="bw-qty">
+                    <button className="bw-qty-btn" onClick={() => changeQty(ticket, -1)} disabled={qty[ticket.id] === 0} type="button">−</button>
+                    <input
+                      className="bw-qty-num"
+                      type="text"
+                      min="0"
+                      inputMode="numeric"
+                      value={rawQty[ticket.id] !== undefined ? rawQty[ticket.id] : qty[ticket.id]}
+                      onChange={(event) => setTicketQty(ticket, event.target.value)}
+                      onBlur={() => commitTicketQty(ticket)}
+                      aria-label={`${ticket.label} quantity`}
+                    />
+                    <button className="bw-qty-btn" onClick={() => changeQty(ticket, 1)} type="button">+</button>
+                  </div>
+                </div>
+                {isInvalid && (
+                  <div className="ticket-validation-warning bw-ticket-warning">
+                    {ticket.label} requires at least {ticket.minQty} tickets.
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
 
         {/* Total */}

@@ -4,6 +4,7 @@ import { loadStripe } from '@stripe/stripe-js'
 import BrandLogo from './BrandLogo'
 import { qrPlaceholder } from '../data/showData'
 import { allExperiences } from '../data/experiences'
+import { formatNorthAmericanPhone } from '../utils/validation'
 
 const BACKEND = import.meta.env.VITE_BACKEND_BASE || 'http://localhost:8000'
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '')
@@ -140,7 +141,7 @@ function fallbackTickets(order) {
       qrCode: `ticket:${code}`,
       ticketNumber: `T-${code}`,
       ticketType: item.ticket_type_label,
-      showTitle: item.show_title,
+      showTitle: itemShowTitle(item),
       slotDate: item.session_date,
       slotTime: item.session_time,
     }
@@ -164,7 +165,7 @@ function normalizeBackendTickets(tickets, order) {
       qrCode: ticket.qr_payload || ticket.qrCode || `ticket:${code}`,
       ticketNumber: ticket.ticket_number || ticket.ticketNumber || `T-${code}`,
       ticketType: ticket.ticket_type || ticket.ticketType || item.ticket_type_label || 'Ticket',
-      showTitle: ticket.event_name || ticket.eventName || ticket.show_title || ticket.showTitle || item.show_title || 'WE ARE VR',
+      showTitle: itemShowTitle(item) || ticket.event_name || ticket.eventName || ticket.show_title || ticket.showTitle || 'WE ARE VR',
       slotDate: ticket.slot_date || ticket.slotDate || item.session_date || '',
       slotTime: ticket.slot_time || ticket.slotTime || (slotStart && slotEnd ? `${slotStart}-${slotEnd}` : slotStart) || item.session_time || '',
     }
@@ -200,8 +201,16 @@ function TicketIcon() {
   )
 }
 
-function StripeLogo() {
-  return <span className="crt-stripe-logo" aria-hidden="true">stripe</span>
+function CreditCardLogo() {
+  return (
+    <span className="crt-credit-card-logo" aria-hidden="true">
+      <svg viewBox="0 0 24 24">
+        <rect x="3" y="5" width="18" height="14" rx="2" />
+        <path d="M3 10h18" />
+        <path d="M7 15h4" />
+      </svg>
+    </span>
+  )
 }
 
 function WeChatLogo() {
@@ -241,7 +250,7 @@ function ProcessingFeeLabel() {
           !
         </button>
         <span className="processing-fee-tooltip" role="tooltip">
-          Includes a $1.80 platform fee per ticket plus a 4% bank/card processing fee.
+          Includes a $1.80 platform fee per ticket plus a 2.5% payment processing fee.
         </span>
       </span>
     </span>
@@ -291,6 +300,10 @@ function ItemImage({ item, className }) {
   )
 }
 
+function itemShowTitle(item) {
+  return experienceById.get(item.show_id)?.title || item.show_title
+}
+
 function contactFromUser(user, getDisplayName) {
   const name = getDisplayName?.(user) || ''
   const parts = name.split(' ').filter(Boolean)
@@ -298,7 +311,7 @@ function contactFromUser(user, getDisplayName) {
     first: parts[0] || user?.email?.split('@')[0] || '',
     last: parts.slice(1).join(' '),
     email: user?.email || '',
-    phone: user?.user_metadata?.phone || '',
+    phone: formatNorthAmericanPhone(user?.user_metadata?.phone || ''),
   }
 }
 
@@ -413,6 +426,7 @@ export default function Cart({
   const [reservationLoading, setReservationLoading] = useState(false)
   const [timeLeft, setTimeLeft] = useState(0)
   const [paymentSubmitting, setPaymentSubmitting] = useState(false)
+  const [rawQtyById, setRawQtyById] = useState({})
   const releasedReservationRef = useRef(null)
   const reservationCreatingRef = useRef(null)
   const ticketRailRef = useRef(null)
@@ -420,7 +434,7 @@ export default function Cart({
   const subtotal = items.reduce((s, i) => s + i.unit_price * i.quantity, 0)
   const numTickets = items.reduce((s, i) => s + i.quantity, 0)
   const discount = Math.min(appliedCoupon?.discountAmount || 0, subtotal)
-  const procFee = numTickets > 0 ? 1.8 * numTickets + 0.04 * subtotal : 0
+  const procFee = numTickets > 0 ? 1.8 * numTickets + 0.025 * subtotal : 0
   const tax = numTickets > 0 ? 0.05 * subtotal : 0
   const grand = Math.max(0, subtotal - discount) + procFee + tax
   const contactReady = contact.first.trim().length > 1
@@ -432,7 +446,7 @@ export default function Cart({
     eventId: Number(item.event_id),
     slotId: item.slot_id,
     ticketTypeId: null,
-    eventName: item.show_title,
+    eventName: itemShowTitle(item),
     slotDate: item.session_date_key,
     slotTime: item.session_time,
     ticketType: item.ticket_type_label,
@@ -442,8 +456,9 @@ export default function Cart({
 
   const liveSlotReady = orderItems.length > 0 && orderItems.every((item) => Number.isFinite(item.eventId) && item.slotId && item.quantity > 0)
   const minQtyForTicketType = (ticketTypeId) => ticketTypeId === 'family' ? 3 : ticketTypeId === 'group' ? 6 : 1
+  const zeroQtyItems = items.filter((item) => item.quantity <= 0)
   const invalidItems = items.filter((item) => item.quantity > 0 && item.quantity < minQtyForTicketType(item.ticket_type_id))
-  const canContinueReview = liveSlotReady && invalidItems.length === 0
+  const canContinueReview = liveSlotReady && zeroQtyItems.length === 0 && invalidItems.length === 0
 
   const checkoutOrder = useMemo(() => ({
     customer: {
@@ -720,6 +735,10 @@ export default function Cart({
   }
 
   function continueToContact() {
+    if (zeroQtyItems.length > 0) {
+      setPaymentError('One or more cart items have 0 tickets. Increase the quantity or remove the item before checkout.')
+      return
+    }
     if (!liveSlotReady) {
       setPaymentError('One or more cart items are missing a live booking slot. Please add tickets again from the date/time picker.')
       return
@@ -733,19 +752,39 @@ export default function Cart({
 
   function updateTicketTypeWithMinimum(item, ticketTypeId) {
     const minQty = minQtyForTicketType(ticketTypeId)
-    if (item.quantity < minQty) onUpdateQty(item.id, minQty)
+    if (item.quantity > 0 && item.quantity < minQty) onUpdateQty(item.id, minQty)
     onUpdateTicketType(item.id, ticketTypeId)
     setPaymentError('')
   }
 
   function updateQtyWithMinimum(item, nextQty) {
-    const minQty = minQtyForTicketType(item.ticket_type_id)
-    if (nextQty <= 0) {
-      onUpdateQty(item.id, 0)
-      return
-    }
-    onUpdateQty(item.id, Math.max(nextQty, minQty))
+    onUpdateQty(item.id, Math.max(0, Math.min(999, Number(nextQty) || 0)))
     setPaymentError('')
+  }
+
+  function incrementCartQty(item) {
+    const minQty = minQtyForTicketType(item.ticket_type_id)
+    const nextQty = item.quantity <= 0 ? minQty : item.quantity + 1
+    updateQtyWithMinimum(item, nextQty)
+  }
+
+  function changeCartQty(item, value) {
+    const digits = String(value).replace(/\D/g, '').slice(0, 3)
+    setRawQtyById((values) => ({ ...values, [item.id]: digits }))
+    if (digits === '') return
+    updateQtyWithMinimum(item, Number(digits))
+  }
+
+  function commitCartQty(item) {
+    const raw = rawQtyById[item.id]
+    if (raw === undefined) return
+    const nextQty = raw === '' ? 0 : Number(raw)
+    updateQtyWithMinimum(item, nextQty)
+    setRawQtyById((values) => {
+      const next = { ...values }
+      delete next[item.id]
+      return next
+    })
   }
 
   async function continueToPayment() {
@@ -770,7 +809,7 @@ export default function Cart({
       `Customer: ${[order.contact.first, order.contact.last].filter(Boolean).join(' ')}`,
       `Email: ${order.contact.email}`,
       '',
-      ...order.items.map((item) => `${item.show_title} | ${item.session_date} ${item.session_time} | ${item.ticket_type_label} x${item.quantity} | ${fmt(item.unit_price * item.quantity)}`),
+      ...order.items.map((item) => `${itemShowTitle(item)} | ${item.session_date} ${item.session_time} | ${item.ticket_type_label} x${item.quantity} | ${fmt(item.unit_price * item.quantity)}`),
       '',
       'Tickets:',
       ...(order.tickets || []).map((ticket, index) => `${index + 1}. ${ticket.ticketNumber} | ${ticket.showTitle} | ${ticket.ticketType} | Code: ${ticket.code}`),
@@ -800,7 +839,8 @@ export default function Cart({
     const rail = ticketRailRef.current
     if (!rail) return
     const card = rail.querySelector('.crt-ticket-card')
-    const stepSize = card ? card.getBoundingClientRect().width + 14 : rail.clientWidth * 0.86
+    const gap = Number.parseFloat(window.getComputedStyle(rail).columnGap || '16') || 16
+    const stepSize = card ? card.getBoundingClientRect().width + gap : rail.clientWidth * 0.86
     rail.scrollBy({ left: direction * stepSize, behavior: 'smooth' })
   }
 
@@ -818,7 +858,7 @@ export default function Cart({
             <div className="crt-side-item" key={item.id}>
               <ItemImage item={item} className="crt-side-thumb" />
               <div>
-                <strong>{item.show_title}</strong>
+                <strong>{itemShowTitle(item)}</strong>
                 <span>{item.session_date} · {item.session_time}</span>
               </div>
               <b>{fmt(item.unit_price * item.quantity)}</b>
@@ -855,9 +895,8 @@ export default function Cart({
         {step !== 'confirm' ? <TrustList compact /> : (
           <div className="crt-trust-card compact">
             <h3>Need help?</h3>
-            <div><ShieldIcon /><span><strong>Live chat</strong><small>Available 9am - 9pm</small></span></div>
-            <div><ShieldIcon /><span><strong>Email us</strong><small>support@vrworld.com</small></span></div>
-            <div><ShieldIcon /><span><strong>Call us</strong><small>1-800-VR-WORLD</small></span></div>
+            <div><ShieldIcon /><span><strong>Email us</strong><small>info@vrvr.show</small></span></div>
+            <div><ShieldIcon /><span><strong>Call us</strong><small>+1(778) 805-4699</small></span></div>
           </div>
         )}
       </aside>
@@ -893,22 +932,32 @@ export default function Cart({
                   <div className="crt-table-head"><span>Experience</span><span>Date & Time</span><span>Ticket Type</span><span>Qty</span><span>Unit Price</span><span>Subtotal</span><span /></div>
                   {items.map((item) => (
                     <article className="crt-cart-row" key={item.id}>
-                      <div className="crt-exp-cell"><ItemImage item={item} className="crt-cart-thumb" /><strong>{item.show_title}</strong></div>
+                      <div className="crt-exp-cell"><ItemImage item={item} className="crt-cart-thumb" /><strong>{itemShowTitle(item)}</strong></div>
                       <div className="crt-date-cell"><span>{item.session_date}</span><span>{item.session_time}</span></div>
                       <div className="crt-ticket-type-field">
                         <span className="crt-ticket-type-label">Ticket type</span>
-                        <select aria-label={`Ticket type for ${item.show_title}`} value={item.ticket_type_id} onChange={(event) => updateTicketTypeWithMinimum(item, event.target.value)}>
+                        <select aria-label={`Ticket type for ${itemShowTitle(item)}`} value={item.ticket_type_id} onChange={(event) => updateTicketTypeWithMinimum(item, event.target.value)}>
                           {item.ticket_options?.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
                         </select>
                       </div>
                       <div className="crt-inline-qty">
-                        <button onClick={() => updateQtyWithMinimum(item, item.quantity - 1)} disabled={item.quantity <= minQtyForTicketType(item.ticket_type_id)} type="button">-</button>
-                        <strong>{item.quantity}</strong>
-                        <button onClick={() => updateQtyWithMinimum(item, item.quantity + 1)} type="button">+</button>
+                        <button onClick={() => updateQtyWithMinimum(item, item.quantity - 1)} disabled={item.quantity <= 0} type="button">-</button>
+                        <input
+                          aria-label={`Quantity for ${itemShowTitle(item)}`}
+                          inputMode="numeric"
+                          min="0"
+                          max="999"
+                          pattern="[0-9]*"
+                          type="text"
+                          value={rawQtyById[item.id] ?? String(item.quantity)}
+                          onBlur={() => commitCartQty(item)}
+                          onChange={(event) => changeCartQty(item, event.target.value)}
+                        />
+                        <button onClick={() => incrementCartQty(item)} type="button">+</button>
                       </div>
                       <span>{fmt(item.unit_price)}</span>
                       <strong>{fmt(item.unit_price * item.quantity)}</strong>
-                      <button className="crt-remove" onClick={() => onRemove(item.id)} type="button" aria-label={`Remove ${item.show_title} from cart`}>
+                      <button className="crt-remove" onClick={() => onRemove(item.id)} type="button" aria-label={`Remove ${itemShowTitle(item)} from cart`}>
                         <span className="crt-remove-icon crt-remove-icon-desktop" aria-hidden="true">⌫</span>
                         <svg className="crt-remove-icon crt-remove-icon-mobile" viewBox="0 0 32 24" aria-hidden="true">
                           <path d="M12 3h15a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H12L3 12l9-9Z" />
@@ -963,7 +1012,7 @@ export default function Cart({
                     <label className={touched.first && contact.first.trim().length <= 1 ? 'crt-field-error' : ''}>First name<input value={contact.first} onBlur={() => setTouched((p) => ({ ...p, first: true }))} onChange={(e) => setContact((p) => ({ ...p, first: e.target.value }))} /></label>
                     <label className={touched.last && contact.last.trim().length <= 1 ? 'crt-field-error' : ''}>Last name<input value={contact.last} onBlur={() => setTouched((p) => ({ ...p, last: true }))} onChange={(e) => setContact((p) => ({ ...p, last: e.target.value }))} /></label>
                     <label className={touched.email && !validEmail(contact.email) ? 'crt-field-error' : ''}>Email<input type="email" value={contact.email} onBlur={() => setTouched((p) => ({ ...p, email: true }))} onChange={(e) => setContact((p) => ({ ...p, email: e.target.value }))} /></label>
-                    <label className={touched.phone && contact.phone.trim() && !validPhone(contact.phone) ? 'crt-field-error' : ''}>Phone (optional)<input type="tel" value={contact.phone} onBlur={() => setTouched((p) => ({ ...p, phone: true }))} onChange={(e) => setContact((p) => ({ ...p, phone: e.target.value }))} /></label>
+                    <label className={touched.phone && contact.phone.trim() && !validPhone(contact.phone) ? 'crt-field-error' : ''}>Phone (optional)<input type="tel" value={contact.phone} onBlur={() => setTouched((p) => ({ ...p, phone: true }))} onChange={(e) => setContact((p) => ({ ...p, phone: formatNorthAmericanPhone(e.target.value) }))} /></label>
                     {checkoutMode !== 'guest' && <label className="crt-field-wide"><span>Special requests (optional)</span><textarea value={contact.request} onChange={(e) => setContact((p) => ({ ...p, request: e.target.value }))} placeholder="Tell us anything we should know..." /></label>}
                   </div>
                   <div className="crt-contact-actions"><button className="crt-text-btn" onClick={() => setStep('review')} type="button">← Back to cart</button><button className="crt-primary" onClick={continueToPayment} disabled={!contactReady || reservationLoading} type="button">{reservationLoading ? 'Reserving seats...' : 'Continue to Payment →'}</button></div>
@@ -980,7 +1029,7 @@ export default function Cart({
                 <div className="crt-form-panel">
                   <h3>Payment method</h3>
                   <div className="crt-pay-tabs">
-                    <button className={paymentMethod === 'card' ? 'active' : ''} onClick={() => setPaymentMethod('card')} type="button"><StripeLogo />Credit card</button>
+                    <button className={paymentMethod === 'card' ? 'active' : ''} onClick={() => setPaymentMethod('card')} type="button"><CreditCardLogo />Credit card</button>
                     <button className={paymentMethod === 'wechat' ? 'active' : ''} onClick={() => startQrPayment('wechat')} type="button"><WeChatLogo />WeChat Pay</button>
                     <button className={paymentMethod === 'alipay' ? 'active' : ''} onClick={() => startQrPayment('alipay')} type="button"><AlipayLogo />Alipay</button>
                   </div>
@@ -1027,7 +1076,7 @@ export default function Cart({
                   {confirmed.items.map((item) => (
                     <article className="crt-booked-row" key={item.id}>
                       <ItemImage item={item} className="crt-side-thumb" />
-                      <div><strong>{item.show_title}</strong><span>{item.session_date} · {item.session_time}</span></div>
+                      <div><strong>{itemShowTitle(item)}</strong><span>{item.session_date} · {item.session_time}</span></div>
                       <span>Qty <b>{item.quantity}</b></span>
                       <button className="crt-outline" type="button">View ticket →</button>
                     </article>

@@ -1,8 +1,8 @@
--- Seed public bookable slots for Panda VR and Game A / Cyber Arena.
+-- Seed public bookable slots for Panda's World and Game A / Cyber Arena.
 -- Run after 005_resource_cart_schema.sql.
 --
 -- Frontend mapping:
---   Panda VR     -> events.slug = 'panda-vr'
+--   Panda's World -> events.slug = 'panda-vr'
 --   Cyber Arena  -> events.slug = 'game-a'
 --
 -- Safe to re-run. Existing event/date/start-time rows are updated, not duplicated.
@@ -56,8 +56,8 @@ begin
     now()
   from (
     values
-      ('panda-vr', 30, 10, 34.95::numeric),
-      ('game-a', 15, 8, 35.95::numeric)
+      ('panda-vr', 25, 10, 34.95::numeric),
+      ('game-a', 10, 8, 35.95::numeric)
   ) as seed(slug, slot_duration_minutes, capacity, price)
   join public.events e on e.slug = seed.slug
   cross join generate_series(start_date, end_date, interval '1 day') as d(day)
