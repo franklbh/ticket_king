@@ -12,6 +12,8 @@ import { useEventsQuery, useSlotsQuery, useTicketTypesQuery } from '../hooks/cat
 import LoadingIndicator from '../components/LoadingIndicator'
 import { AdminAlert, AdminCard, PageHeader } from '../components/AdminUI'
 import { dedupeBy } from '../utils/collections'
+import { todayIso } from '../utils/date'
+import { formatNorthAmericanPhone } from '../utils/phone'
 
 const PAYMENT_METHODS = [
   { id: 'Cash', label: 'Cash', icon: 'fa-money-bill-wave' },
@@ -22,8 +24,58 @@ const PAYMENT_METHODS = [
 ]
 const GST_RATE = 0.05
 
+function dateKeyFromDate(date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function monthStartFromDateKey(dateKey) {
+  const date = new Date(`${dateKey}T12:00:00`)
+  return new Date(date.getFullYear(), date.getMonth(), 1)
+}
+
+function shiftMonth(date, delta) {
+  return new Date(date.getFullYear(), date.getMonth() + delta, 1)
+}
+
+function monthTitle(date) {
+  return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+}
+
 function money(value) {
   return Math.round((Number(value) || 0) * 100) / 100
+}
+
+function moneyFromInput(value) {
+  const amount = Number(value)
+  if (!Number.isFinite(amount) || amount < 0) return 0
+  return money(amount)
+}
+
+function createFeeDraft(totalAmount, fees = null) {
+  return {
+    ticketTotal: (fees?.ticketTotal ?? totalAmount).toFixed(2),
+    addonTotal: (fees?.addonTotal ?? 0).toFixed(2),
+    couponDiscount: (fees?.couponDiscount ?? 0).toFixed(2),
+    platformFee: (fees?.platformFee ?? 0).toFixed(2),
+    paymentFee: (fees?.paymentFee ?? 0).toFixed(2),
+    gstTax: (fees?.gstTax ?? money(totalAmount * GST_RATE)).toFixed(2),
+    pstTax: (fees?.pstTax ?? 0).toFixed(2),
+  }
+}
+
+function normalizeFeeDraft(draft) {
+  return {
+    ticketTotal: moneyFromInput(draft.ticketTotal),
+    addonTotal: moneyFromInput(draft.addonTotal),
+    couponDiscount: moneyFromInput(draft.couponDiscount),
+    platformFee: moneyFromInput(draft.platformFee),
+    paymentFee: moneyFromInput(draft.paymentFee),
+    gstTax: moneyFromInput(draft.gstTax),
+    pstTax: moneyFromInput(draft.pstTax),
+  }
 }
 
 function StepIndicator({ step }) {
@@ -52,15 +104,19 @@ export default function CreateOrder() {
   const { lang } = useLang()
   const t = useT(lang)
   const [step, setStep] = useState(1)
-  const [selectedDate, setSelectedDate] = useState('')
-  const [showDatePicker, setShowDatePicker] = useState(false)
+  const [selectedDate, setSelectedDate] = useState(() => todayIso())
+  const [datePickerOpen, setDatePickerOpen] = useState(false)
+  const [datePickerMonth, setDatePickerMonth] = useState(() => monthStartFromDateKey(todayIso()))
   const [selectedTheme, setSelectedTheme] = useState('')
   const [selectedSlot, setSelectedSlot] = useState(null)
   const [ticketSelections, setTicketSelections] = useState({})
   const [customer, setCustomer] = useState({ firstName: '', lastName: '', phone: '', email: '', remarks: '' })
   const [payment, setPayment] = useState('')
   const [markUsed, setMarkUsed] = useState(false)
-  const [priceOverride, setPriceOverride] = useState(null)
+  const [manualFees, setManualFees] = useState(null)
+  const [feeDraft, setFeeDraft] = useState(() => createFeeDraft(0))
+  const [feeConfirmOpen, setFeeConfirmOpen] = useState(false)
+  const [feeEditorOpen, setFeeEditorOpen] = useState(false)
   const [appliedCoupon, setAppliedCoupon] = useState(null)
   const [couponMessage, setCouponMessage] = useState('')
   const [applyingCoupon, setApplyingCoupon] = useState(false)
@@ -125,9 +181,44 @@ export default function CreateOrder() {
   }
 
   function clearCheckoutAdjustments() {
-    setPriceOverride(null)
+    setManualFees(null)
+    setFeeDraft(createFeeDraft(0))
+    setFeeConfirmOpen(false)
+    setFeeEditorOpen(false)
     setAppliedCoupon(null)
     setCouponMessage('')
+  }
+
+  function handleDateChange(value) {
+    if (!value) return
+    setSelectedDate(value)
+    setDatePickerMonth(monthStartFromDateKey(value))
+    setSelectedTheme('')
+    setSelectedSlot(null)
+    setTicketSelections({})
+    clearCheckoutAdjustments()
+  }
+
+  function openDatePicker() {
+    setDatePickerMonth(monthStartFromDateKey(selectedDate || todayIso()))
+    setDatePickerOpen(open => !open)
+  }
+
+  const datePickerCells = (() => {
+    const leadingBlanks = datePickerMonth.getDay()
+    const daysInMonth = new Date(datePickerMonth.getFullYear(), datePickerMonth.getMonth() + 1, 0).getDate()
+    return [
+      ...Array.from({ length: leadingBlanks }, (_, idx) => ({ key: `blank-${idx}`, blank: true })),
+      ...Array.from({ length: daysInMonth }, (_, idx) => {
+        const date = new Date(datePickerMonth.getFullYear(), datePickerMonth.getMonth(), idx + 1)
+        return { key: dateKeyFromDate(date), day: idx + 1 }
+      }),
+    ]
+  })()
+
+  function selectPickerDate(value) {
+    handleDateChange(value)
+    setDatePickerOpen(false)
   }
 
   const totalTickets = Object.values(ticketSelections).reduce((s, v) => s + v, 0)
@@ -137,12 +228,25 @@ export default function CreateOrder() {
     const price = tp.priceType === 'fixed' ? (tp.price || 0) : (selectedSlot?.price || 37.95) + (tp.priceAdj || 0)
     return sum + price * count
   }, 0)
-  const adjustedTicketAmount = priceOverride == null ? totalAmount : priceOverride
+  const adjustedTicketAmount = manualFees ? manualFees.ticketTotal : totalAmount
+  const addonAmount = manualFees ? manualFees.addonTotal : 0
+  const platformFee = manualFees ? manualFees.platformFee : 0
+  const paymentFee = manualFees ? manualFees.paymentFee : 0
   const adminAdjustment = money(adjustedTicketAmount - totalAmount)
-  const couponDiscount = Math.min(appliedCoupon?.discount || 0, adjustedTicketAmount)
-  const taxableAmount = Math.max(0, adjustedTicketAmount - couponDiscount)
-  const gstAmount = taxableAmount * GST_RATE
-  const totalDue = taxableAmount + gstAmount
+  const feeSubtotal = Math.max(0, adjustedTicketAmount + addonAmount + platformFee + paymentFee)
+  const couponDiscount = Math.min(manualFees ? manualFees.couponDiscount : (appliedCoupon?.discount || 0), feeSubtotal)
+  const taxableAmount = Math.max(0, feeSubtotal - couponDiscount)
+  const gstAmount = manualFees ? manualFees.gstTax : taxableAmount * GST_RATE
+  const pstAmount = manualFees ? manualFees.pstTax : 0
+  const totalDue = taxableAmount + gstAmount + pstAmount
+  const feeDraftTotal = (() => {
+    const values = normalizeFeeDraft(feeDraft)
+    return money(
+      Math.max(0, values.ticketTotal + values.addonTotal + values.platformFee + values.paymentFee - values.couponDiscount) +
+      values.gstTax +
+      values.pstTax
+    )
+  })()
   const customerName = [customer.firstName, customer.lastName].filter(Boolean).join(' ')
   const ticketValidationError = Object.entries(ticketSelections).reduce((message, [typeId, count]) => {
     if (message) return message
@@ -187,6 +291,11 @@ export default function CreateOrder() {
         admin_adjustment: adminAdjustment,
         coupon_code: appliedCoupon?.code || null,
         coupon_discount: Number(couponDiscount.toFixed(2)),
+        addon_amount: Number(addonAmount.toFixed(2)),
+        platform_fee: Number(platformFee.toFixed(2)),
+        payment_fee: Number(paymentFee.toFixed(2)),
+        gst: Number(gstAmount.toFixed(2)),
+        pst: Number(pstAmount.toFixed(2)),
       })
       setLastOrderId(created?.order?.id || created?.order?.orderNumber || created?.order?.order_number)
       setOrderComplete(true)
@@ -209,19 +318,46 @@ export default function CreateOrder() {
   }
 
   function changePrice() {
-    const value = window.prompt('New ticket total before GST', adjustedTicketAmount.toFixed(2))
-    if (value === null) return
-    const amount = Number(value)
-    if (!Number.isFinite(amount) || amount < 0) {
-      setCouponMessage('Enter a valid amount.')
-      return
-    }
-    setPriceOverride(money(amount))
+    setFeeDraft(createFeeDraft(totalAmount, manualFees))
+    setFeeConfirmOpen(true)
+  }
+
+  function confirmFeeModification() {
     setAppliedCoupon(null)
-    setCouponMessage('Custom price applied. Add a coupon after changing price if needed.')
+    setCouponMessage('')
+    setFeeConfirmOpen(false)
+    setFeeEditorOpen(true)
+    setManualFees(normalizeFeeDraft(feeDraft))
+  }
+
+  function updateFeeDraft(field, value) {
+    setFeeDraft(prev => {
+      const next = { ...prev, [field]: value }
+      setManualFees(normalizeFeeDraft(next))
+      return next
+    })
+  }
+
+  function cancelFeeModification() {
+    setManualFees(null)
+    setFeeDraft(createFeeDraft(totalAmount))
+    setFeeEditorOpen(false)
+    setCouponMessage('Custom fee modification removed.')
+  }
+
+  function formatMoneyInput(field) {
+    setFeeDraft(prev => {
+      const next = { ...prev, [field]: moneyFromInput(prev[field]).toFixed(2) }
+      setManualFees(normalizeFeeDraft(next))
+      return next
+    })
   }
 
   async function applyCoupon() {
+    if (manualFees) {
+      setCouponMessage('Use Coupon Discount in Modify Fees while custom fee editing is enabled.')
+      return
+    }
     if (appliedCoupon) {
       setAppliedCoupon(null)
       setCouponMessage('Coupon removed.')
@@ -290,37 +426,79 @@ export default function CreateOrder() {
       {/* Step 1: Select Time Slot */}
       {step === 1 && (
         <AdminCard>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div className="create-order-step-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <h2 style={{ fontSize: 16, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, color: '#6366f1' }}>
               <i className="fa fa-clock" />
               {t.step1}
             </h2>
-            <Button
-              variant="outlined"
-              size="small"
-              onClick={() => setShowDatePicker(d => !d)}
-              startIcon={<i className="fa fa-calendar" />}
-            >
-              {t.selectOtherDate}
-            </Button>
+            <span className="create-order-date-picker-wrap">
+              <Button
+                className="create-order-date-trigger"
+                variant="outlined"
+                size="small"
+                onClick={openDatePicker}
+                startIcon={<i className="fa fa-calendar" />}
+                aria-expanded={datePickerOpen}
+                type="button"
+              >
+                {t.selectOtherDate}
+              </Button>
+              {datePickerOpen && (
+                <div className="create-order-date-popover" role="dialog" aria-label={t.selectOtherDate}>
+                  <div className="create-order-date-popover-head">
+                    <strong>{monthTitle(datePickerMonth)}</strong>
+                    <div>
+                      <button
+                        type="button"
+                        onClick={() => setDatePickerMonth(month => shiftMonth(month, -1))}
+                        aria-label="Previous month"
+                      >
+                        <i className="fa fa-chevron-left" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDatePickerMonth(month => shiftMonth(month, 1))}
+                        aria-label="Next month"
+                      >
+                        <i className="fa fa-chevron-right" />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="create-order-date-weekdays" aria-hidden="true">
+                    {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => (
+                      <span key={`${day}-${index}`}>{day}</span>
+                    ))}
+                  </div>
+                  <div className="create-order-date-grid">
+                    {datePickerCells.map(cell => cell.blank ? (
+                      <span key={cell.key} />
+                    ) : (
+                      <button
+                        key={cell.key}
+                        type="button"
+                        className={cell.key === selectedDate ? 'selected' : ''}
+                        onClick={() => selectPickerDate(cell.key)}
+                      >
+                        {cell.day}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="create-order-date-actions">
+                    <button type="button" onClick={() => setDatePickerOpen(false)}>
+                      Close
+                    </button>
+                  </div>
+                </div>
+              )}
+            </span>
           </div>
 
-          <div style={{ background: '#dbeafe', borderLeft: '4px solid #3b82f6', padding: '10px 14px', borderRadius: 4, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 6, fontSize: 14 }}>
+          <div className="create-order-current-date" style={{ background: '#dbeafe', borderLeft: '4px solid #3b82f6', padding: '10px 14px', borderRadius: 4, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 6, fontSize: 14 }}>
             <i className="fa fa-calendar-day" style={{ color: '#3b82f6' }} />
             <strong>{t.currentDate}:</strong>
-              {showDatePicker || !selectedDate ? (
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={e => { setSelectedDate(e.target.value); setShowDatePicker(false); setSelectedTheme(''); setSelectedSlot(null); setTicketSelections({}); clearCheckoutAdjustments() }}
-                style={{ border: 'none', background: 'transparent', fontWeight: 600, color: '#6366f1', cursor: 'pointer' }}
-                autoFocus
-              />
-            ) : (
-              <span style={{ fontWeight: 600, color: '#6366f1' }}>
-                {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-CA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-              </span>
-            )}
+            <span style={{ fontWeight: 600, color: '#6366f1' }}>
+              {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-CA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+            </span>
           </div>
 
           {availableSlots.length === 0 ? (
@@ -334,7 +512,7 @@ export default function CreateOrder() {
                 <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 8 }}>
                   Select theme first
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10 }}>
+                <div className="create-order-theme-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10 }}>
                   {themeOptions.map(event => {
                     const isSelected = String(selectedTheme) === String(event.id)
                     const count = availableSlots.filter(slot => String(slot.event) === String(event.id)).length
@@ -505,7 +683,7 @@ export default function CreateOrder() {
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div>
-                <TextField fullWidth size="small" label={t.phone} value={customer.phone} onChange={e => setCustomer(c => ({ ...c, phone: e.target.value }))} />
+                <TextField fullWidth size="small" label={t.phone} value={customer.phone} onChange={e => setCustomer(c => ({ ...c, phone: formatNorthAmericanPhone(e.target.value) }))} />
               </div>
               <div>
                 <TextField fullWidth size="small" label={t.email} type="email" value={customer.email} onChange={e => setCustomer(c => ({ ...c, email: e.target.value }))} />
@@ -529,9 +707,10 @@ export default function CreateOrder() {
             <i className="fa fa-credit-card" style={{ color: '#6366f1' }} /> Step 4: Payment Method & Summary
           </h2>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(120px, 1fr))', gap: 10, marginBottom: 18 }}>
+          <div className="create-order-payment-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(120px, 1fr))', gap: 10, marginBottom: 18 }}>
             {PAYMENT_METHODS.map(pm => (
               <Button
+                className="create-order-payment-button"
                 key={pm.id}
                 onClick={() => setPayment(pm.id)}
                 variant={payment === pm.id ? 'contained' : 'outlined'}
@@ -559,7 +738,7 @@ export default function CreateOrder() {
           </div>
 
           <div style={{ background: '#f9fafb', borderRadius: 10, padding: 16, marginBottom: 18, border: '1px solid #eef2f7' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1.25fr 1fr', gap: 18 }}>
+            <div className="create-order-summary-grid" style={{ display: 'grid', gridTemplateColumns: '1.25fr 1fr', gap: 18 }}>
               <div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 10 }}>Order details</div>
                 <div style={{ display: 'grid', gap: 7, fontSize: 13, color: '#4b5563' }}>
@@ -588,17 +767,35 @@ export default function CreateOrder() {
                   <div style={{ height: 1, background: '#e5e7eb', margin: '2px 0' }} />
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#374151' }}>
                     <span>Ticket Total</span>
-                    <span>${totalAmount.toFixed(2)}</span>
+                    <span>${adjustedTicketAmount.toFixed(2)}</span>
                   </div>
-                  {priceOverride != null && (
+                  {adminAdjustment !== 0 && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: adminAdjustment < 0 ? '#dc2626' : '#047857' }}>
                       <span>Price adjustment</span>
                       <span>{adminAdjustment < 0 ? '-' : '+'}${Math.abs(adminAdjustment).toFixed(2)}</span>
                     </div>
                   )}
-                  {appliedCoupon && (
+                  {(manualFees || addonAmount > 0) && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#374151' }}>
+                      <span>Addon Total</span>
+                      <span>${addonAmount.toFixed(2)}</span>
+                    </div>
+                  )}
+                  {(manualFees || platformFee > 0) && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#374151' }}>
+                      <span>Platform Processing Fee</span>
+                      <span>${platformFee.toFixed(2)}</span>
+                    </div>
+                  )}
+                  {(manualFees || paymentFee > 0) && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#374151' }}>
+                      <span>Payment Processing Fee</span>
+                      <span>${paymentFee.toFixed(2)}</span>
+                    </div>
+                  )}
+                  {(appliedCoupon || manualFees) && couponDiscount > 0 && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#dc2626' }}>
-                      <span>Coupon ({appliedCoupon.code})</span>
+                      <span>{appliedCoupon ? `Coupon (${appliedCoupon.code})` : 'Coupon Discount'}</span>
                       <span>-${couponDiscount.toFixed(2)}</span>
                     </div>
                   )}
@@ -606,6 +803,12 @@ export default function CreateOrder() {
                     <span>GST (5%)</span>
                     <span>${gstAmount.toFixed(2)}</span>
                   </div>
+                  {(manualFees || pstAmount > 0) && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#374151' }}>
+                      <span>PST Tax</span>
+                      <span>${pstAmount.toFixed(2)}</span>
+                    </div>
+                  )}
                   <div style={{ height: 1, background: '#d1d5db', margin: '2px 0' }} />
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: 18, color: '#111827' }}>
                     <span>Total</span>
@@ -633,7 +836,7 @@ export default function CreateOrder() {
                     </Button>
                   </div>
                   {couponMessage && (
-                    <div style={{ fontSize: 12, color: appliedCoupon || priceOverride != null ? '#047857' : '#b45309', textAlign: 'right' }}>
+                    <div style={{ fontSize: 12, color: appliedCoupon || manualFees ? '#047857' : '#b45309', textAlign: 'right' }}>
                       {couponMessage}
                     </div>
                   )}
@@ -641,6 +844,63 @@ export default function CreateOrder() {
               </div>
             </div>
           </div>
+
+          {feeEditorOpen && (
+            <div className="fee-modifier-panel">
+              <div className="fee-modifier-warning">
+                <i className="fa fa-exclamation-triangle" />
+                <span>Warning: Modifying fees will affect order amount calculation, please proceed with caution!</span>
+              </div>
+
+              <div className="fee-modifier-grid">
+                {[
+                  ['ticketTotal', 'Ticket Total'],
+                  ['addonTotal', 'Addon Total (e.g. VIP)'],
+                  ['couponDiscount', 'Coupon Discount'],
+                  ['platformFee', 'Platform Processing Fee'],
+                  ['paymentFee', 'Payment Processing Fee (e.g. Credit Card)'],
+                  ['gstTax', 'GST Tax'],
+                  ['pstTax', 'PST Tax'],
+                ].map(([field, label]) => (
+                  <label
+                    key={field}
+                    className={field === 'couponDiscount' ? 'fee-modifier-field wide' : 'fee-modifier-field'}
+                  >
+                    <span>{label}</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={feeDraft[field]}
+                      onChange={e => updateFeeDraft(field, e.target.value)}
+                      onBlur={() => formatMoneyInput(field)}
+                      inputMode="decimal"
+                    />
+                    {field === 'couponDiscount' && (
+                      <small>Example: Enter 10 for $10 off ticket price. Total and taxes will be reduced accordingly.</small>
+                    )}
+                  </label>
+                ))}
+              </div>
+
+              <div className="fee-modifier-total">
+                <span>Total</span>
+                <strong>${feeDraftTotal.toFixed(2)}</strong>
+              </div>
+
+              <div className="fee-modifier-footer">
+                <Button
+                  variant="contained"
+                  onClick={cancelFeeModification}
+                  startIcon={<i className="fa fa-times" />}
+                  sx={{ bgcolor: '#6b7280', '&:hover': { bgcolor: '#4b5563' } }}
+                >
+                  Cancel
+                </Button>
+                <p>Modified prices apply automatically when creating order, no save needed. Click Cancel to restore.</p>
+              </div>
+            </div>
+          )}
 
           <FormControlLabel
             sx={{ display: 'flex', justifyContent: 'center', mb: 1.5, mx: 0 }}
@@ -653,13 +913,55 @@ export default function CreateOrder() {
             <strong>If checked,</strong> order status will be marked as <strong>Completed</strong>, and tickets will be <strong>Used</strong>. Ticket email will <strong>NOT</strong> be sent, but if marketing is enabled and email is filled, marketing email will be triggered.
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 20 }}>
+          <div className="create-order-footer-actions" style={{ display: 'flex', justifyContent: 'space-between', marginTop: 20 }}>
             <Button variant="outlined" onClick={() => setStep(3)} startIcon={<i className="fa fa-arrow-left" />}>{t.back}</Button>
             <Button variant="contained" onClick={handleConfirm} disabled={!payment || creatingOrder} size="large" startIcon={<i className="fa fa-check-circle" />}>
               Create Order & Complete Payment
             </Button>
           </div>
         </AdminCard>
+      )}
+
+      {feeConfirmOpen && (
+        <div className="fee-confirm-overlay" role="presentation">
+          <div className="fee-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="fee-confirm-title">
+            <div className="fee-confirm-header">
+              <h2 id="fee-confirm-title">
+                <i className="fa fa-exclamation-triangle" />
+                Confirm Modify Fees
+              </h2>
+              <button type="button" onClick={() => setFeeConfirmOpen(false)} aria-label="Close">
+                <i className="fa fa-times" />
+              </button>
+            </div>
+            <div className="fee-confirm-body">
+              <div className="fee-confirm-warning">
+                <i className="fa fa-exclamation-circle" />
+                <span>
+                  This feature is only for special cases. Modifying fees will change the order amount structure. Are you sure you want to continue?
+                </span>
+              </div>
+            </div>
+            <div className="fee-confirm-actions">
+              <Button
+                variant="contained"
+                onClick={() => setFeeConfirmOpen(false)}
+                startIcon={<i className="fa fa-times" />}
+                sx={{ bgcolor: '#6b7280', '&:hover': { bgcolor: '#4b5563' } }}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="contained"
+                onClick={confirmFeeModification}
+                startIcon={<i className="fa fa-check" />}
+                sx={{ bgcolor: '#ef4444', '&:hover': { bgcolor: '#dc2626' } }}
+              >
+                Yes, Modify Fees
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

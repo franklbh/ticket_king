@@ -3,6 +3,7 @@ import BrandLogo from '../components/BrandLogo'
 import HeaderActions from '../components/HeaderActions'
 import { GOOGLE_MAPS_URL } from '../constants/venue'
 import { mapInstructionPdf } from '../data/showData'
+import { getExperiencePriceFrom } from '../utils/pricing'
 
 function HeroChevron({ direction }) {
   const points = direction === 'left' ? '15 18 9 12 15 6' : '9 18 15 12 9 6'
@@ -61,7 +62,7 @@ function ExperienceCard({ exp, onSelect, onBook, t }) {
         </div>
         <div className="vr-card-footer">
           <div className="vr-card-price">
-            {t('from')} <strong>${exp.priceFrom.toFixed(2)}</strong><span>{t('perPerson')}</span>
+            {t('from')} <strong>${getExperiencePriceFrom(exp).toFixed(2)}</strong><span>{t('perPerson')}</span>
           </div>
           <button
             className="vr-card-book-btn"
@@ -123,6 +124,10 @@ function MarketingPage({
     setHeroIndex((index) => (index + 1) % heroCount)
     resetHeroTimer()
   }
+  const themePickerSections = [
+    { key: 'shows', title: t('vrShows'), items: (localizedExperiences || []).filter((exp) => exp.category === 'vr-show') },
+    { key: 'games', title: t('vrGames'), items: (localizedExperiences || []).filter((exp) => exp.category === 'arcade') },
+  ].filter((section) => section.items.length > 0)
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -219,9 +224,11 @@ function MarketingPage({
             </div>
             <div className="mkt-showpass-stack">
               <button className="mkt-hero-secondary" onClick={() => window.open('https://www.showpass.com/', '_blank', 'noopener,noreferrer')} type="button">
-                Showpass
+                {t('buyOnShowpass')}
               </button>
-              <div className="mkt-showpass-note">{t('showpassNote')}</div>
+              <div className="mkt-showpass-note">
+                {t('showpassNoteLead')} <span>{t('showpassNoteAlso')}</span> {t('showpassNoteTail')}
+              </div>
             </div>
           </div>
           <div className="mkt-hero-meta">
@@ -380,39 +387,46 @@ function MarketingPage({
           >
             <div className="mkt-theme-picker-head">
               <div>
-                <p className="mkt-theme-picker-kicker">Book Experience</p>
+                <p className="mkt-theme-picker-kicker">{t('bookExperience')}</p>
                 <h2 id="mkt-theme-picker-title">Choose an experience</h2>
               </div>
               <button className="mkt-theme-picker-close" type="button" onClick={() => setThemePickerOpen(false)} aria-label="Close experience picker">
                 ×
               </button>
             </div>
-            <div className="mkt-theme-picker-grid">
-              {(localizedExperiences || []).map((exp) => {
-                const image = exp.heroImg || exp.gallery?.[0]
-                return (
-                  <button
-                    key={exp.id}
-                    className="mkt-theme-option"
-                    type="button"
-                    onClick={() => {
-                      setThemePickerOpen(false)
-                      onBuyTicket(exp)
-                    }}
-                  >
-                    <span
-                      className="mkt-theme-option-image"
-                      style={image ? { backgroundImage: `url(${image})` } : { background: exp.cardGradient }}
-                      aria-hidden="true"
-                    />
-                    <span className="mkt-theme-option-copy">
-                      <strong>{exp.title}</strong>
-                      <small>{exp.category === 'arcade' ? 'VR Game' : 'VR Show'} · {exp.duration} min</small>
-                    </span>
-                    <span className="mkt-theme-option-arrow" aria-hidden="true">›</span>
-                  </button>
-                )
-              })}
+            <div className="mkt-theme-picker-sections">
+              {themePickerSections.map((section) => (
+                <section className="mkt-theme-picker-section" key={section.key} aria-labelledby={`mkt-theme-picker-${section.key}`}>
+                  <h3 id={`mkt-theme-picker-${section.key}`}>{section.title}</h3>
+                  <div className="mkt-theme-picker-grid">
+                    {section.items.map((exp) => {
+                      const image = exp.heroImg || exp.gallery?.[0]
+                      return (
+                        <button
+                          key={exp.id}
+                          className="mkt-theme-option"
+                          type="button"
+                          onClick={() => {
+                            setThemePickerOpen(false)
+                            onBuyTicket(exp)
+                          }}
+                        >
+                          <span
+                            className="mkt-theme-option-image"
+                            style={image ? { backgroundImage: `url(${image})` } : { background: exp.cardGradient }}
+                            aria-hidden="true"
+                          />
+                          <span className="mkt-theme-option-copy">
+                            <strong>{exp.title}</strong>
+                            <small>{exp.category === 'arcade' ? 'VR Game' : 'VR Show'} · {exp.duration} min</small>
+                          </span>
+                          <span className="mkt-theme-option-arrow" aria-hidden="true">›</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </section>
+              ))}
             </div>
           </div>
         </div>

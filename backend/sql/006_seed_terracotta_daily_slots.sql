@@ -3,7 +3,8 @@
 --
 -- Adjust these values before running in Supabase if the production schedule changes:
 --   start_date / end_date: which dates to create
---   first_start / last_start: first and last sellable start time
+--   first_start / close time: slots start at 10:00 and end by closing time
+--     Sunday-Thursday close at 19:00, Friday-Saturday close at 20:00
 --   step_minutes: spacing between start times
 --   slot_duration_minutes: event length shown to customers
 --   price: customer-facing base price
@@ -15,7 +16,6 @@ declare
   start_date date := date '2026-05-17';
   end_date date := date '2026-08-31';
   first_start time := time '10:00';
-  last_start time := time '21:00';
   step_minutes integer := 30;
   slot_duration_minutes integer := 45;
   price numeric := 45.95;
@@ -65,7 +65,12 @@ begin
     select first_start + make_interval(mins => offset_minutes) as start_time
     from generate_series(
       0,
-      (extract(epoch from (last_start - first_start)) / 60)::integer,
+      (
+        extract(epoch from (
+          (case when extract(isodow from d.day) in (5, 6) then time '20:00' else time '19:00' end)
+          - first_start
+        )) / 60
+      )::integer - slot_duration_minutes,
       step_minutes
     ) as offsets(offset_minutes)
   ) as t

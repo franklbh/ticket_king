@@ -1,4 +1,5 @@
 import { requireSupabaseClient } from './supabase'
+import { API_URL } from './config'
 
 const authRedirectBaseUrl = (import.meta.env.VITE_BASE_URL || window.location.origin)
   .replace(/\/$/, '')
@@ -18,16 +19,26 @@ export async function getAuthSession() {
 
 export async function signUpWithEmail({ email, name, password }) {
   const client = requireSupabaseClient()
-  const { data, error } = await client.auth.signUp({
-    email,
-    password,
-    options: {
-      data: { name },
-      emailRedirectTo: `${authRedirectBaseUrl}/auth/callback`,
-    },
+  const response = await fetch(`${API_URL}/auth/signup`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, name, password }),
   })
 
-  if (error) throw error
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}))
+    throw new Error(data.detail || `Signup failed with status ${response.status}`)
+  }
+
+  const { data, error } = await client.auth.signInWithPassword({ email, password })
+
+  if (error) {
+    if (/confirm|verified|verification/i.test(error.message || '')) {
+      throw new Error('Account created, but login is blocked by Supabase email confirmation settings. Disable email confirmation for local signup or confirm the user in Supabase.')
+    }
+    throw error
+  }
+
   return data
 }
 

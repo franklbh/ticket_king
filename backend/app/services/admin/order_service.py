@@ -244,21 +244,29 @@ class OrderService:
         total_amount = round(sum(item.quantity * item.unit_price for item in payload.tickets), 2)
         adjusted_ticket_amount = max(0, round(total_amount + payload.admin_adjustment, 2))
         admin_adjustment = round(adjusted_ticket_amount - total_amount, 2)
+        addon_amount = max(0, round(payload.addon_amount, 2))
+        platform_fee = max(0, round(payload.platform_fee, 2))
+        payment_fee = max(0, round(payload.payment_fee, 2))
         coupon_code = payload.coupon_code.strip().upper() if payload.coupon_code else None
         coupon_discount = 0
         if coupon_code:
             coupon_result = await coupons_service.validate_coupon(
-                CouponValidationRequest(code=coupon_code, amount=adjusted_ticket_amount)
+                CouponValidationRequest(code=coupon_code, amount=adjusted_ticket_amount + addon_amount + platform_fee + payment_fee)
             )
             if not coupon_result.get("valid"):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=coupon_result.get("reason") or "Coupon is not valid.",
                 )
-            coupon_discount = round(min(float(coupon_result.get("discount") or 0), adjusted_ticket_amount), 2)
-        taxable_amount = round(adjusted_ticket_amount - coupon_discount, 2)
-        gst = round(taxable_amount * 0.05, 2)
-        total_due = round(taxable_amount + gst, 2)
+            coupon_discount = round(float(coupon_result.get("discount") or 0), 2)
+        else:
+            coupon_discount = round(payload.coupon_discount, 2)
+        fee_subtotal = round(adjusted_ticket_amount + addon_amount + platform_fee + payment_fee, 2)
+        coupon_discount = round(min(max(0, coupon_discount), fee_subtotal), 2)
+        taxable_amount = round(fee_subtotal - coupon_discount, 2)
+        gst = round(payload.gst if payload.gst is not None else taxable_amount * 0.05, 2)
+        pst = max(0, round(payload.pst, 2))
+        total_due = round(taxable_amount + gst + pst, 2)
         order_status = "completed" if payload.mark_used_immediately else "paid"
         ticket_quantity = sum(item.quantity for item in payload.tickets)
         ticket_details = [
@@ -289,11 +297,11 @@ class OrderService:
             "ticket_quantity": ticket_quantity,
             "ticket_details": ticket_details,
             "ticket_amount": total_amount,
-            "addon_amount": 0,
-            "platform_fee": 0,
-            "payment_fee": 0,
+            "addon_amount": addon_amount,
+            "platform_fee": platform_fee,
+            "payment_fee": payment_fee,
             "gst": gst,
-            "pst": 0,
+            "pst": pst,
             "coupon_discount": coupon_discount,
             "admin_adjustment": admin_adjustment,
             "total_amount": total_due,

@@ -1,9 +1,18 @@
--- Seed public bookable slots for Panda's World and Game A / Cyber Arena.
+-- Seed public bookable slots for Panda VR, Back to Jurassic, and Game A.
 -- Run after 005_resource_cart_schema.sql.
 --
 -- Frontend mapping:
---   Panda's World -> events.slug = 'panda-vr'
---   Cyber Arena  -> events.slug = 'game-a'
+--   Panda VR          -> events.slug = 'panda-vr'
+--   Back to Jurassic  -> events.slug = 'dino-vr'
+--   Game A            -> events.slug = 'game-a'
+--
+-- Slot cadence:
+--   Panda VR and Back to Jurassic: 30-minute slots every 30 minutes.
+--   Game A: 15-minute slots every 15 minutes.
+--
+-- Business hours:
+--   Sunday-Thursday: slots must end by 19:00.
+--   Friday-Saturday: slots must end by 20:00.
 --
 -- Safe to re-run. Existing event/date/start-time rows are updated, not duplicated.
 
@@ -12,8 +21,6 @@ declare
   start_date date := date '2026-05-17';
   end_date date := date '2026-08-31';
   first_start time := time '10:00';
-  last_start time := time '21:00';
-  step_minutes integer := 30;
 begin
   insert into public.slots (
     id,
@@ -56,17 +63,23 @@ begin
     now()
   from (
     values
-      ('panda-vr', 25, 10, 34.95::numeric),
-      ('game-a', 10, 8, 35.95::numeric)
-  ) as seed(slug, slot_duration_minutes, capacity, price)
+      ('panda-vr', 30, 30, 10, 34.95::numeric),
+      ('dino-vr', 30, 30, 10, 35.95::numeric),
+      ('game-a', 15, 15, 8, 35.95::numeric)
+  ) as seed(slug, slot_duration_minutes, slot_step_minutes, capacity, price)
   join public.events e on e.slug = seed.slug
   cross join generate_series(start_date, end_date, interval '1 day') as d(day)
   cross join lateral (
     select first_start + make_interval(mins => offset_minutes) as start_time
     from generate_series(
       0,
-      (extract(epoch from (last_start - first_start)) / 60)::integer,
-      step_minutes
+      (
+        extract(epoch from (
+          (case when extract(isodow from d.day) in (5, 6) then time '20:00' else time '19:00' end)
+          - first_start
+        )) / 60
+      )::integer - seed.slot_duration_minutes,
+      seed.slot_step_minutes
     ) as offsets(offset_minutes)
   ) as t
   on conflict (event_id, business_date, start_time)

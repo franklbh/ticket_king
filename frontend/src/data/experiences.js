@@ -67,14 +67,14 @@ export const vrExperiences = [
       "Walk through underground mausoleum corridors, witness the vast army of 8,000 unique warriors, and uncover the secrets buried with Qin Shi Huang. Every detail — the texture of ancient clay, the flicker of torchlight, the grandeur of the underground palace — has been painstakingly recreated for maximum realism.",
     gallery: [terracottaImg, galleryImg1, galleryImg2, galleryImg3, galleryImg4, galleryImg5, galleryImg6, galleryImg7, galleryImg8],
     reviews: [
-      { quote: "I felt like I was really standing among the Terracotta Warriors. The level of detail and atmosphere were incredible — both educational and breathtaking.", name: 'Emily R.', rating: 5, img: null },
-      { quote: "The experience transported me straight into ancient China. It's amazing how real everything felt, from the sounds to the lighting. Highly recommended!", name: 'Michael T.', rating: 5, img: null },
+      { quote: "I felt like I was really standing among the Terracotta Warriors. The level of detail and atmosphere were incredible — both educational and breathtaking.", name: 'Emily R.', rating: 5, img: commenterImg1 },
+      { quote: "The experience transported me straight into ancient China. It's amazing how real everything felt, from the sounds to the lighting. Highly recommended!", name: 'Michael T.', rating: 5, img: commenterImg2 },
     ],
   },
   {
     id: 'panda',
     category: 'vr-show',
-    title: 'Panda VR',
+    title: "Panda's World",
     subtitle: "A Giant's World",
     tagline: "See life through a giant panda's eyes",
     duration: 25,
@@ -115,7 +115,7 @@ export const vrExperiences = [
       { label: 'Motion', value: 'Very gentle — ideal for all' },
     ],
     description:
-      "Step into the lush bamboo forests of Sichuan and experience life through the eyes of the world's most beloved bear. Panda VR is the perfect introduction to virtual reality for the whole family — wonder, wildlife, and pure joy for every age.",
+      "Step into the lush bamboo forests of Sichuan and experience life through the eyes of the world's most beloved bear. Panda's World is the perfect introduction to virtual reality for the whole family — wonder, wildlife, and pure joy for every age.",
     longDescription:
       "Roam through misty mountain valleys, chomp on bamboo, and encounter other wildlife in their natural habitat. This gentle, enchanting experience is designed to delight guests of all ages with stunning nature visuals and heartwarming animal interactions.",
     gallery: [pandaImg, galleryImg3, galleryImg5, galleryImg1, galleryImg7, galleryImg2, galleryImg6],
@@ -127,7 +127,7 @@ export const vrExperiences = [
   {
     id: 'dragon',
     category: 'vr-show',
-    title: 'Dragon VR',
+    title: 'Back to the Jurassic',
     subtitle: 'Rise of the Ancient',
     tagline: 'Soar through mythical skies on dragonback',
     duration: 30,
@@ -168,7 +168,7 @@ export const vrExperiences = [
       { label: 'Motion', value: 'High intensity — caution advised' },
     ],
     description:
-      "Mount a legendary dragon and soar through storm clouds, volcanic peaks, and ancient kingdoms. Dragon VR is the most intense and thrilling experience in our lineup — a high-octane adventure that will leave you absolutely breathless.",
+      "Mount a legendary dragon and soar through storm clouds, volcanic peaks, and ancient kingdoms. Back to the Jurassic is the most intense and thrilling experience in our lineup — a high-octane adventure that will leave you absolutely breathless.",
     longDescription:
       "Command your dragon through sweeping aerial battles, dive through canyon walls, and unleash fire on mythical beasts. The combination of dynamic motion simulation, surround sound, and stunning fantasy visuals makes this unlike anything you have ever experienced before.",
     gallery: [dinoImg, galleryImg2, galleryImg4, galleryImg6, galleryImg8, galleryImg1, galleryImg5],
@@ -186,7 +186,7 @@ export const arcadeGames = [
     title: 'Hero',
     subtitle: 'Zombies Besiege the City',
     tagline: "Fight for the city's survival",
-    duration: 30,
+    duration: 10,
     minAge: 12,
     languages: ['English', '中文'],
     rating: 4.8,
@@ -216,7 +216,7 @@ export const arcadeGames = [
       { icon: '🎧', label: 'Spatial Audio', desc: 'Hear threats before you see them' },
     ],
     practicalInfo: [
-      { label: 'Duration', value: '30 minutes' },
+      { label: 'Duration', value: '10 minutes' },
       { label: 'Min. Age', value: '12 years old' },
       { label: 'Mobility', value: 'Standing required' },
       { label: 'Language', value: 'EN / 中文' },
@@ -239,7 +239,7 @@ export const arcadeGames = [
     title: 'HyperBeat Slash',
     subtitle: 'Rhythm Action Arena',
     tagline: 'Slash to the beat in full-sensory VR',
-    duration: 25,
+    duration: 10,
     minAge: 8,
     languages: ['English', '中文'],
     rating: 4.7,
@@ -269,7 +269,7 @@ export const arcadeGames = [
       { icon: '🎵', label: 'Music Gameplay', desc: 'Bright audio-reactive stages' },
     ],
     practicalInfo: [
-      { label: 'Duration', value: '25 minutes' },
+      { label: 'Duration', value: '10 minutes' },
       { label: 'Min. Age', value: '8 years old' },
       { label: 'Mobility', value: 'Seated or standing' },
       { label: 'Language', value: 'EN / 中文' },
@@ -292,7 +292,7 @@ export const arcadeGames = [
     title: 'GULU GULU',
     subtitle: 'Battle the Cute Monster Legion',
     tagline: 'Screen-free, full-sensory fun',
-    duration: 20,
+    duration: 10,
     minAge: 6,
     languages: ['English', '中文'],
     rating: 4.9,
@@ -322,7 +322,7 @@ export const arcadeGames = [
       { icon: '🎵', label: 'Full-Sensory Fun', desc: 'Colorful visuals and punchy audio' },
     ],
     practicalInfo: [
-      { label: 'Duration', value: '20 minutes' },
+      { label: 'Duration', value: '10 minutes' },
       { label: 'Min. Age', value: '6 years old' },
       { label: 'Mobility', value: 'Seated or standing' },
       { label: 'Language', value: 'EN / 中文' },

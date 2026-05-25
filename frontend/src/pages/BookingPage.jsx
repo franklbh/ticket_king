@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { isDateTimePeak } from '../data/showData'
 import { badge, currency } from '../utils/format'
+import { getExperiencePriceFrom, getPricesForSlot } from '../utils/pricing'
 
 function BookingPage({
   availableSlots = [],
@@ -46,17 +46,17 @@ function BookingPage({
 
   const liveSlots = useMemo(() => availableSlots.map((slot) => {
     const time = slot.label || [slot.startTime, slot.endTime].filter(Boolean).join(' - ')
-    const peak = selectedDate ? isDateTimePeak(selectedDate.date, time) : false
-    const prices = bookingExperience ? (peak ? bookingExperience.peakPrices : bookingExperience.offPeakPrices) : {}
+    const prices = getPricesForSlot(bookingExperience, selectedDate?.date)
+    const weekend = selectedDate?.date ? [0, 6].includes(selectedDate.date.getDay()) : false
     return {
       id: slot.id,
       eventId: slot.eventId,
       slotId: slot.id,
       time,
       label: time,
-      price: slot.price ?? prices.adult ?? localizedTicketTypes[0]?.price ?? 0,
+      price: prices.adult ?? slot.price ?? localizedTicketTypes[0]?.price ?? 0,
       availableSeats: slot.availableSeats,
-      peak,
+      peak: weekend,
     }
   }), [availableSlots, bookingExperience, localizedTicketTypes, selectedDate])
 
@@ -70,7 +70,7 @@ function BookingPage({
   const lineSubtotal = (line) => (ticketById(line.ticketTypeId)?.price || 0) * line.quantity
   const subtotal = ticketLines.reduce((sum, line) => sum + lineSubtotal(line), 0)
   const ticketQty = ticketLines.reduce((sum, line) => sum + line.quantity, 0)
-  const processingFee = ticketQty > 0 ? 1.8 * ticketQty + 0.04 * subtotal : 0
+  const processingFee = ticketQty > 0 ? 1.8 * ticketQty + 0.025 * subtotal : 0
   const tax = ticketQty > 0 ? 0.05 * subtotal : 0
   const grand = subtotal + processingFee + tax
   const canAdd = Boolean(
@@ -308,7 +308,7 @@ function BookingPage({
                       <select value={line.ticketTypeId} onChange={(event) => updateTicketType(line.key, event.target.value)}>
                         {localizedTicketTypes.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
                       </select>
-                      <span>{selectedTicket?.info || `Standard admission for ${selectedTicket?.label || 'ticket'}.`}</span>
+                      <span>{selectedTicket?.info || `General Admission for ${selectedTicket?.label || 'ticket'}`}</span>
                       <div className="btk-qty">
                         <button onClick={() => updateTicketQty(line.key, -1)} disabled={line.quantity <= minQty} type="button">-</button>
                         <input
@@ -350,7 +350,7 @@ function BookingPage({
                         <div className="btk-exp-body">
                           <strong>{experience.title}</strong>
                           <small>{experience.subtitle || experience.tagline}</small>
-                          <div><span>from {currency(experience.priceFrom || 37.95)}</span><button onClick={() => chooseRelatedExperience(experience.id)} type="button">Add +</button></div>
+                          <div><span>from {currency(getExperiencePriceFrom(experience) || 37.95)}</span><button onClick={() => chooseRelatedExperience(experience.id)} type="button">Add</button></div>
                         </div>
                       </article>
                     )
@@ -423,7 +423,7 @@ function ProcessingFeeLabel() {
           !
         </button>
         <span className="processing-fee-tooltip" role="tooltip">
-          Includes a $1.80 platform fee per ticket plus a 4% bank/card processing fee.
+          Includes a $1.80 platform fee per ticket plus a 2.5% payment processing fee.
         </span>
       </span>
     </span>

@@ -4,7 +4,7 @@
 --
 -- Business rules represented here:
 --   - Terracotta Army VR uses HTC headsets and the VR Show Room.
---   - Panda VR and Dino VR use Pico headsets and the VR Show Room.
+--   - Panda's World and Back to the Jurassic use Pico headsets and the VR Show Room.
 --   - Games A/B/C use Pico headsets and the Game Room.
 --   - Pico headset inventory is shared across Panda/Dino/Games.
 --   - Game Room capacity is 8, even though Pico inventory is 10.
@@ -103,11 +103,16 @@ set
 insert into public.events (name, slug, status, created_at, updated_at)
 values
   ('Terracotta Army VR', 'terracotta-warriors', 'active', now(), now()),
+<<<<<<< Updated upstream
+  ('Panda''s World', 'panda-vr', 'active', now(), now()),
+  ('Back to the Jurassic', 'dino-vr', 'active', now(), now()),
+=======
   ('Panda VR', 'panda-vr', 'active', now(), now()),
-  ('Dino VR', 'dino-vr', 'active', now(), now()),
+  ('Back to Jurassic', 'dino-vr', 'active', now(), now()),
+>>>>>>> Stashed changes
   ('Game A', 'game-a', 'active', now(), now()),
-  ('Game B', 'game-b', 'active', now(), now()),
-  ('Game C', 'game-c', 'active', now(), now())
+  ('Game B', 'game-b', 'archived', now(), now()),
+  ('Game C', 'game-c', 'archived', now(), now())
 on conflict (slug) do update
 set
   name = excluded.name,
@@ -122,7 +127,7 @@ set
   content_mode = 'vr',
   headset_brand = 'htc',
   vr_room_mode = 'htc',
-  duration_minutes = coalesce(duration_minutes, 45),
+  duration_minutes = 45,
   updated_at = now()
 where slug in ('terracotta-warriors', 'terracotta-army-vr', 'terracotta-warriors-vr');
 
@@ -132,7 +137,15 @@ set
   content_mode = 'vr',
   headset_brand = 'pico',
   vr_room_mode = 'pico',
-  duration_minutes = coalesce(duration_minutes, 12),
+<<<<<<< Updated upstream
+  duration_minutes = case
+    when slug = 'panda-vr' then 25
+    when slug = 'dino-vr' then 30
+    else duration_minutes
+  end,
+=======
+  duration_minutes = 30,
+>>>>>>> Stashed changes
   updated_at = now()
 where slug in ('panda-vr', 'dino-vr');
 
@@ -142,7 +155,11 @@ set
   content_mode = 'game',
   headset_brand = 'pico',
   vr_room_mode = 'none',
-  duration_minutes = coalesce(duration_minutes, 12),
+<<<<<<< Updated upstream
+  duration_minutes = 10,
+=======
+  duration_minutes = 15,
+>>>>>>> Stashed changes
   updated_at = now()
 where slug in ('game-a', 'game-b', 'game-c');
 

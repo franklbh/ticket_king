@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import BrandLogo from '../components/BrandLogo'
 import HeaderActions from '../components/HeaderActions'
 import { allExperiences } from '../data/experiences'
+import { getExperiencePriceFrom, getPricesForSlot, hasSeniorTicket } from '../utils/pricing'
 
 /* ── Helpers ── */
 function Stars({ rating, size = 14 }) {
@@ -94,21 +95,12 @@ function BookingWidget({ experience, cartItems, onAddToCart }) {
     const day = String(date.getDate()).padStart(2, '0')
     return `${year}-${month}-${day}`
   }
-  const prices = experience.offPeakPrices || {}
-  const TICKET_TYPES = useMemo(() => [
-    { id: 'adult',  label: 'Adult',  desc: 'Ages 18+', price: prices.adult ?? 37.95 },
-    { id: 'child',  label: 'Child',  desc: 'Ages 7–15', price: prices.child ?? 27.95 },
-    { id: 'senior', label: 'Senior', desc: '65+ years', price: prices.senior ?? 34.95 },
-    { id: 'group',  label: 'Group',  desc: '6+ guests', price: prices.group ?? 32.95, minQty: 6, notice: 'min. 6 people required.' },
-    { id: 'family', label: 'Family', desc: '3+ family bundle', price: prices.family ?? 31.95, minQty: 3, notice: 'Ticket for min. 3 people, max. 2 adults.' },
-  ], [prices.adult, prices.child, prices.family, prices.group, prices.senior])
-
   today.setHours(0, 0, 0, 0)
   const monthOptions = Array.from({ length: 6 }, (_, i) => new Date(today.getFullYear(), today.getMonth() + i, 1))
   const [selMonthKey, setSelMonthKey] = useState(`${today.getFullYear()}-${today.getMonth()}`)
   const [selDateKey, setSelDateKey] = useState(() => dateKey(today))
   const [selTime, setSelTime] = useState(null)
-  const [qty, setQty] = useState(() => TICKET_TYPES.reduce((acc, ticket) => ({ ...acc, [ticket.id]: 0 }), {}))
+  const [qty, setQty] = useState(() => ['adult', 'child', 'senior', 'group', 'family'].reduce((acc, id) => ({ ...acc, [id]: 0 }), {}))
   const [rawQty, setRawQty] = useState({})
   const [addedMessage, setAddedMessage] = useState('')
   const [backendSlots, setBackendSlots] = useState([])
@@ -123,6 +115,16 @@ function BookingWidget({ experience, cartItems, onAddToCart }) {
   }).filter(Boolean)
   const selectedDate = days.find((d) => dateKey(d) === selDateKey) || days[0]
   const selectedDateKey = selectedDate ? dateKey(selectedDate) : ''
+  const prices = getPricesForSlot(experience, selectedDate)
+  const TICKET_TYPES = useMemo(() => [
+    { id: 'adult',  label: 'Adult',  desc: 'Ages 18+', price: prices.adult ?? 37.95 },
+    { id: 'child',  label: 'Child',  desc: 'Ages 7–15', price: prices.child ?? 27.95 },
+    ...(hasSeniorTicket(experience)
+      ? [{ id: 'senior', label: 'Senior', desc: '65+ years', price: prices.senior ?? prices.adult ?? 37.95 }]
+      : []),
+    { id: 'group',  label: 'Group',  desc: '6+ guests', price: prices.group ?? 32.95, minQty: 6, notice: 'min. 6 people required.' },
+    { id: 'family', label: 'Family', desc: '3+ family bundle', price: prices.family ?? 31.95, minQty: 3, notice: 'Ticket for min. 3 people, max. 2 adults.' },
+  ], [experience, prices.adult, prices.child, prices.family, prices.group, prices.senior])
   const calendarCells = [
     ...Array.from({ length: monthStartDay }, (_, idx) => ({ key: `blank-${idx}`, blank: true })),
     ...Array.from({ length: new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0).getDate() }, (_, i) => {
@@ -134,14 +136,15 @@ function BookingWidget({ experience, cartItems, onAddToCart }) {
         date: d,
         day: i + 1,
         disabled,
-        price: weekend ? (experience.peakPrices?.adult ?? prices.adult ?? 37.95) : (prices.adult ?? 37.95),
+        price: getPricesForSlot(experience, d).adult ?? 37.95,
         best: !weekend,
       }
     }),
   ]
   const totalQty = Object.values(qty).reduce((s, n) => s + n, 0)
   const totalPrice = TICKET_TYPES.reduce((s, t) => s + qty[t.id] * t.price, 0)
-  const canAddToCart = Boolean(selectedDate && selTime && totalQty > 0)
+  const invalidTicketSelections = TICKET_TYPES.filter((ticket) => ticket.minQty && qty[ticket.id] > 0 && qty[ticket.id] < ticket.minQty)
+  const canAddToCart = Boolean(selectedDate && selTime && totalQty > 0 && invalidTicketSelections.length === 0)
   const ticketOptions = TICKET_TYPES.map((ticket) => ({ id: ticket.id, label: ticket.label, price: ticket.price }))
   const ticketsFromQuantities = (quantities) => TICKET_TYPES
     .filter((ticket) => quantities[ticket.id] > 0)
@@ -325,39 +328,47 @@ function BookingWidget({ experience, cartItems, onAddToCart }) {
 
         {/* Ticket types */}
         <div className="bw-tickets">
-          {TICKET_TYPES.map((ticket) => (
-            <div key={ticket.id} className="bw-ticket-row">
-              <div className="bw-ticket-info">
-                <span className="bw-ticket-title-line">
-                  <span className="bw-ticket-label">{ticket.label}</span>
-                  {ticket.notice && (
-                    <span className="bw-ticket-notice-wrap">
-                      <button className="bw-ticket-notice-icon" type="button" aria-label={ticket.notice}>!</button>
-                      <span className="bw-ticket-notice" role="tooltip">{ticket.notice}</span>
-                    </span>
-                  )}
-                </span>
-                <span className="bw-ticket-desc">{ticket.desc}</span>
-              </div>
-              <div className="bw-ticket-right">
-                <span className="bw-ticket-price">${ticket.price.toFixed(2)}</span>
-                <div className="bw-qty">
-                  <button className="bw-qty-btn" onClick={() => changeQty(ticket, -1)} disabled={qty[ticket.id] === 0} type="button">−</button>
-                  <input
-                    className="bw-qty-num"
-                    type="text"
-                    min="0"
-                    inputMode="numeric"
-                    value={rawQty[ticket.id] !== undefined ? rawQty[ticket.id] : qty[ticket.id]}
-                    onChange={(event) => setTicketQty(ticket, event.target.value)}
-                    onBlur={() => commitTicketQty(ticket)}
-                    aria-label={`${ticket.label} quantity`}
-                  />
-                  <button className="bw-qty-btn" onClick={() => changeQty(ticket, 1)} type="button">+</button>
+          {TICKET_TYPES.map((ticket) => {
+            const isInvalid = ticket.minQty && qty[ticket.id] > 0 && qty[ticket.id] < ticket.minQty
+            return (
+              <div key={ticket.id} className={`bw-ticket-row ${isInvalid ? 'bw-ticket-row-invalid' : ''}`}>
+                <div className="bw-ticket-info">
+                  <span className="bw-ticket-title-line">
+                    <span className="bw-ticket-label">{ticket.label}</span>
+                    {ticket.notice && (
+                      <span className="bw-ticket-notice-wrap">
+                        <button className="bw-ticket-notice-icon" type="button" aria-label={ticket.notice}>!</button>
+                        <span className="bw-ticket-notice" role="tooltip">{ticket.notice}</span>
+                      </span>
+                    )}
+                  </span>
+                  <span className="bw-ticket-desc">{ticket.desc}</span>
                 </div>
+                <div className="bw-ticket-right">
+                  <span className="bw-ticket-price">${ticket.price.toFixed(2)}</span>
+                  <div className="bw-qty">
+                    <button className="bw-qty-btn" onClick={() => changeQty(ticket, -1)} disabled={qty[ticket.id] === 0} type="button">−</button>
+                    <input
+                      className="bw-qty-num"
+                      type="text"
+                      min="0"
+                      inputMode="numeric"
+                      value={rawQty[ticket.id] !== undefined ? rawQty[ticket.id] : qty[ticket.id]}
+                      onChange={(event) => setTicketQty(ticket, event.target.value)}
+                      onBlur={() => commitTicketQty(ticket)}
+                      aria-label={`${ticket.label} quantity`}
+                    />
+                    <button className="bw-qty-btn" onClick={() => changeQty(ticket, 1)} type="button">+</button>
+                  </div>
+                </div>
+                {isInvalid && (
+                  <div className="ticket-validation-warning bw-ticket-warning">
+                    {ticket.label} requires at least {ticket.minQty} tickets.
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
 
         {/* Total */}
@@ -398,7 +409,7 @@ function MiniExpCard({ exp, onSelect }) {
       <div className="exp2-mini-body">
         <div className="exp2-mini-meta">⏱ {exp.duration} min · Ages {exp.minAge}+</div>
         <div className="exp2-mini-title">{exp.title}</div>
-        <div className="exp2-mini-price">From <strong>${exp.priceFrom.toFixed(2)}</strong></div>
+        <div className="exp2-mini-price">From <strong>${getExperiencePriceFrom(exp).toFixed(2)}</strong></div>
       </div>
     </div>
   )

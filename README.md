@@ -133,6 +133,9 @@ Current migration order:
 005_resource_cart_schema.sql
 006_seed_terracotta_daily_slots.sql
 007_order_reservations.sql
+008_seed_experience_daily_slots.sql
+009_showpass_integration.sql
+010_normalize_public_booking_slots.sql
 ```
 
 `005_resource_cart_schema.sql` adds event-based slots, resource capacity rules, and multi-item cart support.
@@ -140,6 +143,12 @@ Current migration order:
 `006_seed_terracotta_daily_slots.sql` seeds bookable Terracotta Army VR slots for the customer booking API.
 
 `007_order_reservations.sql` adds the timed reservation columns used to hold seats during checkout.
+
+`008_seed_experience_daily_slots.sql` seeds bookable Panda VR, Back to Jurassic, and Game A slots.
+
+`009_showpass_integration.sql` adds Showpass webhook mapping support.
+
+`010_normalize_public_booking_slots.sql` repairs existing databases by archiving Game B/C availability, keeping Game A active, setting Back to Jurassic active, and normalizing slot hours.
 
 ## Checkout Reservations
 

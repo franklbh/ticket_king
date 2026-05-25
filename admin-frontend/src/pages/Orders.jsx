@@ -14,6 +14,7 @@ import LoadingIndicator from '../components/LoadingIndicator'
 import { AdminAlert, EmptyTableRow, FilterCard, PageHeader, TableShell } from '../components/AdminUI'
 import { ApplyFiltersButton, DateRangeFilter, ResetFiltersButton, StatusChipFilter, TextFilter } from '../components/FilterControls'
 import { formatDateShort, todayIso, weekdayName } from '../utils/date'
+import { formatNorthAmericanPhone } from '../utils/phone'
 
 const STATUS_LIST = ['paid', 'completed', 'refunded', 'cancelled']
 const STATUS_OPTIONS = STATUS_LIST.map(status => ({ value: status, label: status[0].toUpperCase() + status.slice(1) }))
@@ -412,7 +413,7 @@ export default function Orders() {
   function openModal(type, order) {
     if (type === 'editUser') {
       const { firstName, lastName } = splitName(order.user.name)
-      setEditForm({ firstName, lastName, phone: order.user.phone || '', email: order.user.email || '' })
+      setEditForm({ firstName, lastName, phone: formatNorthAmericanPhone(order.user.phone || ''), email: order.user.email || '' })
     }
     if (type === 'changeSlot') setSlotPick({ date: null, slot: null, resend: true })
     setModal({ type, order })
@@ -756,7 +757,7 @@ export default function Orders() {
             </div>
             <div style={{ marginBottom: 16 }}>
               <label style={labelStyle}>{t.phone}</label>
-              <input className="form-input" value={editForm.phone} onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))} />
+              <input className="form-input" value={editForm.phone} onChange={e => setEditForm(f => ({ ...f, phone: formatNorthAmericanPhone(e.target.value) }))} />
             </div>
             <div>
               <label style={labelStyle}>{t.email}</label>

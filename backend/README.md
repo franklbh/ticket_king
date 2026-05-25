@@ -32,7 +32,7 @@ SUPABASE_PUBLISHABLE_KEY=your-supabase-publishable-or-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key
 ```
 
-`SUPABASE_SERVICE_ROLE_KEY` lets an owner create confirmed admin Auth users directly from the admin panel. Without it, the backend falls back to Supabase public signup, which may require email confirmation depending on your Supabase Auth settings.
+`SUPABASE_SERVICE_ROLE_KEY` lets the backend create confirmed Supabase Auth users when email delivery/confirmation is unavailable. It must stay server-side in `backend/.env`; never put it in a frontend env file. Customer signup always writes `role = customer` in `public.users`.
 
 ## Admin API
 

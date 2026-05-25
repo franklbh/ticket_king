@@ -10,7 +10,6 @@ import PaymentQrModal from './components/PaymentQrModal'
 import VipModal from './components/VipModal'
 import { languages, translations } from './i18n/translations'
 import {
-  isDateTimePeak,
   newsItems,
   ticketTypes,
 } from './data/showData'
@@ -23,7 +22,8 @@ import MyBookingsPage from './pages/MyBookingsPage'
 import { getDisplayName } from './api/auth'
 import { useCustomerAuth } from './hooks/useCustomerAuth'
 import { currency } from './utils/format'
-import { isReasonableName, isReasonablePhone, isStrictEmail } from './utils/validation'
+import { getPricesForSlot, hasSeniorTicket } from './utils/pricing'
+import { formatNorthAmericanPhone, isReasonableName, isReasonablePhone, isStrictEmail } from './utils/validation'
 
 const BACKEND_EVENT_SLUGS = {
   'terracotta-warriors': 'terracotta-warriors',
@@ -109,7 +109,13 @@ function App() {
   const [bookingExperience, setBookingExperience] = useState(vrExperiences[0])
   const [showNavMenu, setShowNavMenu] = useState(false)
   const [cartItems, setCartItems] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('wearevr_cart') || '[]') } catch { return [] }
+    try {
+      const storedItems = JSON.parse(localStorage.getItem('wearevr_cart') || '[]')
+      return storedItems.map((item) => {
+        const experience = allExperiences.find((entry) => entry.id === item.show_id)
+        return experience ? { ...item, show_title: experience.title } : item
+      })
+    } catch { return [] }
   })
   const [showCart, setShowCart] = useState(false)
   const [bookingsInitialSection, setBookingsInitialSection] = useState('bookings')
@@ -163,7 +169,7 @@ function App() {
     const first = parts[0] || currentUser.email?.split('@')[0] || ''
     const last = parts.slice(1).join(' ')
     const email = currentUser.email || ''
-    const phone = currentUser.user_metadata?.phone || ''
+    const phone = formatNorthAmericanPhone(currentUser.user_metadata?.phone || '')
     setContact((previous) => ({
       ...previous,
       first: previous.first || first,
@@ -195,33 +201,35 @@ function App() {
       ? ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
       : ['週日', '週一', '週二', '週三', '週四', '週五', '週六']
 
-  const isPeak = useMemo(() => {
-    if (!selectedDate || !selectedTime) return false
-    return isDateTimePeak(selectedDate.date, selectedTime.time)
-  }, [selectedDate, selectedTime])
-
-  const activePrices = isPeak ? bookingExperience.peakPrices : bookingExperience.offPeakPrices
+  const activePrices = useMemo(
+    () => getPricesForSlot(bookingExperience, selectedDate?.date),
+    [bookingExperience, selectedDate],
+  )
+  const activeTicketTypes = useMemo(
+    () => ticketTypes.filter((ticket) => ticket.id !== 'senior' || hasSeniorTicket(bookingExperience)),
+    [bookingExperience],
+  )
   const perEach = selectedLang.code === 'zh-Hans' ? '/张' : selectedLang.code === 'zh-Hant' ? '/張' : '/each'
-  const localizedTicketTypes = useMemo(() => ticketTypes.map((ticket) => ({
+  const localizedTicketTypes = useMemo(() => activeTicketTypes.map((ticket) => ({
     ...ticket,
     price: activePrices[ticket.id],
     label: t(TICKET_COPY_KEYS[ticket.id][0]),
     description: currency(activePrices[ticket.id]) + perEach,
     info: TICKET_COPY_KEYS[ticket.id][1] ? t(TICKET_COPY_KEYS[ticket.id][1]) : undefined,
-  })), [activePrices, perEach, t])
+  })), [activePrices, activeTicketTypes, perEach, t])
 
   const totals = useMemo(() => {
-    const prices = isPeak ? bookingExperience.peakPrices : bookingExperience.offPeakPrices
-    const numTickets = ticketTypes.reduce((sum, tk) => sum + counts[tk.id], 0)
-    const ticketTotal = ticketTypes.reduce((sum, tk) => sum + counts[tk.id] * prices[tk.id], 0)
+    const prices = activePrices
+    const numTickets = activeTicketTypes.reduce((sum, tk) => sum + counts[tk.id], 0)
+    const ticketTotal = activeTicketTypes.reduce((sum, tk) => sum + counts[tk.id] * prices[tk.id], 0)
     const vipTotal = vipQty * 20
     const subtotal = ticketTotal + vipTotal
     const couponDiscount = Math.min(appliedCoupon?.discountAmount || 0, subtotal)
-    const processingFee = numTickets > 0 ? 1.8 * numTickets + 0.04 * ticketTotal : 0
+    const processingFee = numTickets > 0 ? 1.8 * numTickets + 0.025 * ticketTotal : 0
     const tax = numTickets > 0 ? 0.05 * ticketTotal : 0
     const fees = processingFee + tax
     return { numTickets, ticketTotal, vipTotal, subtotal, couponDiscount, fees, processingFee, tax, grand: Math.max(0, subtotal - couponDiscount) + fees }
-  }, [counts, vipQty, isPeak, bookingExperience, appliedCoupon])
+  }, [counts, vipQty, activePrices, activeTicketTypes, appliedCoupon])
 
   const contactErrors = useMemo(() => {
     const errors = {}
@@ -238,20 +246,18 @@ function App() {
     const month = calendarMonth.getMonth()
     const daysInMonth = new Date(year, month + 1, 0).getDate()
     const leadingBlanks = new Date(year, month, 1).getDay()
-    const prices = bookingExperience?.offPeakPrices ?? { adult: 37.95 }
-    const peakP = bookingExperience?.peakPrices ?? { adult: 45.95 }
     const dates = Array.from({ length: daysInMonth }, (_, idx) => {
       const day = idx + 1
       const date = new Date(year, month, day)
       const isPast = date < today
-      const isWeekend = date.getDay() === 0 || date.getDay() === 6
+      const dayPrices = getPricesForSlot(bookingExperience, date)
       return {
         day,
         date,
         key: `${year}-${month}-${day}`,
         disabled: isPast,
-        price: isPast ? undefined : (isWeekend ? peakP.adult : prices.adult),
-        level: isPast ? undefined : (isWeekend ? 'peak' : 'normal'),
+        price: isPast ? undefined : dayPrices.adult,
+        level: isPast ? undefined : (date.getDay() === 0 || date.getDay() === 6 ? 'peak' : 'normal'),
       }
     })
     return [
@@ -537,7 +543,7 @@ function App() {
   }
   const markContactTouched = (field) => setContactTouched((prev) => ({ ...prev, [field]: true }))
   const updateContact = (field, value) => {
-    setContact((prev) => ({ ...prev, [field]: value }))
+    setContact((prev) => ({ ...prev, [field]: field === 'phone' ? formatNorthAmericanPhone(value) : value }))
   }
   const applyCoupon = async () => {
     const code = couponCode.trim()
@@ -621,7 +627,7 @@ function App() {
   const canProceedDate = Boolean(selectedDate)
   const canProceedTime = Boolean(selectedTime)
   const effectiveCount = (id) => rawCounts[id] !== undefined ? Math.max(0, parseInt(rawCounts[id]) || 0) : counts[id]
-  const effectiveSubtotal = ticketTypes.reduce((sum, tk) => sum + effectiveCount(tk.id) * activePrices[tk.id], 0)
+  const effectiveSubtotal = activeTicketTypes.reduce((sum, tk) => sum + effectiveCount(tk.id) * activePrices[tk.id], 0)
   const hasInvalidBundleCount = (effectiveCount('group') > 0 && effectiveCount('group') < 6)
     || (effectiveCount('family') > 0 && effectiveCount('family') < 3)
   const canProceedTickets = effectiveSubtotal > 0 && !hasInvalidBundleCount
@@ -1049,9 +1055,7 @@ function App() {
           handleSignup={handleSignup}
           items={cartItems}
           onUpdateQty={(id, qty) => setCartItems(prev => {
-            const updated = qty <= 0
-              ? prev.filter(i => i.id !== id)
-              : prev.map(i => i.id === id ? { ...i, quantity: qty } : i)
+            const updated = prev.map(i => i.id === id ? { ...i, quantity: Math.max(0, Number(qty) || 0) } : i)
             localStorage.setItem('wearevr_cart', JSON.stringify(updated))
             return updated
           })}
