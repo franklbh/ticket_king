@@ -257,6 +257,26 @@ function ProcessingFeeLabel() {
   )
 }
 
+function ComboDealLabel() {
+  return (
+    <span className="combo-deal-label">
+      Combo Deal (10% off)
+      <span className="combo-deal-help">
+        <button
+          className="combo-deal-icon"
+          type="button"
+          aria-label="Combo deal details"
+        >
+          !
+        </button>
+        <span className="combo-deal-tooltip" role="tooltip">
+          Book Panda&apos;s World and/or Back to Jurassic with any game to unlock this combo discount.
+        </span>
+      </span>
+    </span>
+  )
+}
+
 function Stepper({ step }) {
   const steps = [
     ['review', 'Review', 'Review your cart'],
@@ -616,6 +636,39 @@ export default function Cart({
     return () => window.removeEventListener('beforeunload', releaseOnLeave)
   }, [releaseReservation, reservation?.id, step])
 
+  useEffect(() => {
+    setAppliedCoupon((prev) => (prev?.autoCombo ? null : prev))
+    if (!items.length) return undefined
+    const sub = items.reduce((s, i) => s + i.unit_price * i.quantity, 0)
+    let cancelled = false
+    fetch(`${BACKEND}/api/v1/combos/check`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ eventIds: items.map((i) => Number(i.event_id)), subtotal: sub }),
+    })
+      .then((r) => r.json())
+      .then(async (data) => {
+        if (cancelled || !data.eligible) return
+        const res = await fetch(`${BACKEND}/api/v1/coupons/validate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: data.coupon_code, subtotal: sub }),
+        })
+        const coupon = await res.json().catch(() => ({}))
+        if (!cancelled && coupon.valid) {
+          setAppliedCoupon({
+            code: coupon.code,
+            discountAmount: Number(coupon.discountAmount || 0),
+            discountType: coupon.discountType,
+            discountValue: Number(coupon.discountValue || 0),
+            autoCombo: true,
+          })
+        }
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [items])
+
   async function loadIssuedTickets(order, providerReference, method, snapshot) {
     if (!order?.id || !providerReference) return fallbackTickets(snapshot)
     try {
@@ -652,6 +705,7 @@ export default function Cart({
       tax,
       grand,
       couponCode: appliedCoupon?.code || '',
+      autoCombo: appliedCoupon?.autoCombo || false,
       tickets: [],
     }
     snapshot.tickets = await loadIssuedTickets(order, providerReference, method, snapshot)
@@ -865,19 +919,31 @@ export default function Cart({
             </div>
           ))}
           <SummaryRow label={`Subtotal`} value={fmt(confirmed?.subtotal ?? subtotal)} muted />
-          {Boolean(confirmed?.discount ?? discount) && <SummaryRow label={`Coupon${(confirmed?.couponCode || appliedCoupon?.code) ? ` (${confirmed?.couponCode || appliedCoupon?.code})` : ''}`} value={`-${fmt(confirmed?.discount ?? discount)}`} muted />}
+          {Boolean(confirmed?.discount ?? discount) && (
+            <SummaryRow
+              label={(confirmed?.autoCombo || appliedCoupon?.autoCombo) ? <ComboDealLabel /> : `Coupon${(confirmed?.couponCode || appliedCoupon?.code) ? ` (${confirmed?.couponCode || appliedCoupon?.code})` : ''}`}
+              value={`-${fmt(confirmed?.discount ?? discount)}`}
+              muted
+            />
+          )}
           <SummaryRow label={<ProcessingFeeLabel />} value={fmt(confirmed?.procFee ?? procFee)} muted />
           <SummaryRow label="GST (5%)" value={fmt(confirmed?.tax ?? tax)} muted />
           <div className="crt-sum-divider" />
           <SummaryRow label={step === 'confirm' ? 'Total paid' : 'Total due'} value={`${fmt(total)} CAD`} bold />
           {step === 'review' && (
             <div className="crt-promo-card-inline">
-              <label htmlFor="cart-promo-code">Promo code</label>
-              <div>
-                <input id="cart-promo-code" value={couponCode} onChange={(event) => setCouponCode(event.target.value)} placeholder="Enter code" />
-                <button onClick={applyCoupon} type="button">Apply</button>
-              </div>
-              {couponMessage && <span className={appliedCoupon ? 'ok' : ''}>{couponMessage}</span>}
+              {appliedCoupon?.autoCombo ? (
+                <div className="combo-banner">Combo deal applied 10% off</div>
+              ) : (
+                <>
+                  <label htmlFor="cart-promo-code">Promo code</label>
+                  <div>
+                    <input id="cart-promo-code" value={couponCode} onChange={(event) => setCouponCode(event.target.value)} placeholder="Enter code" />
+                    <button onClick={applyCoupon} type="button">Apply</button>
+                  </div>
+                  {couponMessage && <span className={appliedCoupon ? 'ok' : ''}>{couponMessage}</span>}
+                </>
+              )}
             </div>
           )}
           {step === 'review' && (

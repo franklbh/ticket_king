@@ -2861,8 +2861,14 @@ small { color: #7c6157; }
     padding: 20px !important;
   }
 
-  .crt-promo-card-inline > div {
+  .crt-promo-card-inline > div:not(.combo-banner) {
     grid-template-columns: 1fr 86px !important;
+  }
+
+  .crt-promo-card-inline > .combo-banner {
+    padding: 9px 10px !important;
+    font-size: 12px !important;
+    line-height: 1.35 !important;
   }
 
   .crt-contact-panel {
@@ -2896,11 +2902,36 @@ small { color: #7c6157; }
   }
 
   .crt-title-row h2 {
-    font-size: 24px !important;
+    font-size: 22px !important;
   }
 
   .crt-title-row > span {
+    padding: 5px 8px !important;
+    font-size: 11px !important;
+  }
+
+  .crt-flowbar {
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+    gap: 4px !important;
+  }
+
+  .crt-flow-node {
+    gap: 4px !important;
+  }
+
+  .crt-flow-node > span {
+    width: 30px !important;
+    height: 30px !important;
+    font-size: 13px !important;
+  }
+
+  .crt-flow-node strong {
     font-size: 12px !important;
+  }
+
+  .crt-flow-node small {
+    display: none !important;
   }
 
   .crt-workspace {
@@ -11101,10 +11132,17 @@ body:has(#booking) {
   font-weight: 750;
 }
 
+.crt-sum-row > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .crt-sum-row strong {
+  flex-shrink: 0;
   color: #111827;
   font-size: 13px;
   font-weight: 850;
+  text-align: right;
 }
 
 .crt-sum-muted {
@@ -12820,10 +12858,27 @@ body:has(#booking) {
   font-weight: 900;
 }
 
-.crt-promo-card-inline > div {
+.crt-promo-card-inline > div:not(.combo-banner) {
   display: grid;
   grid-template-columns: 1fr 74px;
   gap: 8px;
+}
+
+.crt-promo-card-inline > .combo-banner {
+  display: block;
+  min-width: 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+  padding: 10px 12px;
+  color: #334155;
+  font-family: 'Proza Libre', serif;
+  font-size: 13px;
+  font-weight: 850;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .crt-promo-card-inline input {
@@ -15480,12 +15535,90 @@ body:has(.btk-page) .topbar {
   border-top-color: #111827;
 }
 
-.processing-fee-help:hover .processing-fee-tooltip,
-.processing-fee-help:focus-within .processing-fee-tooltip {
+.processing-fee-icon:hover + .processing-fee-tooltip {
+  display: block;
+}
+
+.combo-deal-label {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.combo-deal-help {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+.combo-deal-icon {
+  display: inline-grid;
+  width: 17px;
+  height: 17px;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: #64748b;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 950;
+  line-height: 1;
+  cursor: help;
+}
+
+.combo-deal-icon:focus-visible {
+  outline: 3px solid rgba(100,116,139,0.24);
+  outline-offset: 2px;
+}
+
+.combo-deal-tooltip {
+  position: absolute;
+  z-index: 80;
+  left: 50%;
+  bottom: calc(100% + 9px);
+  display: none;
+  width: min(292px, 72vw);
+  transform: translateX(-50%);
+  border-radius: 10px;
+  background: #111827;
+  color: #fff;
+  padding: 10px 12px;
+  box-shadow: 0 12px 28px rgba(15,23,42,0.24);
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1.35;
+  text-align: left;
+  white-space: normal;
+}
+
+.combo-deal-tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: #111827;
+}
+
+.combo-deal-icon:hover + .combo-deal-tooltip {
   display: block;
 }
 
 @media (max-width: 768px) {
+  .crt-sum-row {
+    align-items: flex-start;
+    gap: 10px !important;
+  }
+
+  .crt-sum-row > span {
+    flex: 1 1 auto;
+  }
+
   .btk-summary-line .processing-fee-tooltip,
   .crt-sum-row .processing-fee-tooltip {
     position: absolute;
@@ -15509,6 +15642,29 @@ body:has(.btk-page) .topbar {
 
   .btk-summary-line .processing-fee-tooltip::after,
   .crt-sum-row .processing-fee-tooltip::after {
+    display: none;
+  }
+
+  .combo-deal-label {
+    max-width: 100%;
+    gap: 5px;
+  }
+
+  .combo-deal-tooltip {
+    left: auto;
+    right: 0;
+    top: calc(100% + 8px);
+    bottom: auto;
+    width: min(236px, calc(100vw - 76px));
+    max-width: calc(100vw - 76px);
+    transform: none;
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 11px;
+    line-height: 1.3;
+  }
+
+  .combo-deal-tooltip::after {
     display: none;
   }
 }
@@ -16566,5 +16722,184 @@ body:has(.btk-page) .topbar {
     width: 64px !important;
     height: 64px !important;
     font-size: 38px !important;
+  }
+}
+
+/* Final mobile cart modal pass: keep header, stepper, summary, and tooltips inside the viewport. */
+@media (max-width: 760px) {
+  .crt-overlay {
+    align-items: flex-start !important;
+    padding: 10px !important;
+    overflow-y: auto !important;
+  }
+
+  .crt-panel {
+    width: min(100%, calc(100vw - 20px)) !important;
+    max-width: calc(100vw - 20px) !important;
+    height: auto !important;
+    max-height: calc(100dvh - 20px) !important;
+    overflow-x: hidden !important;
+  }
+
+  .crt-shell-top {
+    min-height: 64px !important;
+    padding: 14px 16px 12px !important;
+    gap: 10px !important;
+  }
+
+  .crt-title-row {
+    gap: 10px !important;
+  }
+
+  .crt-title-row h2 {
+    font-size: clamp(24px, 7vw, 30px) !important;
+    white-space: nowrap !important;
+  }
+
+  .crt-title-row > span {
+    padding: 5px 10px !important;
+    font-size: 13px !important;
+    white-space: nowrap !important;
+  }
+
+  .crt-close {
+    width: 38px !important;
+    height: 38px !important;
+    flex: 0 0 auto !important;
+  }
+
+  .crt-flowbar {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    min-height: 86px !important;
+    gap: 6px !important;
+    overflow: hidden !important;
+    padding: 16px 10px 0 !important;
+  }
+
+  .crt-flow-node {
+    min-width: 0 !important;
+    gap: 6px !important;
+    padding-bottom: 15px !important;
+  }
+
+  .crt-flow-node::after {
+    display: none !important;
+  }
+
+  .crt-flow-node > span {
+    width: 34px !important;
+    height: 34px !important;
+    font-size: 14px !important;
+  }
+
+  .crt-flow-node strong {
+    font-size: 13px !important;
+    line-height: 1.1 !important;
+    overflow-wrap: anywhere !important;
+  }
+
+  .crt-flow-node small {
+    font-size: 10px !important;
+    line-height: 1.15 !important;
+    overflow-wrap: anywhere !important;
+  }
+
+  .crt-workspace {
+    padding: 16px 12px 18px !important;
+    gap: 16px !important;
+    overflow-x: hidden !important;
+  }
+
+  .crt-side,
+  .crt-summary-card {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+
+  .crt-summary-card {
+    padding: 20px 18px !important;
+  }
+
+  .crt-summary-card h3 {
+    font-size: clamp(24px, 7vw, 30px) !important;
+  }
+
+  .crt-sum-row {
+    gap: 8px !important;
+    font-size: 14px !important;
+  }
+
+  .crt-sum-row strong {
+    font-size: 14px !important;
+    white-space: nowrap !important;
+  }
+
+  .combo-deal-label,
+  .processing-fee-label {
+    gap: 5px !important;
+    line-height: 1.25 !important;
+  }
+
+  .combo-deal-icon,
+  .processing-fee-icon {
+    width: 18px !important;
+    height: 18px !important;
+    flex: 0 0 18px !important;
+  }
+
+  .combo-deal-help,
+  .processing-fee-help {
+    position: static !important;
+    display: contents !important;
+  }
+
+  .combo-deal-tooltip,
+  .crt-sum-row .processing-fee-tooltip {
+    position: static !important;
+    flex: 1 0 100% !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-top: 6px !important;
+    transform: none !important;
+    padding: 8px 10px !important;
+    font-size: 11px !important;
+    line-height: 1.3 !important;
+    white-space: normal !important;
+    overflow-wrap: anywhere !important;
+  }
+
+  .combo-deal-tooltip::after,
+  .crt-sum-row .processing-fee-tooltip::after {
+    display: none !important;
+  }
+}
+
+@media (max-width: 390px) {
+  .crt-shell-top {
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+  }
+
+  .crt-title-row {
+    gap: 8px !important;
+  }
+
+  .crt-title-row h2 {
+    font-size: 24px !important;
+  }
+
+  .crt-title-row > span {
+    font-size: 12px !important;
+  }
+
+  .crt-summary-card {
+    padding: 18px 16px !important;
+  }
+
+  .combo-deal-tooltip,
+  .crt-sum-row .processing-fee-tooltip {
+    width: min(200px, calc(100vw - 88px)) !important;
+    max-width: calc(100vw - 88px) !important;
   }
 }

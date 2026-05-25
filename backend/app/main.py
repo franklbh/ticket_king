@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import alphapay, auth, coupons, events, health, reservations, shows, showpass_webhook, stripe_pay, test_db
+from app.api.routes import alphapay, auth, combos, coupons, events, health, reservations, shows, showpass_webhook, stripe_pay, test_db
 from app.api.routes.admin import catalog as admin_catalog
 from app.api.routes.admin import showpass as admin_showpass
 from app.api.routes.admin import coupons as admin_coupons
@@ -36,6 +36,7 @@ def create_app() -> FastAPI:
     app.include_router(stripe_pay.router, prefix=API_V1_PREFIX)
     app.include_router(reservations.router, prefix=API_V1_PREFIX)
     app.include_router(events.router, prefix=API_V1_PREFIX)
+    app.include_router(combos.router, prefix=API_V1_PREFIX)
     app.include_router(coupons.router, prefix=API_V1_PREFIX)
     app.include_router(shows.router, prefix=API_V1_PREFIX)
     app.include_router(showpass_webhook.router, prefix=API_V1_PREFIX)
