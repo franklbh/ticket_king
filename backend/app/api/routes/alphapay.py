@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import json
+import logging
 import secrets
 import urllib.parse
 import uuid
@@ -28,6 +29,7 @@ from app.utils.datetime import utc_now
 
 # test
 router = APIRouter(prefix="/alphapay", tags=["alphapay"])
+logger = logging.getLogger(__name__)
 
 ALPHAPAY_BASE_URL = "https://openapi.alphapay.ca"
 
@@ -43,7 +45,10 @@ def _load_private_key():
         pem = settings.alphapay_private_key_pem.replace("\\n", "\n")
     else:
         raise RuntimeError("No Alphapay private key configured")
-    return serialization.load_pem_private_key(pem.encode(), password=None)
+    try:
+        return serialization.load_pem_private_key(pem.encode(), password=None)
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError("Alphapay private key is invalid or unreadable") from exc
 
 
 def _build_headers(method: str, uri: str, body_str: str) -> dict[str, str]:
@@ -107,15 +112,27 @@ async def create_qr(req: QrRequest):
         },
     }
     body_str = json.dumps(body, separators=(",", ":"))
-    headers = _build_headers("POST", uri, body_str)
+    try:
+        headers = _build_headers("POST", uri, body_str)
+    except RuntimeError as exc:
+        logger.exception("Alphapay is not configured correctly")
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-    async with httpx.AsyncClient() as client:
-        resp = await client.post(f"{ALPHAPAY_BASE_URL}{uri}", headers=headers, content=body_str)
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(f"{ALPHAPAY_BASE_URL}{uri}", headers=headers, content=body_str)
+    except httpx.HTTPError as exc:
+        logger.exception("Unable to reach Alphapay")
+        raise HTTPException(status_code=502, detail="Unable to reach Alphapay.") from exc
 
-    data = resp.json()
+    try:
+        data = resp.json()
+    except ValueError as exc:
+        logger.error("Alphapay returned non-JSON response: %s", resp.text[:500])
+        raise HTTPException(status_code=502, detail="Alphapay returned an invalid response.") from exc
     if not data.get("paymentInfo", {}).get("paymentQRImage"):
         msg = data.get("result", {}).get("resultMessage", "Failed to create QR")
-        raise HTTPException(status_code=400, detail=msg)
+        raise HTTPException(status_code=400 if resp.status_code < 500 else 502, detail=msg)
 
     order = await attach_payment(
         order["id"],
