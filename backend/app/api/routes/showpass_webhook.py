@@ -26,15 +26,9 @@ def _verify_signature(body: bytes, header: str) -> None:
     expected = hmac.new(
         settings.showpass_webhook_secret.encode(),
         body,
-        hashlib.sha256,
+        hashlib.sha1,
     ).hexdigest()
-    # Strip common prefix in case Showpass sends "sha256=<hex>"
-    normalized = header.removeprefix("sha256=")
-    if not hmac.compare_digest(expected, normalized):
-        import logging
-        logging.getLogger(__name__).warning(
-            "Showpass signature mismatch. received=%r expected=%r", header, expected
-        )
+    if not hmac.compare_digest(expected, header):
         raise HTTPException(status_code=400, detail="Invalid signature")
 
 
