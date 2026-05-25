@@ -29,6 +29,10 @@ def _verify_signature(body: bytes, header: str) -> None:
         hashlib.sha1,
     ).hexdigest()
     if not hmac.compare_digest(expected, header):
+        import logging
+        logging.getLogger(__name__).warning(
+            "Showpass signature mismatch. received=%r expected=%r", header, expected
+        )
         raise HTTPException(status_code=400, detail="Invalid signature")
 
 
