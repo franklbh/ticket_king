@@ -288,7 +288,10 @@ function BookingWidget({ experience, cartItems, onAddToCart }) {
     setSlotsLoading(true)
     setSelTime(null)
     setShowAllTimeSlots(false)
-    fetch(`${backendBase}/api/v1/events/${slug}/slots?date=${selectedDateKey}`, { signal: controller.signal })
+    fetch(`${backendBase}/api/v1/events/${slug}/slots?date=${selectedDateKey}`, {
+      signal: controller.signal,
+      cache: 'no-store',
+    })
       .then((res) => (res.ok ? res.json() : []))
       .then((slots) => {
         if (!controller.signal.aborted) setBackendSlots(Array.isArray(slots) ? slots : [])
@@ -297,6 +300,20 @@ function BookingWidget({ experience, cartItems, onAddToCart }) {
       .finally(() => { if (!controller.signal.aborted) setSlotsLoading(false) })
     return () => controller.abort()
   }, [selectedDateKey, experience.id])
+
+  useEffect(() => {
+    if (!selTime?.id || !backendSlots.length) return
+    const freshSlot = backendSlots.find((slot) => String(slot.id) === String(selTime.id))
+    if (!freshSlot) return
+    setSelTime((previous) => {
+      if (!previous || String(previous.id) !== String(freshSlot.id)) return previous
+      return {
+        ...previous,
+        ...freshSlot,
+        ticketTypes: freshSlot.ticketTypes || freshSlot.ticket_types || [],
+      }
+    })
+  }, [backendSlots, selTime?.id])
 
   return (
     <div className="bw-widget">

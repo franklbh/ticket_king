@@ -34,7 +34,7 @@ const BACKEND_EVENT_SLUGS = {
   'space-odyssey': 'game-b',
   'ocean-quest': 'game-c',
 }
-const AVAILABILITY_CACHE_MS = 10000
+const AVAILABILITY_CACHE_MS = 0
 
 const EXPERIENCE_COPY_KEYS = {
   'terracotta-warriors': 'terr',
@@ -300,7 +300,7 @@ function App() {
     const dateKey = isoDate(selectedDate.date)
     const cacheKey = `${eventSlug}:${dateKey}`
     const cached = availableSlotsCacheRef.current.get(cacheKey)
-    if (cached && Date.now() - cached.cachedAt < AVAILABILITY_CACHE_MS) {
+    if (AVAILABILITY_CACHE_MS > 0 && cached && Date.now() - cached.cachedAt < AVAILABILITY_CACHE_MS) {
       setAvailableSlots(cached.slots)
       setAvailableSlotsLoaded(true)
       setAvailableSlotsLoading(false)
@@ -312,12 +312,15 @@ function App() {
     setAvailableSlotsLoaded(false)
     fetch(`${backendBase}/api/v1/events/${eventSlug}/slots?date=${dateKey}`, {
       signal: controller.signal,
+      cache: 'no-store',
     })
       .then((res) => (res.ok ? res.json() : []))
       .then((slots) => {
         if (!controller.signal.aborted) {
           const nextSlots = Array.isArray(slots) ? slots : []
-          availableSlotsCacheRef.current.set(cacheKey, { slots: nextSlots, cachedAt: Date.now() })
+          if (AVAILABILITY_CACHE_MS > 0) {
+            availableSlotsCacheRef.current.set(cacheKey, { slots: nextSlots, cachedAt: Date.now() })
+          }
           setAvailableSlots(nextSlots)
           setAvailableSlotsLoaded(true)
         }
@@ -334,6 +337,28 @@ function App() {
       })
     return () => controller.abort()
   }, [selectedDate, bookingExperience])
+
+  useEffect(() => {
+    if (!selectedTime?.id || !availableSlots.length) return
+    const freshSlot = availableSlots.find((slot) => String(slot.id) === String(selectedTime.id))
+    if (!freshSlot) return
+    const freshLabel = freshSlot.label || freshSlot.slotTimeLabel || freshSlot.slot_time_label || (
+      freshSlot.startTime && freshSlot.endTime ? `${freshSlot.startTime}-${freshSlot.endTime}` : selectedTime.label || selectedTime.time
+    )
+    setSelectedTime((previous) => {
+      if (!previous || String(previous.id) !== String(freshSlot.id)) return previous
+      return {
+        ...previous,
+        eventId: freshSlot.eventId ?? freshSlot.event_id ?? previous.eventId,
+        slotId: freshSlot.id,
+        label: freshLabel,
+        time: freshLabel,
+        price: freshSlot.price ?? previous.price,
+        availableSeats: freshSlot.availableSeats ?? freshSlot.available_seats ?? previous.availableSeats,
+        ticketTypes: freshSlot.ticketTypes || freshSlot.ticket_types || [],
+      }
+    })
+  }, [availableSlots, selectedTime?.id])
 
   useEffect(() => {
     const onScroll = () => {
