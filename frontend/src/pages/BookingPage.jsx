@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { badge, currency } from '../utils/format'
 import { getExperiencePriceFrom, getPricesForSlot } from '../utils/pricing'
+import { minQtyForTicket } from '../utils/tickets'
 
 function cartDateKey(date) {
   if (!date) return ''
@@ -10,8 +11,8 @@ function cartDateKey(date) {
   return `${year}-${month}-${day}`
 }
 
-function minQtyForTicketType(id) {
-  return id === 'family' ? 3 : id === 'group' ? 6 : 1
+function minQtyForTicketType(ticketOrId) {
+  return minQtyForTicket(ticketOrId)
 }
 
 function BookingPage({
@@ -53,22 +54,23 @@ function BookingPage({
   const ticketById = useCallback((id) => (
     localizedTicketTypes.find((item) => item.id === id) || localizedTicketTypes[0]
   ), [localizedTicketTypes])
+  const minQtyForType = useCallback((id) => minQtyForTicketType(ticketById(id) || id), [ticketById])
   const defaultTicketTypeId = localizedTicketTypes[0]?.id || 'adult'
   const bookingExperienceId = bookingExperience?.id
   const ticketOptions = useMemo(() => (
-    localizedTicketTypes.map((item) => ({ id: item.id, label: item.label, price: item.price }))
+    localizedTicketTypes.map((item) => ({ id: item.id, label: item.label, price: item.price, minQty: minQtyForTicketType(item) }))
   ), [localizedTicketTypes])
   const defaultTicketLines = useCallback(() => ([
-    { key: 'ticket-1', ticketTypeId: defaultTicketTypeId, quantity: minQtyForTicketType(defaultTicketTypeId) },
-  ]), [defaultTicketTypeId])
+    { key: 'ticket-1', ticketTypeId: defaultTicketTypeId, quantity: minQtyForType(defaultTicketTypeId) },
+  ]), [defaultTicketTypeId, minQtyForType])
   const ticketLinesFromCartItems = useCallback((items) => items.map((item, index) => {
     const ticketTypeId = ticketById(item.ticket_type_id)?.id || defaultTicketTypeId
     return {
       key: `ticket-${item.ticket_type_id || index}`,
       ticketTypeId,
-      quantity: Math.max(minQtyForTicketType(ticketTypeId), Number(item.quantity) || 0),
+      quantity: Math.max(minQtyForType(ticketTypeId), Number(item.quantity) || 0),
     }
-  }), [defaultTicketTypeId, ticketById])
+  }), [defaultTicketTypeId, minQtyForType, ticketById])
   const mergeTicketLinesWithCartItems = useCallback((previousLines, items) => {
     const nextByType = new Map()
     previousLines.forEach((line) => {
@@ -96,24 +98,26 @@ function BookingPage({
       price: prices.adult ?? slot.price ?? localizedTicketTypes[0]?.price ?? 0,
       availableSeats: slot.availableSeats,
       peak: weekend,
+      ticketTypes: slot.ticketTypes || slot.ticket_types || [],
     }
   }), [availableSlots, bookingExperience, localizedTicketTypes, selectedDate])
 
   useEffect(() => {
     setTicketLines((lines) => lines.map((line) => {
       const ticketTypeId = ticketById(line.ticketTypeId)?.id || localizedTicketTypes[0]?.id || 'adult'
-      return { ...line, ticketTypeId, quantity: line.quantity === 0 ? 0 : Math.max(line.quantity, minQtyForTicketType(ticketTypeId)) }
+      return { ...line, ticketTypeId, quantity: line.quantity === 0 ? 0 : Math.max(line.quantity, minQtyForType(ticketTypeId)) }
     }))
-  }, [localizedTicketTypes, ticketById])
+  }, [localizedTicketTypes, minQtyForType, ticketById])
 
   const lineSubtotal = (line) => (ticketById(line.ticketTypeId)?.price || 0) * line.quantity
   const canAdd = Boolean(
     selectedDate
     && selectedTime
     && bookingExperience
+    && localizedTicketTypes.length
     && ticketLines.length
     && ticketLines.some((line) => line.quantity > 0)
-    && ticketLines.every((line) => line.quantity === 0 || line.quantity >= minQtyForTicketType(line.ticketTypeId)),
+    && ticketLines.every((line) => line.quantity === 0 || line.quantity >= minQtyForType(line.ticketTypeId)),
   )
   const displayCartCount = cartCount
   const visibleSlots = showAllSlots ? liveSlots : liveSlots.slice(0, 8)
@@ -247,7 +251,7 @@ function BookingPage({
     })
     setTicketLines((lines) => lines.map((line) => (
       line.key === key
-        ? { ...line, ticketTypeId, quantity: line.quantity === 0 ? 0 : Math.max(line.quantity, minQtyForTicketType(ticketTypeId)) }
+        ? { ...line, ticketTypeId, quantity: line.quantity === 0 ? 0 : Math.max(line.quantity, minQtyForType(ticketTypeId)) }
         : line
     )))
   }
@@ -279,7 +283,7 @@ function BookingPage({
     })
     setTicketLines((lines) => lines.map((line) => {
       if (line.key !== key) return line
-      const minQty = minQtyForTicketType(line.ticketTypeId)
+      const minQty = minQtyForType(line.ticketTypeId)
       const nextQuantity = delta > 0 && line.quantity === 0 && minQty > 1
         ? minQty
         : delta < 0 && line.quantity <= minQty
@@ -294,7 +298,7 @@ function BookingPage({
     setRawTicketQty((values) => ({ ...values, [line.key]: digits }))
     if (!digits) return
     const parsed = Math.min(99, Number(digits))
-    const minQty = minQtyForTicketType(line.ticketTypeId)
+    const minQty = minQtyForType(line.ticketTypeId)
     const quantity = parsed === 0 ? 0 : Math.max(minQty, parsed)
     setRawTicketQty((values) => ({ ...values, [line.key]: String(quantity) }))
     setTicketLines((lines) => lines.map((item) => (
@@ -310,7 +314,7 @@ function BookingPage({
     })
     setTicketLines((lines) => lines.map((item) => {
       if (item.key !== line.key) return item
-      const minQty = minQtyForTicketType(item.ticketTypeId)
+      const minQty = minQtyForType(item.ticketTypeId)
       return { ...item, quantity: item.quantity === 0 ? 0 : Math.max(minQty, item.quantity || 0) }
     }))
   }
@@ -322,7 +326,7 @@ function BookingPage({
     setTicketLines((lines) => [...lines, {
       key: `ticket-${Date.now()}`,
       ticketTypeId: nextType.id,
-      quantity: minQtyForTicketType(nextType.id),
+      quantity: minQtyForType(nextType.id),
     }])
   }
 
@@ -347,7 +351,7 @@ function BookingPage({
     lastAutoCartSelectionRef.current = null
     onBookingExperienceChange?.(experienceId)
     setSelectedTime(null)
-    setTicketLines([{ key: 'ticket-1', ticketTypeId: localizedTicketTypes[0]?.id || 'adult', quantity: 1 }])
+    setTicketLines(defaultTicketLines())
     setRawTicketQty({})
     setShowAllSlots(false)
     requestAnimationFrame(() => {

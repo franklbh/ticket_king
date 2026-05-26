@@ -4,6 +4,7 @@ import { loadStripe } from '@stripe/stripe-js'
 import BrandLogo from './BrandLogo'
 import { qrPlaceholder } from '../data/showData'
 import { allExperiences } from '../data/experiences'
+import { minQtyForTicket } from '../utils/tickets'
 import { formatNorthAmericanPhone } from '../utils/validation'
 
 const BACKEND = import.meta.env.VITE_BACKEND_BASE || 'http://localhost:8000'
@@ -488,7 +489,7 @@ export default function Cart({
   const orderItems = useMemo(() => items.map((item) => ({
     eventId: Number(item.event_id),
     slotId: item.slot_id,
-    ticketTypeId: null,
+    ticketTypeId: Number.isFinite(Number(item.ticket_type_id)) ? Number(item.ticket_type_id) : null,
     eventName: itemShowTitle(item),
     slotDate: item.session_date_key,
     slotTime: item.session_time,
@@ -498,9 +499,13 @@ export default function Cart({
   })), [items])
 
   const liveSlotReady = orderItems.length > 0 && orderItems.every((item) => Number.isFinite(item.eventId) && item.slotId && item.quantity > 0)
-  const minQtyForTicketType = (ticketTypeId) => ticketTypeId === 'family' ? 3 : ticketTypeId === 'group' ? 6 : 1
+  const minQtyForCartItem = (item) => minQtyForTicket({
+    id: item?.ticket_type_id,
+    label: item?.ticket_type_label,
+    minQty: item?.ticket_min_qty,
+  })
   const zeroQtyItems = items.filter((item) => item.quantity <= 0)
-  const invalidItems = items.filter((item) => item.quantity > 0 && item.quantity < minQtyForTicketType(item.ticket_type_id))
+  const invalidItems = items.filter((item) => item.quantity > 0 && item.quantity < minQtyForCartItem(item))
   const canContinueReview = liveSlotReady && zeroQtyItems.length === 0 && invalidItems.length === 0
 
   const checkoutOrder = useMemo(() => ({
@@ -829,7 +834,8 @@ export default function Cart({
   }
 
   function updateTicketTypeWithMinimum(item, ticketTypeId) {
-    const minQty = minQtyForTicketType(ticketTypeId)
+    const option = item.ticket_options?.find((ticket) => ticket.id === ticketTypeId)
+    const minQty = minQtyForTicket(option || ticketTypeId)
     if (item.quantity > 0 && item.quantity < minQty) onUpdateQty(item.id, minQty)
     onUpdateTicketType(item.id, ticketTypeId)
     setPaymentError('')
@@ -841,7 +847,7 @@ export default function Cart({
   }
 
   function incrementCartQty(item) {
-    const minQty = minQtyForTicketType(item.ticket_type_id)
+    const minQty = minQtyForCartItem(item)
     const nextQty = item.quantity <= 0 ? minQty : item.quantity + 1
     updateQtyWithMinimum(item, nextQty)
   }
@@ -1060,9 +1066,9 @@ export default function Cart({
                         </svg>
                         <span className="crt-remove-text">Remove</span>
                       </button>
-                      {item.quantity > 0 && item.quantity < minQtyForTicketType(item.ticket_type_id) && (
+                      {item.quantity > 0 && item.quantity < minQtyForCartItem(item) && (
                         <div className="crt-row-warning crt-cart-row-warning">
-                          {item.ticket_type_id === 'group' ? 'Group tickets require at least 6 people.' : 'Family tickets require at least 3 people.'}
+                          {item.ticket_type_label?.toLowerCase().includes('group') ? 'Group tickets require at least 6 people.' : 'Family tickets require at least 3 people.'}
                         </div>
                       )}
                     </article>

@@ -10,7 +10,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import text
 
 from app.core.database import SessionLocal
-from app.schemas.public import AvailableSlotRead
+from app.schemas.public import AvailableSlotRead, SlotTicketTypeRead
 
 ACTIVE_ORDER_STATUSES = {"pending", "paid", "completed"}
 ACTIVE_PAYMENT_STATUSES = {"pending", "paid", "processing", "authorized"}
@@ -39,6 +39,7 @@ class PublicCatalogService:
             slots = self._slots_for_date_sync(db, event["id"], target_date)
             if not slots:
                 return []
+            ticket_types = self._ticket_types_for_event_sync(db, event["id"])
 
             booked_items, booked_orders, booked_slots = self._booked_items_for_date_sync(db, target_date)
             showpass_counts = self._showpass_counts_for_date_sync(db, target_date)
@@ -65,7 +66,8 @@ class PublicCatalogService:
             if availability <= 0:
                 continue
             capacity = self._effective_capacity(slot, event_requirements, catalog["resources"])
-            available.append(self._slot_response(slot, event["id"], availability, capacity))
+            slot_ticket_types = self._ticket_types_for_slot(ticket_types, event, slot)
+            available.append(self._slot_response(slot, event["id"], availability, capacity, slot_ticket_types))
 
         available.sort(key=lambda item: (item.date, item.start_time))
         return available
@@ -119,6 +121,30 @@ class PublicCatalogService:
         slots = [dict(row) for row in rows]
         self._slot_cache[cache_key] = (now, slots)
         return slots
+
+    def _ticket_types_for_event_sync(self, db: Any, event_id: Any) -> list[dict[str, Any]]:
+        rows = db.execute(
+            text(
+                """
+                select id, name, price, weekdays, time_start, time_end, remarks, status
+                from public.ticket_types
+                where event = :event_id
+                  and lower(status) = 'enabled'
+                order by
+                  case
+                    when lower(name) = 'adult' then 1
+                    when lower(name) like 'child%' then 2
+                    when lower(name) like 'senior%' then 3
+                    when lower(name) like 'group%' then 4
+                    when lower(name) like 'family%' then 5
+                    else 99
+                  end,
+                  id
+                """
+            ),
+            {"event_id": event_id},
+        ).mappings().all()
+        return [dict(row) for row in rows]
 
     def _requirements_and_resources_sync(
         self,
@@ -346,6 +372,64 @@ class PublicCatalogService:
             and self._parse_date(row.get("business_date")) == slot_date
         )
 
+    def _ticket_types_for_slot(
+        self,
+        ticket_types: list[dict[str, Any]],
+        event: dict[str, Any],
+        slot: dict[str, Any],
+    ) -> list[SlotTicketTypeRead]:
+        weekday = self._weekday_name(self._parse_date(slot.get("business_date")))
+        slot_start = self._parse_time(slot.get("start_time"))
+        seen: set[str] = set()
+        matched: list[SlotTicketTypeRead] = []
+        for ticket_type in ticket_types:
+            days = ticket_type.get("weekdays") or []
+            if isinstance(days, str):
+                days = [part.strip() for part in days.strip("{}").split(",") if part.strip()]
+            if weekday not in days:
+                continue
+            start = ticket_type.get("time_start")
+            end = ticket_type.get("time_end")
+            if start is None or end is None:
+                continue
+            window_start = self._parse_time(start)
+            window_end = self._ticket_window_end(event, ticket_type)
+            if not (window_start <= slot_start < window_end):
+                continue
+            label = str(ticket_type.get("name") or "Ticket")
+            dedupe_key = label.lower()
+            if dedupe_key in seen:
+                continue
+            seen.add(dedupe_key)
+            matched.append(
+                SlotTicketTypeRead(
+                    id=str(ticket_type["id"]),
+                    label=label,
+                    price=float(ticket_type.get("price") or 0),
+                    minQty=self._min_qty_for_ticket(label),
+                )
+            )
+        return matched
+
+    def _ticket_window_end(self, event: dict[str, Any], ticket_type: dict[str, Any]) -> time:
+        end = self._parse_time(ticket_type.get("time_end"))
+        if str(event.get("slug") or "") == "terracotta-warriors" and end == time(14, 30):
+            return time(15, 0)
+        return end
+
+    @staticmethod
+    def _weekday_name(value: date) -> str:
+        return ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][value.weekday()]
+
+    @staticmethod
+    def _min_qty_for_ticket(label: str) -> int:
+        lowered = label.lower()
+        if "group" in lowered:
+            return 6
+        if "family" in lowered:
+            return 3
+        return 1
+
     def _slot_window(self, slot: dict[str, Any], event: dict[str, Any]) -> tuple[datetime, datetime]:
         day = self._parse_date(slot.get("business_date"))
         start = self._parse_time(slot.get("start_time"))
@@ -371,6 +455,7 @@ class PublicCatalogService:
         event_id: Any,
         availability: int,
         capacity: int,
+        ticket_types: list[SlotTicketTypeRead],
     ) -> AvailableSlotRead:
         start = PublicCatalogService._format_time(slot.get("start_time"))
         end = PublicCatalogService._format_time(slot.get("end_time"))
@@ -387,6 +472,7 @@ class PublicCatalogService:
             availableSeats=availability,
             price=float(slot["base_price"]) if slot.get("base_price") is not None else None,
             status=str(slot.get("status") or "active").lower(),
+            ticketTypes=ticket_types,
         )
 
     @staticmethod

@@ -23,6 +23,7 @@ import { getDisplayName } from './api/auth'
 import { useCustomerAuth } from './hooks/useCustomerAuth'
 import { currency } from './utils/format'
 import { getPricesForSlot, hasSeniorTicket } from './utils/pricing'
+import { formatSlotTicketTypes, minQtyForTicket } from './utils/tickets'
 import { formatNorthAmericanPhone, isReasonableName, isReasonablePhone, isStrictEmail } from './utils/validation'
 
 const BACKEND_EVENT_SLUGS = {
@@ -217,6 +218,16 @@ function App() {
     description: currency(activePrices[ticket.id]) + perEach,
     info: TICKET_COPY_KEYS[ticket.id][1] ? t(TICKET_COPY_KEYS[ticket.id][1]) : undefined,
   })), [activePrices, activeTicketTypes, perEach, t])
+  const bookingTicketTypes = useMemo(() => {
+    const selectedSlotHasTicketTypes = selectedTime && ('ticketTypes' in selectedTime || 'ticket_types' in selectedTime)
+    const liveTicketTypes = selectedTime?.ticketTypes || selectedTime?.ticket_types || []
+    return formatSlotTicketTypes(liveTicketTypes, {
+      fallback: selectedSlotHasTicketTypes ? [] : localizedTicketTypes,
+      currency,
+      perEach,
+      t,
+    })
+  }, [localizedTicketTypes, perEach, selectedTime, t])
 
   const totals = useMemo(() => {
     const prices = activePrices
@@ -467,6 +478,7 @@ function App() {
         ticket_type_id: ticket.id,
         ticket_type_label: ticket.label,
         ticket_options: ticketOptions,
+        ticket_min_qty: option.minQty ?? ticket.minQty ?? minQtyForTicket(ticket),
         quantity: ticket.quantity,
         unit_price: option.price ?? ticket.price,
         experience_category: experience.category,
@@ -676,15 +688,15 @@ function App() {
         email: contact.email,
         phone: contact.phone,
       },
-      items: localizedTicketTypes
+      items: bookingTicketTypes
         .filter((ticket) => counts[ticket.id] > 0)
         .map((ticket) => ({
           eventId: selectedTime.eventId,
           slotId: selectedTime.slotId,
-          ticketTypeId: null,
           eventName: bookingExperience.title,
           slotDate: isoDate(selectedDate.date),
           slotTime: selectedTime.label || selectedTime.time,
+          ticketTypeId: Number.isFinite(Number(ticket.id)) ? Number(ticket.id) : null,
           ticketType: ticket.label,
           quantity: counts[ticket.id],
           unitPrice: ticket.price,
@@ -964,7 +976,7 @@ function App() {
               couponMessage={couponMessage}
               currentStepIndex={currentStepIndex}
               fullDateDisplay={fullDateDisplay}
-              localizedTicketTypes={localizedTicketTypes}
+              localizedTicketTypes={bookingTicketTypes}
               markContactTouched={markContactTouched}
               minutes={minutes}
               monthDisplay={monthDisplay}
@@ -1075,6 +1087,7 @@ function App() {
               ticket_type_id: option.id,
               ticket_type_label: option.label,
               unit_price: option.price,
+              ticket_min_qty: option.minQty ?? minQtyForTicket(option),
             }
             const withoutSource = prev.filter(item => item.id !== id)
             const existing = withoutSource.find(item => item.id === nextId)
