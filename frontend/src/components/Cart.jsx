@@ -237,19 +237,26 @@ function SummaryRow({ label, value, muted, bold }) {
   )
 }
 
-function ProcessingFeeLabel() {
+function ProcessingFeeLabel({ open = false, onToggle }) {
+  const tooltipId = 'cart-processing-fee-tooltip'
   return (
     <span className="processing-fee-label">
       Processing fee
-      <span className="processing-fee-help">
+      <span className={`processing-fee-help ${open ? 'is-open' : ''}`}>
         <button
           className="processing-fee-icon"
           type="button"
           aria-label="Processing fee details"
+          aria-expanded={open}
+          aria-describedby={tooltipId}
+          onClick={(event) => {
+            event.stopPropagation()
+            onToggle?.()
+          }}
         >
           !
         </button>
-        <span className="processing-fee-tooltip" role="tooltip">
+        <span className="processing-fee-tooltip" id={tooltipId} role="tooltip">
           Includes a $1.80 platform fee per ticket plus a 2.5% payment processing fee.
         </span>
       </span>
@@ -257,19 +264,26 @@ function ProcessingFeeLabel() {
   )
 }
 
-function ComboDealLabel() {
+function ComboDealLabel({ open = false, onToggle }) {
+  const tooltipId = 'cart-combo-deal-tooltip'
   return (
     <span className="combo-deal-label">
       Combo Deal (10% off)
-      <span className="combo-deal-help">
+      <span className={`combo-deal-help ${open ? 'is-open' : ''}`}>
         <button
           className="combo-deal-icon"
           type="button"
           aria-label="Combo deal details"
+          aria-expanded={open}
+          aria-describedby={tooltipId}
+          onClick={(event) => {
+            event.stopPropagation()
+            onToggle?.()
+          }}
         >
           !
         </button>
-        <span className="combo-deal-tooltip" role="tooltip">
+        <span className="combo-deal-tooltip" id={tooltipId} role="tooltip">
           Book Panda&apos;s World and/or Back to Jurassic with any game to unlock this combo discount.
         </span>
       </span>
@@ -448,9 +462,17 @@ export default function Cart({
   const [timeLeft, setTimeLeft] = useState(0)
   const [paymentSubmitting, setPaymentSubmitting] = useState(false)
   const [rawQtyById, setRawQtyById] = useState({})
+  const [openSummaryTooltip, setOpenSummaryTooltip] = useState(null)
   const releasedReservationRef = useRef(null)
   const reservationCreatingRef = useRef(null)
   const ticketRailRef = useRef(null)
+
+  useEffect(() => {
+    if (!openSummaryTooltip) return undefined
+    const closeTooltip = () => setOpenSummaryTooltip(null)
+    document.addEventListener('click', closeTooltip)
+    return () => document.removeEventListener('click', closeTooltip)
+  }, [openSummaryTooltip])
 
   const subtotal = items.reduce((s, i) => s + i.unit_price * i.quantity, 0)
   const numTickets = items.reduce((s, i) => s + i.quantity, 0)
@@ -903,6 +925,9 @@ export default function Cart({
   const renderSummary = () => {
     const summaryItems = confirmed?.items || items
     const total = confirmed?.grand ?? grand
+    const toggleSummaryTooltip = (key) => {
+      setOpenSummaryTooltip((current) => current === key ? null : key)
+    }
     return (
       <aside className="crt-side">
         <div className="crt-summary-card">
@@ -923,12 +948,14 @@ export default function Cart({
           <SummaryRow label={`Subtotal`} value={fmt(confirmed?.subtotal ?? subtotal)} muted />
           {Boolean(confirmed?.discount ?? discount) && (
             <SummaryRow
-              label={(confirmed?.autoCombo || appliedCoupon?.autoCombo) ? <ComboDealLabel /> : `Coupon${(confirmed?.couponCode || appliedCoupon?.code) ? ` (${confirmed?.couponCode || appliedCoupon?.code})` : ''}`}
+              label={(confirmed?.autoCombo || appliedCoupon?.autoCombo)
+                ? <ComboDealLabel open={openSummaryTooltip === 'combo'} onToggle={() => toggleSummaryTooltip('combo')} />
+                : `Coupon${(confirmed?.couponCode || appliedCoupon?.code) ? ` (${confirmed?.couponCode || appliedCoupon?.code})` : ''}`}
               value={`-${fmt(confirmed?.discount ?? discount)}`}
               muted
             />
           )}
-          <SummaryRow label={<ProcessingFeeLabel />} value={fmt(confirmed?.procFee ?? procFee)} muted />
+          <SummaryRow label={<ProcessingFeeLabel open={openSummaryTooltip === 'processing'} onToggle={() => toggleSummaryTooltip('processing')} />} value={fmt(confirmed?.procFee ?? procFee)} muted />
           <SummaryRow label="GST (5%)" value={fmt(confirmed?.tax ?? tax)} muted />
           <div className="crt-sum-divider" />
           <SummaryRow label={step === 'confirm' ? 'Total paid' : 'Total due'} value={`${fmt(total)} CAD`} bold />

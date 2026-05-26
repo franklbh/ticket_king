@@ -15671,8 +15671,10 @@ body:has(.btk-page) .topbar {
 .processing-fee-label {
   display: inline-flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
   min-width: 0;
+  line-height: 1.25;
 }
 
 .processing-fee-help {
@@ -15694,7 +15696,7 @@ body:has(.btk-page) .topbar {
   font-size: 12px;
   font-weight: 950;
   line-height: 1;
-  cursor: help;
+  cursor: pointer;
 }
 
 .processing-fee-icon:focus-visible {
@@ -15731,8 +15733,14 @@ body:has(.btk-page) .topbar {
   border-top-color: #111827;
 }
 
-.processing-fee-icon:hover + .processing-fee-tooltip {
+.processing-fee-help.is-open .processing-fee-tooltip {
   display: block;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .processing-fee-icon:hover + .processing-fee-tooltip {
+    display: block;
+  }
 }
 
 .combo-deal-label {
@@ -15763,7 +15771,7 @@ body:has(.btk-page) .topbar {
   font-size: 11px;
   font-weight: 950;
   line-height: 1;
-  cursor: help;
+  cursor: pointer;
 }
 
 .combo-deal-icon:focus-visible {
@@ -15801,8 +15809,14 @@ body:has(.btk-page) .topbar {
   border-top-color: #111827;
 }
 
-.combo-deal-icon:hover + .combo-deal-tooltip {
+.combo-deal-help.is-open .combo-deal-tooltip {
   display: block;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .combo-deal-icon:hover + .combo-deal-tooltip {
+    display: block;
+  }
 }
 
 @media (max-width: 768px) {
@@ -15815,38 +15829,14 @@ body:has(.btk-page) .topbar {
     flex: 1 1 auto;
   }
 
-  .btk-summary-line .processing-fee-tooltip,
-  .crt-sum-row .processing-fee-tooltip {
-    position: absolute;
-    left: calc(100% + 8px);
-    right: auto;
-    top: 50%;
-    bottom: auto;
-    width: clamp(140px, 38vw, 188px);
-    max-width: calc(100vw - 230px);
-    min-width: 0;
-    transform: translateY(-50%);
-    border-radius: 8px;
-    padding: 8px 10px;
-    font-size: 11px;
-    line-height: 1.3;
-    overflow-wrap: normal;
-    white-space: normal;
-    word-break: normal;
-    writing-mode: horizontal-tb;
-  }
-
-  .btk-summary-line .processing-fee-tooltip::after,
-  .crt-sum-row .processing-fee-tooltip::after {
-    display: none;
-  }
-
-  .combo-deal-label {
+  .combo-deal-label,
+  .processing-fee-label {
     max-width: 100%;
     gap: 5px;
   }
 
-  .combo-deal-tooltip {
+  .combo-deal-tooltip,
+  .processing-fee-tooltip {
     left: auto;
     right: 0;
     top: calc(100% + 8px);
@@ -15860,7 +15850,8 @@ body:has(.btk-page) .topbar {
     line-height: 1.3;
   }
 
-  .combo-deal-tooltip::after {
+  .combo-deal-tooltip::after,
+  .processing-fee-tooltip::after {
     display: none;
   }
 }

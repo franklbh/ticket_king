@@ -574,18 +574,34 @@ function SummaryLine({ label, value, muted }) {
 }
 
 function ProcessingFeeLabel() {
+  const [open, setOpen] = useState(false)
+  const tooltipId = 'booking-processing-fee-tooltip'
+
+  useEffect(() => {
+    if (!open) return undefined
+    const closeTooltip = () => setOpen(false)
+    document.addEventListener('click', closeTooltip)
+    return () => document.removeEventListener('click', closeTooltip)
+  }, [open])
+
   return (
     <span className="processing-fee-label">
       Processing fee
-      <span className="processing-fee-help">
+      <span className={`processing-fee-help ${open ? 'is-open' : ''}`}>
         <button
           className="processing-fee-icon"
           type="button"
           aria-label="Processing fee details"
+          aria-expanded={open}
+          aria-describedby={tooltipId}
+          onClick={(event) => {
+            event.stopPropagation()
+            setOpen((current) => !current)
+          }}
         >
           !
         </button>
-        <span className="processing-fee-tooltip" role="tooltip">
+        <span className="processing-fee-tooltip" id={tooltipId} role="tooltip">
           Includes a $1.80 platform fee per ticket plus a 2.5% payment processing fee.
         </span>
       </span>
