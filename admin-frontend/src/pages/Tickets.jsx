@@ -34,6 +34,14 @@ function shortDate(dateStr) {
   return `${d.getMonth() + 1}/${d.getDate()}`
 }
 
+function normalizeTicketTypeLabel(label) {
+  return String(label || '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .replace(/\s*\(/g, ' (')
+    .replace(/\s*\)/g, ')')
+}
+
 function ExportConfirmDialog({ title, message, filters, onCancel, onConfirm }) {
   return (
     <div
@@ -131,7 +139,8 @@ export default function Tickets() {
   })
   const tickets = ticketsData?.items || []
   const ticketTypeOptions = useMemo(
-    () => ticketTypes.map(type => type.name).filter(Boolean).sort(),
+    () => [...new Set(ticketTypes.map(type => normalizeTicketTypeLabel(type.name)).filter(Boolean))]
+      .sort((left, right) => left.localeCompare(right)),
     [ticketTypes]
   )
   const [qrTicket, setQrTicket] = useState(null)

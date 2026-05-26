@@ -885,9 +885,17 @@ export default function TicketTypes() {
       {/* Price Matrix Table */}
       <TableShell className="ticket-type-table-shell">
         <table className="ticket-type-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <colgroup>
+            <col className="tt-col-name" />
+            <col className="tt-col-price" />
+            <col className="tt-col-price" />
+            <col className="tt-col-schedule" />
+            <col className="tt-col-status" />
+            <col className="tt-col-actions" />
+          </colgroup>
           <thead>
             <tr>
-              <th style={{ padding: '12px 18px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: '#6b7280', background: '#f8fafc', borderBottom: '2px solid #e5e7eb', width: '34%' }}>
+              <th style={{ padding: '12px 18px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: '#6b7280', background: '#f8fafc', borderBottom: '2px solid #e5e7eb' }}>
                 Ticket Type
               </th>
               <th style={{ padding: '12px 18px', textAlign: 'center', background: '#f0fdf4', borderBottom: '2px solid #86efac', borderLeft: '1px solid #d1fae5' }}>
@@ -900,7 +908,7 @@ export default function TicketTypes() {
                   <i className="fa fa-arrow-up" />Higher Price
                 </span>
               </th>
-              <th style={{ padding: '12px 18px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: '#6b7280', background: '#f8fafc', borderBottom: '2px solid #e5e7eb', borderLeft: '1px solid #e5e7eb', width: '27%' }}>
+              <th style={{ padding: '12px 18px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: '#6b7280', background: '#f8fafc', borderBottom: '2px solid #e5e7eb', borderLeft: '1px solid #e5e7eb' }}>
                 Schedule / Time Window
               </th>
               <th style={{ padding: '12px 18px', textAlign: 'center', fontSize: 12, fontWeight: 600, color: '#6b7280', background: '#f8fafc', borderBottom: '2px solid #e5e7eb', borderLeft: '1px solid #e5e7eb' }}>

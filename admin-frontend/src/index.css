@@ -139,19 +139,42 @@ body {
 }
 
 .ticket-type-table-shell {
+  width: 100%;
+  max-width: 100%;
   overflow-x: auto;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
 }
 
 .ticket-type-table {
-  min-width: 980px;
+  min-width: 1320px;
   table-layout: fixed;
+}
+
+.ticket-type-table .tt-col-name {
+  width: 30%;
+}
+
+.ticket-type-table .tt-col-price {
+  width: 170px;
+}
+
+.ticket-type-table .tt-col-schedule {
+  width: 28%;
+}
+
+.ticket-type-table .tt-col-status {
+  width: 128px;
+}
+
+.ticket-type-table .tt-col-actions {
+  width: 214px;
 }
 
 .ticket-type-table th,
 .ticket-type-table td {
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
+  word-break: normal;
 }
 
 .ticket-type-actions {
@@ -159,7 +182,7 @@ body {
 }
 
 .ticket-type-action-button.MuiButton-root {
-  min-width: 76px;
+  min-width: 96px;
   white-space: nowrap;
 }
 
@@ -802,7 +825,7 @@ body {
   }
 
   .ticket-type-table {
-    min-width: 760px;
+    min-width: 1060px;
   }
 
   .ticket-type-table th,
@@ -811,31 +834,24 @@ body {
     padding-right: 12px !important;
   }
 
-  .ticket-type-table th:first-child,
-  .ticket-type-table td:first-child {
-    width: 174px !important;
+  .ticket-type-table .tt-col-name {
+    width: 240px;
   }
 
-  .ticket-type-table th:nth-child(2),
-  .ticket-type-table td:nth-child(2),
-  .ticket-type-table th:nth-child(3),
-  .ticket-type-table td:nth-child(3) {
-    width: 150px !important;
+  .ticket-type-table .tt-col-price {
+    width: 150px;
   }
 
-  .ticket-type-table th:nth-child(4),
-  .ticket-type-table td:nth-child(4) {
-    width: 190px !important;
+  .ticket-type-table .tt-col-schedule {
+    width: 230px;
   }
 
-  .ticket-type-table th:nth-child(5),
-  .ticket-type-table td:nth-child(5) {
-    width: 112px !important;
+  .ticket-type-table .tt-col-status {
+    width: 112px;
   }
 
-  .ticket-type-table th:nth-child(6),
-  .ticket-type-table td:nth-child(6) {
-    width: 138px !important;
+  .ticket-type-table .tt-col-actions {
+    width: 178px;
   }
 
   .ticket-type-actions {
@@ -847,9 +863,9 @@ body {
   .ticket-type-action-button.MuiButton-root {
     min-width: 0;
     width: 100%;
-    padding: 6px 8px;
+    padding: 7px 8px;
     font-size: 12px;
-    line-height: 1;
+    line-height: 1.15;
   }
 
   .ticket-type-action-button .MuiButton-startIcon {
@@ -1115,7 +1131,7 @@ body {
   }
 
   .ticket-type-table {
-    min-width: 700px;
+    min-width: 980px;
   }
 
   .ticket-type-table th,
