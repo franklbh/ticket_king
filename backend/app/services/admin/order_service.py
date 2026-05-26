@@ -241,6 +241,7 @@ class OrderService:
         now = utc_now_iso_seconds()
         order_id = str(uuid.uuid4())
         order_number = self._order_number()
+        slot_map = await slots_by_id()
         total_amount = round(sum(item.quantity * item.unit_price for item in payload.tickets), 2)
         adjusted_ticket_amount = max(0, round(total_amount + payload.admin_adjustment, 2))
         admin_adjustment = round(adjusted_ticket_amount - total_amount, 2)
@@ -269,20 +270,47 @@ class OrderService:
         total_due = round(taxable_amount + gst + pst, 2)
         order_status = "completed" if payload.mark_used_immediately else "paid"
         ticket_quantity = sum(item.quantity for item in payload.tickets)
+        item_contexts: list[dict[str, Any]] = []
+        for item in payload.tickets:
+            item_slot_id = str(item.slot_id or payload.slot_id or "")
+            slot = slot_map.get(item_slot_id) if item_slot_id else None
+            event_id = item.event_id or (slot or {}).get("event_id") or (slot or {}).get("event")
+            slot_date = item.slot_date or str((slot or {}).get("business_date") or (slot or {}).get("date") or payload.slot_date)
+            slot_start_time = item.slot_start_time or str((slot or {}).get("start_time") or (slot or {}).get("slot_start_time") or payload.slot_start_time)
+            slot_end_time = item.slot_end_time or str((slot or {}).get("end_time") or (slot or {}).get("slot_end_time") or payload.slot_end_time or "")
+            event_name = item.event_name or (f"Event {event_id}" if event_id else "Event")
+            item_contexts.append({
+                "item": item,
+                "slot_id": item_slot_id,
+                "event_id": event_id,
+                "event_name": event_name,
+                "slot_date": slot_date,
+                "slot_start_time": slot_start_time[:5],
+                "slot_end_time": slot_end_time[:5] if slot_end_time else None,
+                "slot_time": f"{slot_start_time[:5]}-{slot_end_time[:5]}" if slot_end_time else slot_start_time[:5],
+            })
+
+        unique_slot_ids = {context["slot_id"] for context in item_contexts if context["slot_id"]}
+        order_slot_id = next(iter(unique_slot_ids)) if len(unique_slot_ids) == 1 else None
         ticket_details = [
             {
-                "ticket_type_id": item.ticket_type_id,
-                "ticket_type": item.ticket_type,
-                "quantity": item.quantity,
-                "unit_price": item.unit_price,
-                "line_total": round(item.quantity * item.unit_price, 2),
+                "event_id": context["event_id"],
+                "slot_id": context["slot_id"],
+                "ticket_type_id": context["item"].ticket_type_id,
+                "event_name": context["event_name"],
+                "slot_date": context["slot_date"],
+                "slot_time": context["slot_time"],
+                "ticket_type": context["item"].ticket_type,
+                "quantity": context["item"].quantity,
+                "unit_price": context["item"].unit_price,
+                "line_total": round(context["item"].quantity * context["item"].unit_price, 2),
             }
-            for item in payload.tickets
+            for context in item_contexts
         ]
         order_row = {
             "id": order_id,
             "order_number": order_number,
-            "slot_id": str(payload.slot_id) if payload.slot_id else None,
+            "slot_id": order_slot_id,
             "customer_id": None,
             "guest_name": payload.customer.name or "Walk-in customer",
             "guest_email": payload.customer.email,
@@ -313,8 +341,37 @@ class OrderService:
             "updated_at": now,
         }
         inserted_orders = await admin_repository.insert(settings.admin_orders_table, order_row)
+        order_items_to_insert = []
+        for index, context in enumerate(item_contexts):
+            if not context["event_id"] or not context["slot_id"]:
+                continue
+            order_items_to_insert.append({
+                "_source_index": index,
+                "order_id": order_id,
+                "event_id": context["event_id"],
+                "slot_id": context["slot_id"],
+                "ticket_type_id": context["item"].ticket_type_id,
+                "event_name": context["event_name"],
+                "slot_date": context["slot_date"],
+                "slot_time": context["slot_time"],
+                "ticket_type": context["item"].ticket_type,
+                "quantity": context["item"].quantity,
+                "unit_price": round(context["item"].unit_price, 2),
+                "subtotal_amount": round(context["item"].quantity * context["item"].unit_price, 2),
+                "created_at": now,
+                "updated_at": now,
+            })
+        order_items = [{key: value for key, value in row.items() if key != "_source_index"} for row in order_items_to_insert]
+        inserted_order_items = await admin_repository.insert("order_items", order_items) if order_items else []
+        order_item_ids_by_context = {
+            row["_source_index"]: inserted_order_items[index].get("id")
+            for index, row in enumerate(order_items_to_insert)
+            if index < len(inserted_order_items)
+        }
         ticket_rows = []
-        for item in payload.tickets:
+        for index, context in enumerate(item_contexts):
+            item = context["item"]
+            order_item_id = order_item_ids_by_context.get(index)
             for _ in range(item.quantity):
                 code = self._verification_code()
                 ticket_id = str(uuid.uuid4())
@@ -322,6 +379,7 @@ class OrderService:
                     "id": ticket_id,
                     "ticket_number": self._ticket_number(),
                     "order_id": order_id,
+                    "order_item_id": order_item_id,
                     "ticket_type_id": item.ticket_type_id,
                     "verification_code": code,
                     "ticket_type": item.ticket_type,
@@ -340,8 +398,7 @@ class OrderService:
         inserted_tickets = (
             await admin_repository.insert(settings.admin_tickets_table, ticket_rows) if ticket_rows else []
         )
-        slot_map = await slots_by_id()
-        slot = slot_map.get(str(payload.slot_id) or "")
+        slot = slot_map.get(str(order_slot_id) or "")
         normalized_order = normalize_order(
             inserted_orders[0] if inserted_orders else order_row,
             slot=slot,

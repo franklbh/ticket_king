@@ -2,13 +2,13 @@
 -- Run after 005_resource_cart_schema.sql and 008_seed_experience_daily_slots.sql.
 --
 -- This is intended for an existing database with old test availability.
--- It keeps Game A active, archives Game B/C and their active slots, archives
--- active public slots outside business hours, then creates/updates the correct
+-- It keeps all production events active, archives active public slots outside
+-- business hours, then creates/updates the correct
 -- public booking slots:
 --   - Sunday-Thursday: slots must end by 19:00
 --   - Friday-Saturday: slots must end by 20:00
---   - Panda VR and Back to Jurassic run every 30 minutes.
---   - Game A runs every 15 minutes.
+--   - Terracotta Warriors, Panda's World, and Back to Jurassic run every 30 minutes.
+--   - Hero, HyperBeat Slash, and Gulu Gulu run every 15 minutes.
 
 do $$
 declare
@@ -30,7 +30,24 @@ begin
 
   update public.events
   set
+    event_type = 'vr_show',
+    content_mode = 'vr',
+    headset_brand = 'htc',
+    vr_room_mode = 'htc',
     duration_minutes = 30,
+    name = 'Terracotta Warriors',
+    updated_at = now()
+  where slug = 'terracotta-warriors';
+
+  update public.events
+  set
+    event_type = 'vr_show',
+    content_mode = 'vr',
+    headset_brand = 'pico',
+    vr_room_mode = 'pico',
+    duration_minutes = 30,
+    name = 'Panda''s World',
+    status = 'active',
     updated_at = now()
   where slug = 'panda-vr';
 
@@ -41,16 +58,15 @@ begin
     headset_brand = 'pico',
     vr_room_mode = 'none',
     duration_minutes = 15,
+    name = case slug
+      when 'game-a' then 'Hero'
+      when 'game-b' then 'HyperBeat Slash'
+      when 'game-c' then 'Gulu Gulu'
+      else name
+    end,
     status = 'active',
     updated_at = now()
-  where slug = 'game-a';
-
-  update public.events
-  set
-    duration_minutes = 15,
-    status = 'archived',
-    updated_at = now()
-  where slug in ('game-b', 'game-c');
+  where slug in ('game-a', 'game-b', 'game-c');
 
   update public.slots s
   set
@@ -58,16 +74,7 @@ begin
     updated_at = now()
   from public.events e
   where s.event_id = e.id
-    and e.slug in ('game-b', 'game-c')
-    and s.status = 'active';
-
-  update public.slots s
-  set
-    status = 'archived',
-    updated_at = now()
-  from public.events e
-  where s.event_id = e.id
-    and e.slug in ('terracotta-warriors', 'panda-vr', 'dino-vr', 'game-a')
+    and e.slug in ('terracotta-warriors', 'panda-vr', 'dino-vr', 'game-a', 'game-b', 'game-c')
     and s.status = 'active'
     and (
       s.business_date < start_date
@@ -103,10 +110,12 @@ begin
     seed.price as base_price
   from (
     values
-      ('terracotta-warriors', 45, 20, 45.95::numeric),
+      ('terracotta-warriors', 30, 20, 45.95::numeric),
       ('panda-vr', 30, 10, 34.95::numeric),
       ('dino-vr', 30, 10, 35.95::numeric),
-      ('game-a', 15, 8, 35.95::numeric)
+      ('game-a', 15, 8, 35.95::numeric),
+      ('game-b', 15, 8, 35.95::numeric),
+      ('game-c', 15, 8, 35.95::numeric)
   ) as seed(slug, slot_duration_minutes, capacity, price)
   join public.events e on e.slug = seed.slug
   cross join generate_series(start_date, end_date, interval '1 day') as d(day)
@@ -120,7 +129,7 @@ begin
           - first_start
         )) / 60
       )::integer - seed.slot_duration_minutes,
-      case when seed.slug = 'game-a' then 15 else 30 end
+      case when seed.slug in ('game-a', 'game-b', 'game-c') then 15 else 30 end
     ) as offsets(offset_minutes)
   ) as t;
 

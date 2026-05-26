@@ -1,6 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { badge, currency } from '../utils/format'
 import { getExperiencePriceFrom, getPricesForSlot } from '../utils/pricing'
+import { minQtyForTicket } from '../utils/tickets'
+
+function cartDateKey(date) {
+  if (!date) return ''
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function minQtyForTicketType(ticketOrId) {
+  return minQtyForTicket(ticketOrId)
+}
 
 function BookingPage({
   availableSlots = [],
@@ -10,6 +23,7 @@ function BookingPage({
   bookingRef,
   calendarMonth,
   cartCount = 0,
+  cartItems = [],
   changeCalendarMonth,
   fullDateDisplay,
   localizedTicketTypes,
@@ -29,19 +43,46 @@ function BookingPage({
   const [rawTicketQty, setRawTicketQty] = useState({})
   const [showAllSlots, setShowAllSlots] = useState(false)
   const lastAutoCartSelectionRef = useRef(null)
+  const previousSelectedSessionCartCountRef = useRef(0)
+  const suppressNextAutoCartSyncRef = useRef(false)
   const onAddToCartRef = useRef(onAddToCart)
 
   useEffect(() => {
     onAddToCartRef.current = onAddToCart
   }, [onAddToCart])
 
-  const minQtyForType = (id) => id === 'family' ? 3 : id === 'group' ? 6 : 1
   const ticketById = useCallback((id) => (
     localizedTicketTypes.find((item) => item.id === id) || localizedTicketTypes[0]
   ), [localizedTicketTypes])
+  const minQtyForType = useCallback((id) => minQtyForTicketType(ticketById(id) || id), [ticketById])
+  const defaultTicketTypeId = localizedTicketTypes[0]?.id || 'adult'
+  const bookingExperienceId = bookingExperience?.id
   const ticketOptions = useMemo(() => (
-    localizedTicketTypes.map((item) => ({ id: item.id, label: item.label, price: item.price }))
+    localizedTicketTypes.map((item) => ({ id: item.id, label: item.label, price: item.price, minQty: minQtyForTicketType(item) }))
   ), [localizedTicketTypes])
+  const defaultTicketLines = useCallback(() => ([
+    { key: 'ticket-1', ticketTypeId: defaultTicketTypeId, quantity: minQtyForType(defaultTicketTypeId) },
+  ]), [defaultTicketTypeId, minQtyForType])
+  const ticketLinesFromCartItems = useCallback((items) => items.map((item, index) => {
+    const ticketTypeId = ticketById(item.ticket_type_id)?.id || defaultTicketTypeId
+    return {
+      key: `ticket-${item.ticket_type_id || index}`,
+      ticketTypeId,
+      quantity: Math.max(minQtyForType(ticketTypeId), Number(item.quantity) || 0),
+    }
+  }), [defaultTicketTypeId, minQtyForType, ticketById])
+  const mergeTicketLinesWithCartItems = useCallback((previousLines, items) => {
+    const nextByType = new Map()
+    previousLines.forEach((line) => {
+      const ticketTypeId = ticketById(line.ticketTypeId)?.id || defaultTicketTypeId
+      nextByType.set(ticketTypeId, { ...line, ticketTypeId, quantity: 0 })
+    })
+    ticketLinesFromCartItems(items).forEach((line) => {
+      nextByType.set(line.ticketTypeId, line)
+    })
+    const nextLines = Array.from(nextByType.values())
+    return nextLines.length ? nextLines : [{ key: `ticket-${defaultTicketTypeId}`, ticketTypeId: defaultTicketTypeId, quantity: 0 }]
+  }, [defaultTicketTypeId, ticketById, ticketLinesFromCartItems])
   const selectedImage = bookingExperience?.heroImg || bookingExperience?.gallery?.[0]
 
   const liveSlots = useMemo(() => availableSlots.map((slot) => {
@@ -57,34 +98,119 @@ function BookingPage({
       price: prices.adult ?? slot.price ?? localizedTicketTypes[0]?.price ?? 0,
       availableSeats: slot.availableSeats,
       peak: weekend,
+      ticketTypes: slot.ticketTypes || slot.ticket_types || [],
     }
   }), [availableSlots, bookingExperience, localizedTicketTypes, selectedDate])
 
   useEffect(() => {
     setTicketLines((lines) => lines.map((line) => {
       const ticketTypeId = ticketById(line.ticketTypeId)?.id || localizedTicketTypes[0]?.id || 'adult'
-      return { ...line, ticketTypeId, quantity: Math.max(line.quantity, minQtyForType(ticketTypeId)) }
+      return { ...line, ticketTypeId, quantity: line.quantity === 0 ? 0 : Math.max(line.quantity, minQtyForType(ticketTypeId)) }
     }))
-  }, [localizedTicketTypes, ticketById])
+  }, [localizedTicketTypes, minQtyForType, ticketById])
 
   const lineSubtotal = (line) => (ticketById(line.ticketTypeId)?.price || 0) * line.quantity
-  const subtotal = ticketLines.reduce((sum, line) => sum + lineSubtotal(line), 0)
-  const ticketQty = ticketLines.reduce((sum, line) => sum + line.quantity, 0)
-  const processingFee = ticketQty > 0 ? 1.8 * ticketQty + 0.025 * subtotal : 0
-  const tax = ticketQty > 0 ? 0.05 * subtotal : 0
-  const grand = subtotal + processingFee + tax
   const canAdd = Boolean(
     selectedDate
     && selectedTime
     && bookingExperience
+    && localizedTicketTypes.length
     && ticketLines.length
-    && ticketLines.every((line) => line.quantity >= minQtyForType(line.ticketTypeId)),
+    && ticketLines.some((line) => line.quantity > 0)
+    && ticketLines.every((line) => line.quantity === 0 || line.quantity >= minQtyForType(line.ticketTypeId)),
   )
   const displayCartCount = cartCount
   const visibleSlots = showAllSlots ? liveSlots : liveSlots.slice(0, 8)
-  const relatedExperiences = bookingExperiences.filter((item) => item.id !== bookingExperience?.id).slice(0, 5)
+  const relatedExperiences = bookingExperiences.filter((item) => item.id !== bookingExperienceId).slice(0, 5)
+  const currentSummaryItems = useMemo(() => ticketLines.map((line) => {
+    const ticket = ticketById(line.ticketTypeId)
+    const quantity = Number(line.quantity) || 0
+    const unitPrice = Number(ticket?.price || 0)
+    return {
+      key: line.key,
+      title: bookingExperience?.title || 'Experience',
+      date: selectedDate ? fullDateDisplay(selectedDate.date) : 'Select date',
+      time: selectedTime?.time || selectedTime?.label || 'Select time',
+      ticketLabel: ticket?.label || 'Ticket',
+      quantity,
+      total: unitPrice * quantity,
+    }
+  }), [bookingExperience?.title, fullDateDisplay, selectedDate, selectedTime, ticketById, ticketLines])
+  const cartSummaryItems = useMemo(() => cartItems.map((item) => {
+    const quantity = Math.max(0, Number(item.quantity) || 0)
+    const unitPrice = Number(item.unit_price || 0)
+    return {
+      key: item.id,
+      title: item.show_title || 'Experience',
+      date: item.session_date || item.session_date_key || 'Select date',
+      time: item.session_time || 'Select time',
+      ticketLabel: item.ticket_type_label || 'Ticket',
+      quantity,
+      total: unitPrice * quantity,
+    }
+  }).filter((item) => item.quantity > 0), [cartItems])
+  const summaryItems = cartSummaryItems.length ? cartSummaryItems : currentSummaryItems
+  const subtotal = cartSummaryItems.reduce((sum, item) => sum + item.total, 0)
+  const ticketQty = cartSummaryItems.reduce((sum, item) => sum + item.quantity, 0)
+  const processingFee = ticketQty > 0 ? 1.8 * ticketQty + 0.025 * subtotal : 0
+  const tax = ticketQty > 0 ? 0.05 * subtotal : 0
+  const grand = subtotal + processingFee + tax
+  const selectedSessionCartItems = useMemo(() => {
+    if (!selectedDate?.date || !selectedTime || !bookingExperienceId) return []
+    const sessionDateKey = cartDateKey(selectedDate.date)
+    const sessionTime = selectedTime.label || selectedTime.time
+    const slotId = selectedTime.id || selectedTime.slot_id || selectedTime.slotId
+    return cartItems.filter((item) => {
+      const itemSlotId = item.slot_id || item.slotId
+      const sameSlot = itemSlotId && slotId ? itemSlotId === slotId : item.session_time === sessionTime
+      return item.show_id === bookingExperienceId
+        && item.session_date_key === sessionDateKey
+        && sameSlot
+        && item.quantity > 0
+    })
+  }, [bookingExperienceId, cartItems, selectedDate, selectedTime])
+
+  const resetTicketSelectorWithoutAdding = useCallback(() => {
+    suppressNextAutoCartSyncRef.current = true
+    lastAutoCartSelectionRef.current = null
+    setTicketLines((lines) => {
+      const nextLines = lines.map((line) => ({ ...line, quantity: 0 }))
+      return nextLines.length ? nextLines : defaultTicketLines().map((line) => ({ ...line, quantity: 0 }))
+    })
+    setRawTicketQty({})
+  }, [defaultTicketLines])
 
   useEffect(() => {
+    const selectedSessionCartCount = selectedSessionCartItems.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0)
+    const hadSelectedSessionItems = previousSelectedSessionCartCountRef.current > 0
+    previousSelectedSessionCartCountRef.current = selectedSessionCartCount
+
+    if (selectedSessionCartItems.length) {
+      setTicketLines((previousLines) => {
+        const nextTicketLines = mergeTicketLinesWithCartItems(previousLines, selectedSessionCartItems)
+        const sameLines = previousLines.length === nextTicketLines.length
+          && previousLines.every((line, index) => (
+            line.ticketTypeId === nextTicketLines[index].ticketTypeId
+            && Number(line.quantity) === Number(nextTicketLines[index].quantity)
+          ))
+        if (sameLines) return previousLines
+        suppressNextAutoCartSyncRef.current = true
+        lastAutoCartSelectionRef.current = null
+        return nextTicketLines
+      })
+      setRawTicketQty({})
+      return
+    }
+
+    if (hadSelectedSessionItems) resetTicketSelectorWithoutAdding()
+  }, [mergeTicketLinesWithCartItems, resetTicketSelectorWithoutAdding, selectedSessionCartItems])
+
+  useEffect(() => {
+    if (suppressNextAutoCartSyncRef.current) {
+      suppressNextAutoCartSyncRef.current = false
+      return
+    }
+
     const previousSelection = lastAutoCartSelectionRef.current
     if (!canAdd) {
       if (previousSelection) {
@@ -125,9 +251,28 @@ function BookingPage({
     })
     setTicketLines((lines) => lines.map((line) => (
       line.key === key
-        ? { ...line, ticketTypeId, quantity: Math.max(line.quantity, minQtyForType(ticketTypeId)) }
+        ? { ...line, ticketTypeId, quantity: line.quantity === 0 ? 0 : Math.max(line.quantity, minQtyForType(ticketTypeId)) }
         : line
     )))
+  }
+
+  const selectTimeSlot = (slot) => {
+    if (selectedDate?.date && bookingExperienceId) {
+      const sessionDateKey = cartDateKey(selectedDate.date)
+      const sessionTime = slot.label || slot.time
+      const existingItems = cartItems.filter((item) => (
+        item.show_id === bookingExperienceId
+        && item.session_date_key === sessionDateKey
+        && item.session_time === sessionTime
+        && item.quantity > 0
+      ))
+
+      if (existingItems.length) {
+        setTicketLines(ticketLinesFromCartItems(existingItems))
+        setRawTicketQty({})
+      }
+    }
+    setSelectedTime(slot)
   }
 
   const updateTicketQty = (key, delta) => {
@@ -138,7 +283,13 @@ function BookingPage({
     })
     setTicketLines((lines) => lines.map((line) => {
       if (line.key !== key) return line
-      return { ...line, quantity: Math.max(minQtyForType(line.ticketTypeId), line.quantity + delta) }
+      const minQty = minQtyForType(line.ticketTypeId)
+      const nextQuantity = delta > 0 && line.quantity === 0 && minQty > 1
+        ? minQty
+        : delta < 0 && line.quantity <= minQty
+          ? 0
+          : Math.max(0, line.quantity + delta)
+      return { ...line, quantity: nextQuantity }
     }))
   }
 
@@ -146,8 +297,9 @@ function BookingPage({
     const digits = value.replace(/\D/g, '').slice(0, 2)
     setRawTicketQty((values) => ({ ...values, [line.key]: digits }))
     if (!digits) return
+    const parsed = Math.min(99, Number(digits))
     const minQty = minQtyForType(line.ticketTypeId)
-    const quantity = Math.max(minQty, Math.min(99, Number(digits)))
+    const quantity = parsed === 0 ? 0 : Math.max(minQty, parsed)
     setRawTicketQty((values) => ({ ...values, [line.key]: String(quantity) }))
     setTicketLines((lines) => lines.map((item) => (
       item.key === line.key ? { ...item, quantity } : item
@@ -162,7 +314,8 @@ function BookingPage({
     })
     setTicketLines((lines) => lines.map((item) => {
       if (item.key !== line.key) return item
-      return { ...item, quantity: Math.max(minQtyForType(item.ticketTypeId), item.quantity || 0) }
+      const minQty = minQtyForType(item.ticketTypeId)
+      return { ...item, quantity: item.quantity === 0 ? 0 : Math.max(minQty, item.quantity || 0) }
     }))
   }
 
@@ -198,7 +351,7 @@ function BookingPage({
     lastAutoCartSelectionRef.current = null
     onBookingExperienceChange?.(experienceId)
     setSelectedTime(null)
-    setTicketLines([{ key: 'ticket-1', ticketTypeId: localizedTicketTypes[0]?.id || 'adult', quantity: 1 }])
+    setTicketLines(defaultTicketLines())
     setRawTicketQty({})
     setShowAllSlots(false)
     requestAnimationFrame(() => {
@@ -277,7 +430,7 @@ function BookingPage({
                     <button
                       key={slot.id}
                       className={selectedTime?.id === slot.id ? 'selected' : ''}
-                      onClick={() => { setSelectedTime(slot) }}
+                      onClick={() => selectTimeSlot(slot)}
                       type="button"
                     >
                       <strong>{slot.time}</strong>
@@ -302,7 +455,6 @@ function BookingPage({
               <div className="btk-ticket-lines">
                 {ticketLines.map((line) => {
                   const selectedTicket = ticketById(line.ticketTypeId)
-                  const minQty = minQtyForType(line.ticketTypeId)
                   return (
                     <div className="btk-ticket-row" key={line.key}>
                       <select value={line.ticketTypeId} onChange={(event) => updateTicketType(line.key, event.target.value)}>
@@ -310,11 +462,11 @@ function BookingPage({
                       </select>
                       <span>{selectedTicket?.info || `General Admission for ${selectedTicket?.label || 'ticket'}`}</span>
                       <div className="btk-qty">
-                        <button onClick={() => updateTicketQty(line.key, -1)} disabled={line.quantity <= minQty} type="button">-</button>
+                        <button onClick={() => updateTicketQty(line.key, -1)} disabled={line.quantity <= 0} type="button">-</button>
                         <input
                           aria-label={`${selectedTicket?.label || 'Ticket'} quantity`}
                           inputMode="numeric"
-                          min={minQty}
+                          min="0"
                           onBlur={() => commitTicketQty(line)}
                           onChange={(event) => setTicketQty(line, event.target.value)}
                           type="text"
@@ -363,16 +515,20 @@ function BookingPage({
           <aside className="btk-summary">
             <div className="btk-summary-head">
               <div>
-                <h3>Current Choice</h3>
-                <p>Your selection is added to your cart automatically.</p>
+                <h3>{cartSummaryItems.length ? 'Booking Summary' : 'Current Choice'}</h3>
+                <p>{cartSummaryItems.length ? 'Your cart is saved and updated automatically.' : 'Your selection is added to your cart automatically.'}</p>
               </div>
             </div>
             <div className="btk-summary-product">
               <div className="btk-summary-thumb" style={selectedImage ? { backgroundImage: `url(${selectedImage})` } : { background: bookingExperience?.cardGradient }} />
               <div><strong>{bookingExperience?.title}</strong><span>{selectedDate ? fullDateDisplay(selectedDate.date) : 'Select date'}</span><span>{selectedTime?.time || 'Select time'}</span></div>
             </div>
-            {ticketLines.map((line) => (
-              <SummaryLine key={line.key} label={`${ticketById(line.ticketTypeId)?.label || 'Ticket'} × ${line.quantity}`} value={currency(lineSubtotal(line))} />
+            {summaryItems.map((item) => (
+              <SummaryLine
+                key={item.key}
+                label={<CartSummaryLabel item={item} compact={!cartSummaryItems.length} />}
+                value={currency(item.total)}
+              />
             ))}
             <div className="btk-divider" />
             <SummaryLine label="Subtotal" value={currency(subtotal)} muted />
@@ -406,23 +562,50 @@ function StepLabel({ number, label }) {
   return <div className="btk-step-label"><span>{number}</span><strong>{label}</strong></div>
 }
 
+function CartSummaryLabel({ item, compact }) {
+  if (compact) return `${item.ticketLabel} × ${item.quantity}`
+  return (
+    <span className="btk-summary-item-label">
+      <strong>{item.title}</strong>
+      <small>{item.date} · {item.time}</small>
+      <span>{item.ticketLabel} × {item.quantity}</span>
+    </span>
+  )
+}
+
 function SummaryLine({ label, value, muted }) {
   return <div className={`btk-summary-line ${muted ? 'muted' : ''}`}><span>{label}</span><strong>{value}</strong></div>
 }
 
 function ProcessingFeeLabel() {
+  const [open, setOpen] = useState(false)
+  const tooltipId = 'booking-processing-fee-tooltip'
+
+  useEffect(() => {
+    if (!open) return undefined
+    const closeTooltip = () => setOpen(false)
+    document.addEventListener('click', closeTooltip)
+    return () => document.removeEventListener('click', closeTooltip)
+  }, [open])
+
   return (
     <span className="processing-fee-label">
       Processing fee
-      <span className="processing-fee-help">
+      <span className={`processing-fee-help ${open ? 'is-open' : ''}`}>
         <button
           className="processing-fee-icon"
           type="button"
           aria-label="Processing fee details"
+          aria-expanded={open}
+          aria-describedby={tooltipId}
+          onClick={(event) => {
+            event.stopPropagation()
+            setOpen((current) => !current)
+          }}
         >
           !
         </button>
-        <span className="processing-fee-tooltip" role="tooltip">
+        <span className="processing-fee-tooltip" id={tooltipId} role="tooltip">
           Includes a $1.80 platform fee per ticket plus a 2.5% payment processing fee.
         </span>
       </span>

@@ -7,7 +7,7 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import MetaData, String, Table, and_, case, cast, func, insert, or_, select, update
+from sqlalchemy import MetaData, String, Table, and_, case, cast, func, insert, or_, select, text, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -537,24 +537,64 @@ class AdminRepository:
 
     def _slot_inventory_counts_sync(self) -> dict[str, dict[str, int]]:
         with self._session() as db:
-            orders = self._table(db, settings.admin_orders_table)
-            tickets = self._table(db, settings.admin_tickets_table)
-            channel = func.lower(cast(orders.c.sales_channel, String))
-            is_walkin = channel.in_(["walk_in", "walk-in", "instore", "in_store"])
-            rows = (
-                db.execute(
-                    select(
-                        orders.c.slot_id.label("slot_id"),
-                        func.coalesce(func.sum(case((is_walkin, 1), else_=0)), 0).label("walkin_sold"),
-                        func.coalesce(func.sum(case((is_walkin, 0), else_=1)), 0).label("online_sold"),
+            rows = db.execute(
+                text(
+                    """
+                    with item_counts as (
+                      select
+                        oi.slot_id,
+                        sum(case when lower(coalesce(o.sales_channel, '')) in ('walk_in', 'walk-in', 'instore', 'in_store') then oi.quantity else 0 end) as walkin_sold,
+                        sum(case when lower(coalesce(o.sales_channel, '')) in ('walk_in', 'walk-in', 'instore', 'in_store') then 0 else oi.quantity end) as online_sold
+                      from public.order_items oi
+                      join public.orders o on o.id = oi.order_id
+                      where oi.slot_id is not null
+                        and lower(coalesce(o.order_status, '')) in ('pending', 'paid', 'completed')
+                        and lower(coalesce(o.payment_status, '')) in ('pending', 'paid', 'processing', 'authorized')
+                      group by oi.slot_id
+                    ),
+                    legacy_ticket_counts as (
+                      select
+                        o.slot_id,
+                        sum(case when lower(coalesce(o.sales_channel, '')) in ('walk_in', 'walk-in', 'instore', 'in_store') then 1 else 0 end) as walkin_sold,
+                        sum(case when lower(coalesce(o.sales_channel, '')) in ('walk_in', 'walk-in', 'instore', 'in_store') then 0 else 1 end) as online_sold
+                      from public.tickets t
+                      join public.orders o on o.id = t.order_id
+                      where o.slot_id is not null
+                        and not exists (
+                          select 1
+                          from public.order_items oi
+                          where oi.order_id = o.id
+                        )
+                        and lower(coalesce(o.order_status, '')) in ('pending', 'paid', 'completed')
+                        and lower(coalesce(o.payment_status, '')) in ('pending', 'paid', 'processing', 'authorized')
+                      group by o.slot_id
+                    ),
+                    showpass_counts as (
+                      select
+                        st.our_slot_id as slot_id,
+                        0 as walkin_sold,
+                        sum(st.quantity) as online_sold
+                      from public.showpass_tickets st
+                      where st.our_slot_id is not null
+                        and lower(coalesce(st.status, '')) = 'active'
+                      group by st.our_slot_id
+                    ),
+                    combined as (
+                      select * from item_counts
+                      union all
+                      select * from legacy_ticket_counts
+                      union all
+                      select * from showpass_counts
                     )
-                    .select_from(tickets.join(orders, tickets.c.order_id == orders.c.id))
-                    .where(orders.c.slot_id.is_not(None))
-                    .group_by(orders.c.slot_id)
+                    select
+                      slot_id,
+                      coalesce(sum(walkin_sold), 0) as walkin_sold,
+                      coalesce(sum(online_sold), 0) as online_sold
+                    from combined
+                    group by slot_id
+                    """
                 )
-                .mappings()
-                .all()
-            )
+            ).mappings().all()
             return {
                 str(row["slot_id"]): {
                     "walkin_sold": int(row["walkin_sold"] or 0),

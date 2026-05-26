@@ -247,7 +247,7 @@ function AmountDetailContent({ order, t }) {
   const rows = [
     { label: t.ticketPrice, value: `+$${ticketPrice.toFixed(2)}`, color: '#10b981' },
     ...(coupon < 0 ? [{
-      label: order.couponCode ? `${t.couponDiscountLabel} (${order.couponCode})` : t.couponDiscountLabel,
+      label: order.couponCode?.startsWith('COMBO-') ? 'Combo Discount (10%)' : order.couponCode ? `${t.couponDiscountLabel} (${order.couponCode})` : t.couponDiscountLabel,
       value: `$${coupon.toFixed(2)}`, color: '#dc2626'
     }] : []),
     { label: t.gstLabel, value: `+$${gst.toFixed(2)}`, color: '#10b981' },
@@ -280,7 +280,7 @@ function CouponContent({ order }) {
   const { coupon } = getAmountBreakdown(order)
   return (
     <div>
-      <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 10 }}>Coupon Details</div>
+      <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 10 }}>{order.couponCode?.startsWith('COMBO-') ? 'Combo Discount' : 'Coupon Details'}</div>
       <div style={{ height: 1, background: '#f3f4f6', marginBottom: 12 }} />
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 6 }}>
         <span style={{ color: '#9ca3af' }}>Code</span>

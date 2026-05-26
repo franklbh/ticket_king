@@ -3,6 +3,7 @@ import BrandLogo from '../components/BrandLogo'
 import HeaderActions from '../components/HeaderActions'
 import { allExperiences } from '../data/experiences'
 import { getExperiencePriceFrom, getPricesForSlot, hasSeniorTicket } from '../utils/pricing'
+import { formatSlotTicketTypes, ticketKeyFromLabel } from '../utils/tickets'
 
 /* ── Helpers ── */
 function Stars({ rating, size = 14 }) {
@@ -16,6 +17,16 @@ function Stars({ rating, size = 14 }) {
         </svg>
       ))}
     </span>
+  )
+}
+
+function CartIcon() {
+  return (
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="9" cy="21" r="1" />
+      <circle cx="20" cy="21" r="1" />
+      <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
+    </svg>
   )
 }
 
@@ -102,9 +113,10 @@ function BookingWidget({ experience, cartItems, onAddToCart }) {
   const [selTime, setSelTime] = useState(null)
   const [qty, setQty] = useState(() => ['adult', 'child', 'senior', 'group', 'family'].reduce((acc, id) => ({ ...acc, [id]: 0 }), {}))
   const [rawQty, setRawQty] = useState({})
-  const [addedMessage, setAddedMessage] = useState('')
+  const [showAddedNotice, setShowAddedNotice] = useState(false)
   const [backendSlots, setBackendSlots] = useState([])
   const [slotsLoading, setSlotsLoading] = useState(false)
+  const [showAllTimeSlots, setShowAllTimeSlots] = useState(false)
   const cartSyncedSessionRef = useRef(null)
 
   const selectedMonth = monthOptions.find((month) => `${month.getFullYear()}-${month.getMonth()}` === selMonthKey) || monthOptions[0]
@@ -116,7 +128,7 @@ function BookingWidget({ experience, cartItems, onAddToCart }) {
   const selectedDate = days.find((d) => dateKey(d) === selDateKey) || days[0]
   const selectedDateKey = selectedDate ? dateKey(selectedDate) : ''
   const prices = getPricesForSlot(experience, selectedDate)
-  const TICKET_TYPES = useMemo(() => [
+  const fallbackTicketTypes = useMemo(() => [
     { id: 'adult',  label: 'Adult',  desc: 'Ages 18+', price: prices.adult ?? 37.95 },
     { id: 'child',  label: 'Child',  desc: 'Ages 7–15', price: prices.child ?? 27.95 },
     ...(hasSeniorTicket(experience)
@@ -125,6 +137,26 @@ function BookingWidget({ experience, cartItems, onAddToCart }) {
     { id: 'group',  label: 'Group',  desc: '6+ guests', price: prices.group ?? 32.95, minQty: 6, notice: 'min. 6 people required.' },
     { id: 'family', label: 'Family', desc: '3+ family bundle', price: prices.family ?? 31.95, minQty: 3, notice: 'Ticket for min. 3 people, max. 2 adults.' },
   ], [experience, prices.adult, prices.child, prices.family, prices.group, prices.senior])
+  const TICKET_TYPES = useMemo(() => {
+    const selectedSlotHasTicketTypes = selTime && ('ticketTypes' in selTime || 'ticket_types' in selTime)
+    return formatSlotTicketTypes(selTime?.ticketTypes || selTime?.ticket_types || [], { fallback: selectedSlotHasTicketTypes ? [] : fallbackTicketTypes })
+    .map((ticket) => {
+      const key = ticket.key || ticketKeyFromLabel(ticket.label)
+      const desc = ticket.desc || (
+        key === 'child' ? 'Ages 7-15'
+          : key === 'senior' ? '65+ years'
+            : key === 'group' ? '6+ guests'
+              : key === 'family' ? '3+ family bundle'
+                : 'Ages 18+'
+      )
+      const notice = ticket.notice || (
+        key === 'group' ? 'min. 6 people required.'
+          : key === 'family' ? 'Ticket for min. 3 people, max. 2 adults.'
+            : undefined
+      )
+      return { ...ticket, key, desc, notice }
+    })
+  }, [fallbackTicketTypes, selTime])
   const calendarCells = [
     ...Array.from({ length: monthStartDay }, (_, idx) => ({ key: `blank-${idx}`, blank: true })),
     ...Array.from({ length: new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0).getDate() }, (_, i) => {
@@ -142,13 +174,21 @@ function BookingWidget({ experience, cartItems, onAddToCart }) {
     }),
   ]
   const totalQty = Object.values(qty).reduce((s, n) => s + n, 0)
-  const totalPrice = TICKET_TYPES.reduce((s, t) => s + qty[t.id] * t.price, 0)
-  const invalidTicketSelections = TICKET_TYPES.filter((ticket) => ticket.minQty && qty[ticket.id] > 0 && qty[ticket.id] < ticket.minQty)
+  const totalPrice = TICKET_TYPES.reduce((s, t) => s + (qty[t.id] || 0) * t.price, 0)
+  const invalidTicketSelections = TICKET_TYPES.filter((ticket) => ticket.minQty && (qty[ticket.id] || 0) > 0 && (qty[ticket.id] || 0) < ticket.minQty)
   const canAddToCart = Boolean(selectedDate && selTime && totalQty > 0 && invalidTicketSelections.length === 0)
-  const ticketOptions = TICKET_TYPES.map((ticket) => ({ id: ticket.id, label: ticket.label, price: ticket.price }))
+  const visibleBackendSlots = showAllTimeSlots ? backendSlots : backendSlots.slice(0, 8)
+  const ticketOptions = TICKET_TYPES.map((ticket) => ({ id: ticket.id, label: ticket.label, price: ticket.price, minQty: ticket.minQty }))
   const ticketsFromQuantities = (quantities) => TICKET_TYPES
     .filter((ticket) => quantities[ticket.id] > 0)
     .map((ticket) => ({ ...ticket, quantity: quantities[ticket.id] }))
+
+  useEffect(() => {
+    setQty((previous) => TICKET_TYPES.reduce((acc, ticket) => ({ ...acc, [ticket.id]: previous[ticket.id] || 0 }), {}))
+    setRawQty((previous) => TICKET_TYPES.reduce((acc, ticket) => (
+      previous[ticket.id] === undefined ? acc : { ...acc, [ticket.id]: previous[ticket.id] }
+    ), {}))
+  }, [TICKET_TYPES])
   const getCartQuantitiesForSession = useCallback((sessionDateKey, slot) => {
     const nextQty = TICKET_TYPES.reduce((acc, ticket) => ({ ...acc, [ticket.id]: 0 }), {})
     if (!sessionDateKey || !slot) return { nextQty, hasItems: false }
@@ -180,7 +220,7 @@ function BookingWidget({ experience, cartItems, onAddToCart }) {
       delete nextRawQty[ticket.id]
       return nextRawQty
     })
-    setAddedMessage('')
+    setShowAddedNotice(false)
   }
 
   const setTicketQty = (ticket, value) => {
@@ -190,7 +230,7 @@ function BookingWidget({ experience, cartItems, onAddToCart }) {
     const nextQty = { ...qty, [ticket.id]: parsed }
     setRawQty((previous) => ({ ...previous, [ticket.id]: normalizedValue }))
     setQty(nextQty)
-    setAddedMessage('')
+    setShowAddedNotice(false)
   }
 
   const commitTicketQty = (ticket) => {
@@ -211,7 +251,7 @@ function BookingWidget({ experience, cartItems, onAddToCart }) {
       tickets: ticketsFromQuantities(qty),
       openCart: false,
     })
-    setAddedMessage('Added to shopping cart.')
+    setShowAddedNotice(true)
   }
 
   useEffect(() => {
@@ -224,7 +264,6 @@ function BookingWidget({ experience, cartItems, onAddToCart }) {
     const sessionKey = `${experience.id}__${selectedDateKey}__${selTime.id || selTime.label || selTime.time || ''}`
     setQty(nextQty)
     setRawQty({})
-    setAddedMessage('')
     cartSyncedSessionRef.current = hasItems ? sessionKey : null
   }, [selectedDateKey, selTime, experience.id, getCartQuantitiesForSession])
 
@@ -235,7 +274,6 @@ function BookingWidget({ experience, cartItems, onAddToCart }) {
     if (!hasItems && cartSyncedSessionRef.current !== sessionKey) return
     setQty(nextQty)
     setRawQty({})
-    setAddedMessage('')
     cartSyncedSessionRef.current = hasItems ? sessionKey : null
   }, [cartItems, selectedDateKey, selTime, experience.id, getCartQuantitiesForSession])
 
@@ -249,6 +287,7 @@ function BookingWidget({ experience, cartItems, onAddToCart }) {
     const backendBase = import.meta.env.VITE_BACKEND_BASE || 'http://localhost:8000'
     setSlotsLoading(true)
     setSelTime(null)
+    setShowAllTimeSlots(false)
     fetch(`${backendBase}/api/v1/events/${slug}/slots?date=${selectedDateKey}`, { signal: controller.signal })
       .then((res) => (res.ok ? res.json() : []))
       .then((slots) => {
@@ -313,7 +352,7 @@ function BookingWidget({ experience, cartItems, onAddToCart }) {
         <div className="bw-time-grid">
           {slotsLoading && <div style={{ gridColumn: '1/-1', textAlign: 'center', color: '#888', padding: '8px 0' }}>Loading sessions…</div>}
           {!slotsLoading && backendSlots.length === 0 && <div style={{ gridColumn: '1/-1', textAlign: 'center', color: '#888', padding: '8px 0' }}>No sessions available for this date.</div>}
-          {backendSlots.map((slot) => (
+          {visibleBackendSlots.map((slot) => (
             <button
               key={slot.id || slot.label}
               className={`bw-time-btn ${selTime?.id === slot.id ? 'bw-time-sel' : ''}`}
@@ -324,12 +363,18 @@ function BookingWidget({ experience, cartItems, onAddToCart }) {
               {slot.availableSeats != null && slot.availableSeats <= 5 && <span style={{ display: 'block', fontSize: 11, opacity: 0.7 }}>Only {slot.availableSeats} left</span>}
             </button>
           ))}
+          {!slotsLoading && backendSlots.length > 8 && (
+            <button className="bw-expand-slots" onClick={() => setShowAllTimeSlots((open) => !open)} type="button">
+              {showAllTimeSlots ? 'Show fewer time slots' : `Expand other time slots (${backendSlots.length - 8})`}
+            </button>
+          )}
         </div>
 
         {/* Ticket types */}
         <div className="bw-tickets">
           {TICKET_TYPES.map((ticket) => {
-            const isInvalid = ticket.minQty && qty[ticket.id] > 0 && qty[ticket.id] < ticket.minQty
+            const quantity = qty[ticket.id] || 0
+            const isInvalid = ticket.minQty && quantity > 0 && quantity < ticket.minQty
             return (
               <div key={ticket.id} className={`bw-ticket-row ${isInvalid ? 'bw-ticket-row-invalid' : ''}`}>
                 <div className="bw-ticket-info">
@@ -347,13 +392,13 @@ function BookingWidget({ experience, cartItems, onAddToCart }) {
                 <div className="bw-ticket-right">
                   <span className="bw-ticket-price">${ticket.price.toFixed(2)}</span>
                   <div className="bw-qty">
-                    <button className="bw-qty-btn" onClick={() => changeQty(ticket, -1)} disabled={qty[ticket.id] === 0} type="button">−</button>
+                    <button className="bw-qty-btn" onClick={() => changeQty(ticket, -1)} disabled={quantity === 0} type="button">−</button>
                     <input
                       className="bw-qty-num"
                       type="text"
                       min="0"
                       inputMode="numeric"
-                      value={rawQty[ticket.id] !== undefined ? rawQty[ticket.id] : qty[ticket.id]}
+                      value={rawQty[ticket.id] !== undefined ? rawQty[ticket.id] : quantity}
                       onChange={(event) => setTicketQty(ticket, event.target.value)}
                       onBlur={() => commitTicketQty(ticket)}
                       aria-label={`${ticket.label} quantity`}
@@ -390,7 +435,16 @@ function BookingWidget({ experience, cartItems, onAddToCart }) {
             ? `$${totalPrice.toFixed(2)} - Add to Cart`
             : 'Add to Cart'}
         </button>
-        {addedMessage && <div className="bw-added-message">{addedMessage}</div>}
+        {showAddedNotice && (
+          <div className="bw-added-notice-overlay" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label="Cart updated">
+            <div className="bw-added-notice">
+              <button className="bw-added-notice-close" onClick={() => setShowAddedNotice(false)} type="button" aria-label="Close cart notice">Cancel</button>
+              <div className="bw-added-notice-icon"><CartIcon /></div>
+              <h3>Added to shopping cart</h3>
+              <p>Your selected tickets were added successfully.</p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -593,7 +647,7 @@ function ExperienceDetailPage({
               </li>
               <li>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                <strong>Hours:</strong> Sun–Thu 10 AM–9 PM · Fri–Sat 10 AM–10 PM
+                <strong>Hours:</strong> Sun–Thu 10 AM–7 PM · Fri–Sat 10 AM–8 PM
               </li>
             </ul>
           </section>

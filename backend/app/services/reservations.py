@@ -386,9 +386,18 @@ async def _validate_capacity(checkout: CheckoutOrder) -> None:
         slots = await public_catalog_service.available_slots(str(item.event_id), item.slot_date)
         slot = next((row for row in slots if row.id == item.slot_id), None)
         if slot is None:
-            raise HTTPException(status_code=409, detail="Selected time is no longer available.")
+            raise HTTPException(status_code=409, detail=f"No tickets are left for {item.event_name} {item.slot_time}.")
+        if item.ticket_type_id is not None:
+            matching_ticket = next(
+                (ticket for ticket in slot.ticket_types if str(ticket.id) == str(item.ticket_type_id)),
+                None,
+            )
+            if matching_ticket is None:
+                raise HTTPException(status_code=409, detail="Selected ticket type is not available for this time.")
+            if _money(item.unit_price) != _money(matching_ticket.price):
+                raise HTTPException(status_code=400, detail="Ticket price no longer matches this time.")
         if item.quantity > slot.available_seats:
-            raise HTTPException(status_code=409, detail=f"Only {slot.available_seats} tickets are left for {item.slot_time}.")
+            raise HTTPException(status_code=409, detail=f"Only {slot.available_seats} tickets are left for {item.event_name} {item.slot_time}.")
 
 
 def _reservation_response(order: dict[str, Any]) -> dict[str, Any]:

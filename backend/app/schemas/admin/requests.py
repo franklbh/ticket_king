@@ -14,10 +14,18 @@ class CustomerInput(BaseModel):
 
 
 class WalkInTicketInput(BaseModel):
+    event_id: int | str | None = Field(default=None, alias="eventId")
+    event_name: str | None = Field(default=None, alias="eventName")
+    slot_id: int | str | None = Field(default=None, alias="slotId")
+    slot_date: str | None = Field(default=None, alias="slotDate")
+    slot_start_time: str | None = Field(default=None, alias="slotStartTime")
+    slot_end_time: str | None = Field(default=None, alias="slotEndTime")
     ticket_type_id: int | str | None = None
     ticket_type: str
     quantity: int = Field(gt=0)
     unit_price: float = Field(ge=0)
+
+    model_config = {"populate_by_name": True}
 
 
 class WalkInOrderCreate(BaseModel):

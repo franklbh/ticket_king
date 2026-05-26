@@ -2861,8 +2861,14 @@ small { color: #7c6157; }
     padding: 20px !important;
   }
 
-  .crt-promo-card-inline > div {
+  .crt-promo-card-inline > div:not(.combo-banner) {
     grid-template-columns: 1fr 86px !important;
+  }
+
+  .crt-promo-card-inline > .combo-banner {
+    padding: 9px 10px !important;
+    font-size: 12px !important;
+    line-height: 1.35 !important;
   }
 
   .crt-contact-panel {
@@ -2896,11 +2902,36 @@ small { color: #7c6157; }
   }
 
   .crt-title-row h2 {
-    font-size: 24px !important;
+    font-size: 22px !important;
   }
 
   .crt-title-row > span {
+    padding: 5px 8px !important;
+    font-size: 11px !important;
+  }
+
+  .crt-flowbar {
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+    gap: 4px !important;
+  }
+
+  .crt-flow-node {
+    gap: 4px !important;
+  }
+
+  .crt-flow-node > span {
+    width: 30px !important;
+    height: 30px !important;
+    font-size: 13px !important;
+  }
+
+  .crt-flow-node strong {
     font-size: 12px !important;
+  }
+
+  .crt-flow-node small {
+    display: none !important;
   }
 
   .crt-workspace {
@@ -4890,6 +4921,24 @@ small { color: #7c6157; }
   background: #111 !important;
   border-color: #111 !important;
   color: #fff !important;
+}
+
+.bw-expand-slots {
+  grid-column: 1 / -1;
+  min-height: 42px;
+  border: 1.5px dashed rgba(99, 102, 241, 0.42);
+  border-radius: 12px;
+  background: rgba(99, 102, 241, 0.06);
+  color: #4f46e5;
+  font: 800 14px/1.2 'Proza Libre', system-ui, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.bw-expand-slots:hover {
+  background: rgba(99, 102, 241, 0.12);
+  border-color: rgba(99, 102, 241, 0.7);
+  color: #3730a3;
 }
 
 /* Tickets */
@@ -10437,12 +10486,73 @@ body:has(#booking) {
   opacity: 0.75 !important;
 }
 
-.bw-added-message {
-  margin-top: 10px;
-  color: #047857;
-  font-size: 13px;
-  font-weight: 800;
+.bw-added-notice-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.42);
+  backdrop-filter: blur(6px);
+}
+
+.bw-added-notice {
+  position: relative;
+  width: min(430px, 100%);
+  border: 1px solid #bdebdc;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 30px 80px rgba(15, 23, 42, 0.24);
+  padding: 56px 28px 28px;
   text-align: center;
+}
+
+.bw-added-notice-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  min-height: 36px;
+  border: 1px solid #d8deeb;
+  border-radius: 8px;
+  background: #fff;
+  color: #334155;
+  padding: 0 14px;
+  font-size: 14px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.bw-added-notice-close:hover {
+  border-color: #86efac;
+  color: #047857;
+}
+
+.bw-added-notice-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 999px;
+  margin: 0 auto 16px;
+  display: grid;
+  place-items: center;
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.bw-added-notice h3 {
+  margin: 0;
+  color: #111827;
+  font-size: 25px;
+  font-weight: 950;
+  line-height: 1.15;
+}
+
+.bw-added-notice p {
+  margin: 10px 0 0;
+  color: #64748b;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.45;
 }
 
 .crt-warning,
@@ -11101,10 +11211,17 @@ body:has(#booking) {
   font-weight: 750;
 }
 
+.crt-sum-row > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .crt-sum-row strong {
+  flex-shrink: 0;
   color: #111827;
   font-size: 13px;
   font-weight: 850;
+  text-align: right;
 }
 
 .crt-sum-muted {
@@ -12820,10 +12937,27 @@ body:has(#booking) {
   font-weight: 900;
 }
 
-.crt-promo-card-inline > div {
+.crt-promo-card-inline > div:not(.combo-banner) {
   display: grid;
   grid-template-columns: 1fr 74px;
   gap: 8px;
+}
+
+.crt-promo-card-inline > .combo-banner {
+  display: block;
+  min-width: 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+  padding: 10px 12px;
+  color: #334155;
+  font-family: 'Proza Libre', serif;
+  font-size: 13px;
+  font-weight: 850;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .crt-promo-card-inline input {
@@ -14351,6 +14485,41 @@ body:has(.btk-page) .topbar {
   font-weight: 850;
 }
 
+.btk-summary-line > span:first-child {
+  min-width: 0;
+}
+
+.btk-summary-line > strong {
+  flex: 0 0 auto;
+}
+
+.btk-summary-item-label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.btk-summary-item-label strong {
+  color: #111827;
+  font-size: 13px;
+  font-weight: 950;
+  line-height: 1.25;
+}
+
+.btk-summary-item-label small {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.btk-summary-item-label span {
+  color: #111827;
+  font-size: 12px;
+  font-weight: 850;
+  line-height: 1.25;
+}
+
 .btk-summary-line.muted {
   color: #64748b;
 }
@@ -14478,6 +14647,71 @@ body:has(.btk-page) .topbar {
 
 .btk-added-actions .btk-secondary {
   margin-top: 0;
+}
+
+.crt-alipay-notice-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.44);
+  backdrop-filter: blur(6px);
+}
+
+.crt-alipay-notice {
+  position: relative;
+  width: min(460px, 100%);
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 30px 80px rgba(15, 23, 42, 0.24);
+  padding: 56px 30px 30px;
+  text-align: center;
+}
+
+.crt-alipay-notice .crt-method-logo.alipay {
+  width: 58px;
+  height: 58px;
+  margin: 0 auto 18px;
+  font-size: 36px;
+}
+
+.crt-alipay-notice h3 {
+  margin: 0;
+  color: #111827;
+  font-size: 26px;
+  font-weight: 950;
+  line-height: 1.15;
+}
+
+.crt-alipay-notice p {
+  margin: 12px 0 0;
+  color: #475569;
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1.55;
+}
+
+.crt-alipay-notice-cancel {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  min-height: 36px;
+  border: 1px solid #d8deeb;
+  border-radius: 8px;
+  background: #fff;
+  color: #334155;
+  padding: 0 14px;
+  font-size: 14px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.crt-alipay-notice-cancel:hover {
+  border-color: #93c5fd;
+  color: #0f5ec7;
 }
 
 .btk-cart-callout {
@@ -14715,6 +14949,18 @@ body:has(.btk-page) .topbar {
 
   .btk-added-actions {
     grid-template-columns: 1fr;
+  }
+
+  .crt-alipay-notice {
+    padding: 54px 20px 24px;
+  }
+
+  .crt-alipay-notice h3 {
+    font-size: 23px;
+  }
+
+  .crt-alipay-notice p {
+    font-size: 15px;
   }
 }
 
@@ -15443,8 +15689,10 @@ body:has(.btk-page) .topbar {
 .processing-fee-label {
   display: inline-flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
   min-width: 0;
+  line-height: 1.25;
 }
 
 .processing-fee-help {
@@ -15466,7 +15714,7 @@ body:has(.btk-page) .topbar {
   font-size: 12px;
   font-weight: 950;
   line-height: 1;
-  cursor: help;
+  cursor: pointer;
 }
 
 .processing-fee-icon:focus-visible {
@@ -15503,35 +15751,125 @@ body:has(.btk-page) .topbar {
   border-top-color: #111827;
 }
 
-.processing-fee-help:hover .processing-fee-tooltip,
-.processing-fee-help:focus-within .processing-fee-tooltip {
+.processing-fee-help.is-open .processing-fee-tooltip {
   display: block;
 }
 
+@media (hover: hover) and (pointer: fine) {
+  .processing-fee-icon:hover + .processing-fee-tooltip {
+    display: block;
+  }
+}
+
+.combo-deal-label {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.combo-deal-help {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+.combo-deal-icon {
+  display: inline-grid;
+  width: 17px;
+  height: 17px;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: #64748b;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 950;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.combo-deal-icon:focus-visible {
+  outline: 3px solid rgba(100,116,139,0.24);
+  outline-offset: 2px;
+}
+
+.combo-deal-tooltip {
+  position: absolute;
+  z-index: 80;
+  left: 50%;
+  bottom: calc(100% + 9px);
+  display: none;
+  width: min(292px, 72vw);
+  transform: translateX(-50%);
+  border-radius: 10px;
+  background: #111827;
+  color: #fff;
+  padding: 10px 12px;
+  box-shadow: 0 12px 28px rgba(15,23,42,0.24);
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1.35;
+  text-align: left;
+  white-space: normal;
+}
+
+.combo-deal-tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: #111827;
+}
+
+.combo-deal-help.is-open .combo-deal-tooltip {
+  display: block;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .combo-deal-icon:hover + .combo-deal-tooltip {
+    display: block;
+  }
+}
+
 @media (max-width: 768px) {
-  .btk-summary-line .processing-fee-tooltip,
-  .crt-sum-row .processing-fee-tooltip {
-    position: absolute;
-    left: calc(100% + 8px);
-    right: auto;
-    top: 50%;
+  .crt-sum-row {
+    align-items: flex-start;
+    gap: 10px !important;
+  }
+
+  .crt-sum-row > span {
+    flex: 1 1 auto;
+  }
+
+  .combo-deal-label,
+  .processing-fee-label {
+    max-width: 100%;
+    gap: 5px;
+  }
+
+  .combo-deal-tooltip,
+  .processing-fee-tooltip {
+    left: auto;
+    right: 0;
+    top: calc(100% + 8px);
     bottom: auto;
-    width: clamp(140px, 38vw, 188px);
-    max-width: calc(100vw - 230px);
-    min-width: 0;
-    transform: translateY(-50%);
+    width: min(236px, calc(100vw - 76px));
+    max-width: calc(100vw - 76px);
+    transform: none;
     border-radius: 8px;
     padding: 8px 10px;
     font-size: 11px;
     line-height: 1.3;
-    overflow-wrap: normal;
-    white-space: normal;
-    word-break: normal;
-    writing-mode: horizontal-tb;
   }
 
-  .btk-summary-line .processing-fee-tooltip::after,
-  .crt-sum-row .processing-fee-tooltip::after {
+  .combo-deal-tooltip::after,
+  .processing-fee-tooltip::after {
     display: none;
   }
 }
@@ -16589,5 +16927,184 @@ body:has(.btk-page) .topbar {
     width: 64px !important;
     height: 64px !important;
     font-size: 38px !important;
+  }
+}
+
+/* Final mobile cart modal pass: keep header, stepper, summary, and tooltips inside the viewport. */
+@media (max-width: 760px) {
+  .crt-overlay {
+    align-items: flex-start !important;
+    padding: 10px !important;
+    overflow-y: auto !important;
+  }
+
+  .crt-panel {
+    width: min(100%, calc(100vw - 20px)) !important;
+    max-width: calc(100vw - 20px) !important;
+    height: auto !important;
+    max-height: calc(100dvh - 20px) !important;
+    overflow-x: hidden !important;
+  }
+
+  .crt-shell-top {
+    min-height: 64px !important;
+    padding: 14px 16px 12px !important;
+    gap: 10px !important;
+  }
+
+  .crt-title-row {
+    gap: 10px !important;
+  }
+
+  .crt-title-row h2 {
+    font-size: clamp(24px, 7vw, 30px) !important;
+    white-space: nowrap !important;
+  }
+
+  .crt-title-row > span {
+    padding: 5px 10px !important;
+    font-size: 13px !important;
+    white-space: nowrap !important;
+  }
+
+  .crt-close {
+    width: 38px !important;
+    height: 38px !important;
+    flex: 0 0 auto !important;
+  }
+
+  .crt-flowbar {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    min-height: 86px !important;
+    gap: 6px !important;
+    overflow: hidden !important;
+    padding: 16px 10px 0 !important;
+  }
+
+  .crt-flow-node {
+    min-width: 0 !important;
+    gap: 6px !important;
+    padding-bottom: 15px !important;
+  }
+
+  .crt-flow-node::after {
+    display: none !important;
+  }
+
+  .crt-flow-node > span {
+    width: 34px !important;
+    height: 34px !important;
+    font-size: 14px !important;
+  }
+
+  .crt-flow-node strong {
+    font-size: 13px !important;
+    line-height: 1.1 !important;
+    overflow-wrap: anywhere !important;
+  }
+
+  .crt-flow-node small {
+    font-size: 10px !important;
+    line-height: 1.15 !important;
+    overflow-wrap: anywhere !important;
+  }
+
+  .crt-workspace {
+    padding: 16px 12px 18px !important;
+    gap: 16px !important;
+    overflow-x: hidden !important;
+  }
+
+  .crt-side,
+  .crt-summary-card {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+
+  .crt-summary-card {
+    padding: 20px 18px !important;
+  }
+
+  .crt-summary-card h3 {
+    font-size: clamp(24px, 7vw, 30px) !important;
+  }
+
+  .crt-sum-row {
+    gap: 8px !important;
+    font-size: 14px !important;
+  }
+
+  .crt-sum-row strong {
+    font-size: 14px !important;
+    white-space: nowrap !important;
+  }
+
+  .combo-deal-label,
+  .processing-fee-label {
+    gap: 5px !important;
+    line-height: 1.25 !important;
+  }
+
+  .combo-deal-icon,
+  .processing-fee-icon {
+    width: 18px !important;
+    height: 18px !important;
+    flex: 0 0 18px !important;
+  }
+
+  .combo-deal-help,
+  .processing-fee-help {
+    position: static !important;
+    display: contents !important;
+  }
+
+  .combo-deal-tooltip,
+  .crt-sum-row .processing-fee-tooltip {
+    position: static !important;
+    flex: 1 0 100% !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-top: 6px !important;
+    transform: none !important;
+    padding: 8px 10px !important;
+    font-size: 11px !important;
+    line-height: 1.3 !important;
+    white-space: normal !important;
+    overflow-wrap: anywhere !important;
+  }
+
+  .combo-deal-tooltip::after,
+  .crt-sum-row .processing-fee-tooltip::after {
+    display: none !important;
+  }
+}
+
+@media (max-width: 390px) {
+  .crt-shell-top {
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+  }
+
+  .crt-title-row {
+    gap: 8px !important;
+  }
+
+  .crt-title-row h2 {
+    font-size: 24px !important;
+  }
+
+  .crt-title-row > span {
+    font-size: 12px !important;
+  }
+
+  .crt-summary-card {
+    padding: 18px 16px !important;
+  }
+
+  .combo-deal-tooltip,
+  .crt-sum-row .processing-fee-tooltip {
+    width: min(200px, calc(100vw - 88px)) !important;
+    max-width: calc(100vw - 88px) !important;
   }
 }

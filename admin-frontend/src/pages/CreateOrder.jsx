@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Button from '@mui/material/Button'
 import Checkbox from '@mui/material/Checkbox'
 import FormControlLabel from '@mui/material/FormControlLabel'
@@ -23,6 +23,56 @@ const PAYMENT_METHODS = [
   { id: 'Other', label: 'Other', icon: 'fa-ellipsis-h' },
 ]
 const GST_RATE = 0.05
+const FINAL_STEP_REMINDER_MS = 5 * 60 * 1000
+
+function buildThemeOptions(events, availableSlots) {
+  const slotCountByEvent = availableSlots.reduce((counts, slot) => {
+    const eventId = String(slot.event)
+    counts.set(eventId, (counts.get(eventId) || 0) + 1)
+    return counts
+  }, new Map())
+
+  const activeEventsWithSlots = events
+    .filter(event => String(event.status || 'active').toLowerCase() === 'active')
+    .filter(event => slotCountByEvent.has(String(event.id)))
+
+  return activeEventsWithSlots.map(event => {
+    const eventId = String(event.id)
+    return {
+      key: `event-${eventId}`,
+      eventId,
+      name: event.name,
+      count: slotCountByEvent.get(eventId) || 0,
+    }
+  })
+}
+
+const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+function minutesFromTime(value) {
+  const [hours = '0', minutes = '0'] = String(value || '').slice(0, 5).split(':')
+  return Number(hours) * 60 + Number(minutes)
+}
+
+function weekdayForDate(dateKey) {
+  return DAY_LABELS[new Date(`${dateKey}T12:00:00`).getDay()]
+}
+
+function ticketTypeMatchesSlot(ticketType, slot) {
+  if (!slot) return false
+  if (String(ticketType.status || '').toLowerCase() !== 'enabled') return false
+  if (String(ticketType.event) !== String(slot.event)) return false
+  if (ticketType.validFrom && slot.date < ticketType.validFrom) return false
+  if (ticketType.validTo && slot.date > ticketType.validTo) return false
+
+  const weekday = weekdayForDate(slot.date)
+  if (Array.isArray(ticketType.weekdays) && ticketType.weekdays.length && !ticketType.weekdays.includes(weekday)) return false
+
+  const slotStart = minutesFromTime(slot.startTime)
+  const typeStart = minutesFromTime(ticketType.timeStart)
+  const typeEnd = minutesFromTime(ticketType.timeEnd)
+  return slotStart >= typeStart && slotStart <= typeEnd
+}
 
 function dateKeyFromDate(date) {
   const year = date.getFullYear()
@@ -109,7 +159,7 @@ export default function CreateOrder() {
   const [datePickerMonth, setDatePickerMonth] = useState(() => monthStartFromDateKey(todayIso()))
   const [selectedTheme, setSelectedTheme] = useState('')
   const [selectedSlot, setSelectedSlot] = useState(null)
-  const [ticketSelections, setTicketSelections] = useState({})
+  const [cartItems, setCartItems] = useState([])
   const [customer, setCustomer] = useState({ firstName: '', lastName: '', phone: '', email: '', remarks: '' })
   const [payment, setPayment] = useState('')
   const [markUsed, setMarkUsed] = useState(false)
@@ -123,6 +173,8 @@ export default function CreateOrder() {
   const [orderComplete, setOrderComplete] = useState(false)
   const [lastOrderId, setLastOrderId] = useState(null)
   const [submitError, setSubmitError] = useState(null)
+  const [completionReminderOpen, setCompletionReminderOpen] = useState(false)
+  const [completionReminderDismissed, setCompletionReminderDismissed] = useState(false)
   const { data: slots = [], error: slotsError, loading: loadingSlots } = useSlotsQuery(
     selectedDate ? { dateFrom: selectedDate, dateTo: selectedDate } : {},
     { initialData: [], enabled: Boolean(selectedDate) }
@@ -137,47 +189,100 @@ export default function CreateOrder() {
   })
 
   const availableSlots = selectedDate ? slots.filter(s => s.date === selectedDate && s.status === 'active') : []
-  const themeOptions = events
-    .filter(event => String(event.status || 'active').toLowerCase() === 'active')
-    .filter(event => availableSlots.some(slot => String(slot.event) === String(event.id)))
+  const themeOptions = buildThemeOptions(events, availableSlots)
+  const selectedThemeOption = themeOptions.find(option => option.key === selectedTheme)
+  const selectedEventId = selectedThemeOption?.eventId || ''
   const selectedThemeSlots = selectedTheme
-    ? availableSlots.filter(slot => String(slot.event) === String(selectedTheme))
+    ? availableSlots.filter(slot => String(slot.event) === String(selectedEventId))
     : []
-  const themeNameById = new Map(events.map(event => [String(event.id), event.name]))
+  const themeNameByKey = new Map(themeOptions.map(option => [option.key, option.name]))
+  const eventNameById = new Map(events.map(event => [String(event.id), event.name]))
   const matchingTypeRows = selectedTheme
-    ? ticketTypes.filter(tp => String(tp.event) === String(selectedTheme))
+    ? ticketTypes.filter(tp => String(tp.event) === String(selectedEventId))
     : ticketTypes
   const enabledTypes = dedupeBy(
-    (matchingTypeRows.length ? matchingTypeRows : ticketTypes).filter(tp => tp.status === 'enabled'),
+    (selectedSlot ? matchingTypeRows.filter(tp => ticketTypeMatchesSlot(tp, selectedSlot)) : [])
+      .sort((a, b) => Number(a.id) - Number(b.id)),
     tp => tp.name
   )
 
-  function handleThemeSelect(eventId) {
-    if (String(eventId) === String(selectedTheme)) return
-    setSelectedTheme(String(eventId))
+  function slotLabel(slot) {
+    if (!slot) return ''
+    return `${slot.date} ${slot.startTime}-${slot.endTime}`
+  }
+
+  function cartLineKey(slot, ticketTypeId) {
+    return `${slot.id}:${ticketTypeId}`
+  }
+
+  function ticketUnitPrice(ticketType, slot) {
+    return ticketType.priceType === 'fixed'
+      ? (ticketType.price || 0)
+      : (slot?.price || 37.95) + (ticketType.priceAdj || 0)
+  }
+
+  function slotRemaining(slot) {
+    if (!slot) return 0
+    const sold = Number(slot.websiteSeats || 0) + Number(slot.inStoreSeats || 0)
+    return Math.max(0, Number(slot.totalSeats || 0) - sold)
+  }
+
+  function selectedSlotCount(ticketTypeId) {
+    if (!selectedSlot) return 0
+    return cartItems.find(item => item.key === cartLineKey(selectedSlot, ticketTypeId))?.quantity || 0
+  }
+
+  function handleThemeSelect(themeKey) {
+    if (String(themeKey) === String(selectedTheme)) return
+    setSelectedTheme(String(themeKey))
     setSelectedSlot(null)
-    setTicketSelections({})
-    clearCheckoutAdjustments()
   }
 
   function handleSlotSelect(slot) {
     setSelectedSlot(slot)
-    setSelectedTheme(String(slot.event || selectedTheme))
-    setTicketSelections({})
-    clearCheckoutAdjustments()
+    const themeForSlot = themeOptions.find(option => option.eventId === String(slot.event))
+    setSelectedTheme(themeForSlot?.key || selectedTheme)
   }
 
   function updateTicketCount(typeId, delta) {
+    if (!selectedSlot) return
+    const type = enabledTypes.find(t => String(t.id) === String(typeId))
+    if (!type) return
     clearCheckoutAdjustments()
-    setTicketSelections(prev => {
-      const current = prev[typeId] || 0
+    setCartItems(prev => {
+      const key = cartLineKey(selectedSlot, typeId)
+      const current = prev.find(item => item.key === key)?.quantity || 0
       const next = Math.max(0, current + delta)
-      if (next === 0) {
-        const { [typeId]: _, ...rest } = prev
-        return rest
+      const otherQtyInSlot = prev
+        .filter(item => String(item.slotId) === String(selectedSlot.id) && item.key !== key)
+        .reduce((sum, item) => sum + item.quantity, 0)
+      const cappedNext = Math.min(next, Math.max(0, slotRemaining(selectedSlot) - otherQtyInSlot))
+      if (cappedNext === 0) {
+        return prev.filter(item => item.key !== key)
       }
-      return { ...prev, [typeId]: next }
+      const unitPrice = ticketUnitPrice(type, selectedSlot)
+      const line = {
+        key,
+        eventId: selectedSlot.event,
+        eventName: eventNameById.get(String(selectedSlot.event)) || selectedThemeOption?.name || 'Event',
+        slotId: selectedSlot.id,
+        slotDate: selectedSlot.date,
+        slotStartTime: selectedSlot.startTime,
+        slotEndTime: selectedSlot.endTime,
+        ticketTypeId: type.id,
+        ticketType: type.name,
+        quantity: cappedNext,
+        unitPrice: Number(unitPrice.toFixed(2)),
+      }
+      return prev.some(item => item.key === key)
+        ? prev.map(item => item.key === key ? line : item)
+        : [...prev, line]
     })
+  }
+
+  function removeCartItem(key) {
+    clearCheckoutAdjustments()
+    setCartItems(prev => prev.filter(item => item.key !== key))
   }
 
   function clearCheckoutAdjustments() {
@@ -195,8 +300,6 @@ export default function CreateOrder() {
     setDatePickerMonth(monthStartFromDateKey(value))
     setSelectedTheme('')
     setSelectedSlot(null)
-    setTicketSelections({})
-    clearCheckoutAdjustments()
   }
 
   function openDatePicker() {
@@ -221,13 +324,8 @@ export default function CreateOrder() {
     setDatePickerOpen(false)
   }
 
-  const totalTickets = Object.values(ticketSelections).reduce((s, v) => s + v, 0)
-  const totalAmount = Object.entries(ticketSelections).reduce((sum, [typeId, count]) => {
-    const tp = enabledTypes.find(t => String(t.id) === String(typeId))
-    if (!tp) return sum
-    const price = tp.priceType === 'fixed' ? (tp.price || 0) : (selectedSlot?.price || 37.95) + (tp.priceAdj || 0)
-    return sum + price * count
-  }, 0)
+  const totalTickets = cartItems.reduce((s, item) => s + item.quantity, 0)
+  const totalAmount = cartItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0)
   const adjustedTicketAmount = manualFees ? manualFees.ticketTotal : totalAmount
   const addonAmount = manualFees ? manualFees.addonTotal : 0
   const platformFee = manualFees ? manualFees.platformFee : 0
@@ -248,37 +346,56 @@ export default function CreateOrder() {
     )
   })()
   const customerName = [customer.firstName, customer.lastName].filter(Boolean).join(' ')
-  const ticketValidationError = Object.entries(ticketSelections).reduce((message, [typeId, count]) => {
+  const ticketValidationError = cartItems.reduce((message, item) => {
     if (message) return message
-    const type = enabledTypes.find(t => String(t.id) === String(typeId))
-    if (!type) return ''
-    if (type.name.includes('Family Bundle') && count < 3) return 'Family Bundle requires at least 3 tickets.'
-    if (type.name.includes('Group Ticket') && count < 6) return 'Group Ticket requires at least 6 tickets.'
+    if (/group/i.test(item.ticketType) && item.quantity < 6) return `${item.ticketType} requires at least 6 tickets.`
     return ''
   }, '')
 
+  useEffect(() => {
+    if (step !== 4 || orderComplete || creatingOrder || completionReminderOpen || completionReminderDismissed) {
+      return undefined
+    }
+
+    const reminderTimer = window.setTimeout(() => {
+      setCompletionReminderOpen(true)
+      setCompletionReminderDismissed(true)
+    }, FINAL_STEP_REMINDER_MS)
+
+    return () => window.clearTimeout(reminderTimer)
+  }, [completionReminderDismissed, completionReminderOpen, creatingOrder, orderComplete, step])
+
+  useEffect(() => {
+    if (step !== 4) {
+      setCompletionReminderOpen(false)
+      setCompletionReminderDismissed(false)
+    }
+  }, [step])
+
   async function handleConfirm() {
     setSubmitError(null)
-    const tickets = Object.entries(ticketSelections)
-      .map(([typeId, quantity]) => {
-        const type = enabledTypes.find(t => String(t.id) === String(typeId))
-        if (!type) return null
-        const unitPrice = type.priceType === 'fixed' ? (type.price || 0) : (selectedSlot?.price || 37.95) + (type.priceAdj || 0)
-        return {
-          ticket_type_id: type.id,
-          ticket_type: type.name,
-          quantity,
-          unit_price: Number(unitPrice.toFixed(2)),
-        }
-      })
-      .filter(Boolean)
+    setCompletionReminderOpen(false)
+    setCompletionReminderDismissed(true)
+    const tickets = cartItems.map(item => ({
+      event_id: item.eventId,
+      event_name: item.eventName,
+      slot_id: item.slotId,
+      slot_date: item.slotDate,
+      slot_start_time: item.slotStartTime,
+      slot_end_time: item.slotEndTime,
+      ticket_type_id: item.ticketTypeId,
+      ticket_type: item.ticketType,
+      quantity: item.quantity,
+      unit_price: item.unitPrice,
+    }))
+    const firstItem = cartItems[0]
 
     try {
       const created = await createOrderMutation({
-        slot_id: selectedSlot.id,
-        slot_date: selectedSlot.date,
-        slot_start_time: selectedSlot.startTime,
-        slot_end_time: selectedSlot.endTime,
+        slot_id: cartItems.length === 1 ? firstItem.slotId : null,
+        slot_date: firstItem?.slotDate || selectedDate,
+        slot_start_time: firstItem?.slotStartTime || null,
+        slot_end_time: firstItem?.slotEndTime || null,
         tickets,
         customer: {
           name: customerName || null,
@@ -306,9 +423,11 @@ export default function CreateOrder() {
 
   function resetOrder() {
     setStep(1)
+    setCompletionReminderOpen(false)
+    setCompletionReminderDismissed(false)
     setSelectedTheme('')
     setSelectedSlot(null)
-    setTicketSelections({})
+    setCartItems([])
     setCustomer({ firstName: '', lastName: '', phone: '', email: '', remarks: '' })
     setPayment('')
     setMarkUsed(false)
@@ -513,13 +632,12 @@ export default function CreateOrder() {
                   Select theme first
                 </div>
                 <div className="create-order-theme-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10 }}>
-                  {themeOptions.map(event => {
-                    const isSelected = String(selectedTheme) === String(event.id)
-                    const count = availableSlots.filter(slot => String(slot.event) === String(event.id)).length
+                  {themeOptions.map(option => {
+                    const isSelected = selectedTheme === option.key
                     return (
                       <button
-                        key={event.id}
-                        onClick={() => handleThemeSelect(event.id)}
+                        key={option.key}
+                        onClick={() => handleThemeSelect(option.key)}
                         type="button"
                         style={{
                           padding: '12px 14px',
@@ -530,9 +648,9 @@ export default function CreateOrder() {
                           cursor: 'pointer',
                         }}
                       >
-                        <div style={{ fontWeight: 800, color: '#111827' }}>{event.name}</div>
+                        <div style={{ fontWeight: 800, color: '#111827' }}>{option.name}</div>
                         <div style={{ marginTop: 4, fontSize: 12, color: '#64748b' }}>
-                          {count} time slot{count === 1 ? '' : 's'}
+                          {option.count} time slot{option.count === 1 ? '' : 's'}
                         </div>
                       </button>
                     )
@@ -551,7 +669,7 @@ export default function CreateOrder() {
               ) : (
                 <>
                   <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 8 }}>
-                    Time slots for {themeNameById.get(String(selectedTheme)) || 'selected theme'}
+                    Time slots for {themeNameByKey.get(selectedTheme) || 'selected theme'}
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
                     {selectedThemeSlots.map(slot => {
@@ -589,9 +707,18 @@ export default function CreateOrder() {
             </>
           )}
 
-          {selectedSlot && (
-            <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
-              <Button variant="contained" onClick={() => setStep(2)} endIcon={<i className="fa fa-arrow-right" />}>{t.next}</Button>
+          {(selectedSlot || totalTickets > 0) && (
+            <div style={{ marginTop: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <div style={{ fontSize: 13, color: '#64748b', fontWeight: 700 }}>
+                Cart: {totalTickets} ticket{totalTickets === 1 ? '' : 's'} · ${totalAmount.toFixed(2)}
+              </div>
+              <Button
+                variant="contained"
+                onClick={() => selectedSlot ? setStep(2) : setStep(3)}
+                endIcon={<i className="fa fa-arrow-right" />}
+              >
+                {selectedSlot ? 'Select Tickets' : 'Checkout'}
+              </Button>
             </div>
           )}
         </AdminCard>
@@ -600,13 +727,13 @@ export default function CreateOrder() {
       {/* Step 2: Select Tickets */}
       {step === 2 && (
         <AdminCard>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div className="create-order-ticket-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <h2 style={{ fontSize: 16, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
               <i className="fa fa-ticket" style={{ color: '#6366f1' }} />
               {t.step2}
             </h2>
-            <div style={{ fontSize: 13, color: '#6b7280' }}>
-              Selected: {selectedSlot.date} {selectedSlot.startTime}-{selectedSlot.endTime}
+            <div className="create-order-ticket-selected" style={{ fontSize: 13, color: '#6b7280' }}>
+              Selected: {slotLabel(selectedSlot)}
             </div>
           </div>
 
@@ -617,17 +744,17 @@ export default function CreateOrder() {
               </div>
             )}
             {enabledTypes.map(tp => {
-              const count = ticketSelections[tp.id] || 0
-              const price = tp.priceType === 'fixed' ? tp.price : (selectedSlot.price + (tp.priceAdj || 0))
+              const count = selectedSlotCount(tp.id)
+              const price = ticketUnitPrice(tp, selectedSlot)
               return (
-                <div key={tp.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', border: '1px solid #e5e7eb', borderRadius: 8, background: count > 0 ? '#fef2f2' : '#fff' }}>
-                  <div>
+                <div className="create-order-ticket-row" key={tp.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', border: '1px solid #e5e7eb', borderRadius: 8, background: count > 0 ? '#fef2f2' : '#fff' }}>
+                  <div className="create-order-ticket-info">
                     <div style={{ fontWeight: 600, fontSize: 14 }}>{tp.name}</div>
                     <div style={{ fontSize: 13, color: '#6b7280', marginTop: 2 }}>
                       ${price?.toFixed(2)} · 1 seat{tp.name.includes('Family Bundle') ? ' · Min: 3' : tp.name.includes('Group Ticket') ? ' · Min: 6' : ''}
                     </div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div className="create-order-ticket-controls" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <button
                       onClick={() => updateTicketCount(tp.id, -1)}
                       disabled={count === 0}
@@ -645,10 +772,29 @@ export default function CreateOrder() {
           </div>
 
           {totalTickets > 0 && (
-            <div style={{ marginTop: 16, padding: '12px 16px', background: '#f9fafb', borderRadius: 8, border: '1px solid #e5e7eb' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 16 }}>
-                <span>{t.total}: {totalTickets} tickets</span>
-                <span style={{ color: '#6366f1' }}>${totalAmount.toFixed(2)}</span>
+            <div className="create-order-cart-summary" style={{ marginTop: 16, padding: '12px 16px', background: '#f9fafb', borderRadius: 8, border: '1px solid #e5e7eb' }}>
+              <div className="create-order-cart-total" style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 16 }}>
+                <span>Cart Total: {totalTickets} tickets</span>
+                <span className="create-order-cart-total-amount" style={{ color: '#6366f1' }}>${totalAmount.toFixed(2)}</span>
+              </div>
+              <div className="create-order-cart-lines" style={{ display: 'grid', gap: 6, marginTop: 10 }}>
+                {cartItems.map(item => (
+                  <div className="create-order-cart-line" key={item.key} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 12, color: '#475569' }}>
+                    <span className="create-order-cart-line-text" style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {item.eventName} · {item.slotDate} {item.slotStartTime}-{item.slotEndTime} · {item.ticketType} × {item.quantity}
+                    </span>
+                    <button
+                      className="create-order-cart-remove"
+                      type="button"
+                      onClick={() => removeCartItem(item.key)}
+                      aria-label={`Remove ${item.ticketType} from cart`}
+                      title="Remove"
+                      style={{ border: '1px solid #fecaca', background: '#fff', color: '#dc2626', fontWeight: 800, cursor: 'pointer', flexShrink: 0, width: 28, height: 28, borderRadius: 999, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                    >
+                      <i className="fa fa-times" />
+                    </button>
+                  </div>
+                ))}
               </div>
               {ticketValidationError && (
                 <div style={{ marginTop: 8, color: '#b45309', fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -660,8 +806,8 @@ export default function CreateOrder() {
           )}
 
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 16 }}>
-            <Button variant="outlined" onClick={() => setStep(1)} startIcon={<i className="fa fa-arrow-left" />}>{t.back}</Button>
-            <Button variant="contained" onClick={() => setStep(3)} disabled={totalTickets === 0 || Boolean(ticketValidationError)} endIcon={<i className="fa fa-arrow-right" />}>{t.next}</Button>
+            <Button variant="outlined" onClick={() => setStep(1)} startIcon={<i className="fa fa-plus" />}>Add More</Button>
+            <Button variant="contained" onClick={() => setStep(3)} disabled={totalTickets === 0 || Boolean(ticketValidationError)} endIcon={<i className="fa fa-arrow-right" />}>Checkout</Button>
           </div>
         </AdminCard>
       )}
@@ -742,7 +888,7 @@ export default function CreateOrder() {
               <div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 10 }}>Order details</div>
                 <div style={{ display: 'grid', gap: 7, fontSize: 13, color: '#4b5563' }}>
-                  <div><strong style={{ color: '#111827' }}>Slot:</strong> {selectedSlot.date} · {selectedSlot.startTime}-{selectedSlot.endTime}</div>
+                  <div><strong style={{ color: '#111827' }}>Items:</strong> {cartItems.length} cart line{cartItems.length === 1 ? '' : 's'}</div>
                   <div><strong style={{ color: '#111827' }}>Customer:</strong> {customerName || 'Walk-in customer'}</div>
                   <div><strong style={{ color: '#111827' }}>Email:</strong> {customer.email || '-'}</div>
                   <div><strong style={{ color: '#111827' }}>Phone:</strong> {customer.phone || '-'}</div>
@@ -753,14 +899,14 @@ export default function CreateOrder() {
               <div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 10 }}>Amount summary</div>
                 <div style={{ display: 'grid', gap: 8 }}>
-                  {Object.entries(ticketSelections).map(([typeId, count]) => {
-                    const tp = enabledTypes.find(t => String(t.id) === String(typeId))
-                    if (!tp) return null
-                    const price = tp.priceType === 'fixed' ? tp.price : (selectedSlot.price + (tp.priceAdj || 0))
+                  {cartItems.map(item => {
                     return (
-                      <div key={typeId} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 13, color: '#4b5563' }}>
-                        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tp.name} × {count}</span>
-                        <span style={{ fontWeight: 600 }}>${(price * count).toFixed(2)}</span>
+                      <div key={item.key} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 13, color: '#4b5563' }}>
+                        <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {item.eventName} · {item.slotDate} {item.slotStartTime}-{item.slotEndTime}<br />
+                          {item.ticketType} × {item.quantity}
+                        </span>
+                        <span style={{ fontWeight: 600, flexShrink: 0 }}>${(item.unitPrice * item.quantity).toFixed(2)}</span>
                       </div>
                     )
                   })}
@@ -958,6 +1104,39 @@ export default function CreateOrder() {
                 sx={{ bgcolor: '#ef4444', '&:hover': { bgcolor: '#dc2626' } }}
               >
                 Yes, Modify Fees
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {completionReminderOpen && (
+        <div className="create-order-reminder-overlay" role="presentation">
+          <div className="create-order-reminder-modal" role="dialog" aria-modal="true" aria-labelledby="create-order-reminder-title">
+            <div className="create-order-reminder-header">
+              <h2 id="create-order-reminder-title">
+                <i className="fa fa-bell" />
+                Complete this order
+              </h2>
+              <button type="button" onClick={() => setCompletionReminderOpen(false)} aria-label="Close reminder">
+                <i className="fa fa-times" />
+              </button>
+            </div>
+            <div className="create-order-reminder-body">
+              <div className="create-order-reminder-warning">
+                <i className="fa fa-exclamation-circle" />
+                <span>
+                  This order has been on Step 4: Payment Method & Summary for more than 5 minutes. If payment is complete, press <strong>Create Order & Complete Payment</strong> so the order is not left hanging.
+                </span>
+              </div>
+            </div>
+            <div className="create-order-reminder-actions">
+              <Button
+                variant="contained"
+                onClick={() => setCompletionReminderOpen(false)}
+                startIcon={<i className="fa fa-check" />}
+              >
+                Got it
               </Button>
             </div>
           </div>

@@ -234,7 +234,7 @@ function MarketingPage({
           <div className="mkt-hero-meta">
             <span>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-              Sun–Thu 10AM–9PM &nbsp;·&nbsp; Fri–Sat 10AM–10PM
+              Sun–Thu 10AM–7PM &nbsp;·&nbsp; Fri–Sat 10AM–8PM
             </span>
             <a href={GOOGLE_MAPS_URL} target="_blank" rel="noreferrer">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>
@@ -360,8 +360,8 @@ function MarketingPage({
 
           <div className="footer-col">
             <h4 className="footer-col-title">{t('openingHours')}</h4>
-            <div className="footer-hours-row"><span className="footer-hours-day">{t('sundayThursday')} ...</span><span className="footer-hours-time">10AM – 9PM</span></div>
-            <div className="footer-hours-row"><span className="footer-hours-day">{t('fridaySaturday')} ...</span><span className="footer-hours-time">10AM – 10PM</span></div>
+            <div className="footer-hours-row"><span className="footer-hours-day">{t('sundayThursday')} ...</span><span className="footer-hours-time">10AM – 7PM</span></div>
+            <div className="footer-hours-row"><span className="footer-hours-day">{t('fridaySaturday')} ...</span><span className="footer-hours-time">10AM – 8PM</span></div>
             <h4 className="footer-col-title" style={{ marginTop: 28 }}>{t('contactUs')}</h4>
             <div className="footer-contact-row">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>

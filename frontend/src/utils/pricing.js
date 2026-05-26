@@ -12,9 +12,15 @@ export function hasSeniorTicket(experience) {
   return experience?.id === 'terracotta-warriors'
 }
 
-export function getSlotPricePeriod(date) {
+export function getSlotPricePeriod(experience, date) {
   if (!(date instanceof Date)) return 'weekday'
   const day = date.getDay()
+  if (experience?.id === 'terracotta-warriors') {
+    return day === 0 || day === 6 ? 'weekend' : 'weekday'
+  }
+  if (experience?.id === 'panda' || experience?.id === 'dragon' || experience?.category === 'arcade') {
+    return day === 5 || day === 6 ? 'weekend' : 'weekday'
+  }
   return day === 0 || day === 6 ? 'weekend' : 'weekday'
 }
 
@@ -28,7 +34,7 @@ export function getExperiencePriceTable(experience) {
 }
 
 export function getPricesForSlot(experience, date) {
-  const period = getSlotPricePeriod(date)
+  const period = getSlotPricePeriod(experience, date)
   const table = getExperiencePriceTable(experience)
   return table[period] || table.weekday || {}
 }

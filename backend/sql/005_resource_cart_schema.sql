@@ -102,17 +102,12 @@ set
 -- These rows are intentionally generic; admin screens can rename/display them later.
 insert into public.events (name, slug, status, created_at, updated_at)
 values
-  ('Terracotta Army VR', 'terracotta-warriors', 'active', now(), now()),
-<<<<<<< Updated upstream
+  ('Terracotta Warriors', 'terracotta-warriors', 'active', now(), now()),
   ('Panda''s World', 'panda-vr', 'active', now(), now()),
-  ('Back to the Jurassic', 'dino-vr', 'active', now(), now()),
-=======
-  ('Panda VR', 'panda-vr', 'active', now(), now()),
   ('Back to Jurassic', 'dino-vr', 'active', now(), now()),
->>>>>>> Stashed changes
-  ('Game A', 'game-a', 'active', now(), now()),
-  ('Game B', 'game-b', 'archived', now(), now()),
-  ('Game C', 'game-c', 'archived', now(), now())
+  ('Hero', 'game-a', 'active', now(), now()),
+  ('HyperBeat Slash', 'game-b', 'active', now(), now()),
+  ('Gulu Gulu', 'game-c', 'active', now(), now())
 on conflict (slug) do update
 set
   name = excluded.name,
@@ -127,7 +122,7 @@ set
   content_mode = 'vr',
   headset_brand = 'htc',
   vr_room_mode = 'htc',
-  duration_minutes = 45,
+  duration_minutes = 30,
   updated_at = now()
 where slug in ('terracotta-warriors', 'terracotta-army-vr', 'terracotta-warriors-vr');
 
@@ -137,15 +132,7 @@ set
   content_mode = 'vr',
   headset_brand = 'pico',
   vr_room_mode = 'pico',
-<<<<<<< Updated upstream
-  duration_minutes = case
-    when slug = 'panda-vr' then 25
-    when slug = 'dino-vr' then 30
-    else duration_minutes
-  end,
-=======
   duration_minutes = 30,
->>>>>>> Stashed changes
   updated_at = now()
 where slug in ('panda-vr', 'dino-vr');
 
@@ -155,11 +142,7 @@ set
   content_mode = 'game',
   headset_brand = 'pico',
   vr_room_mode = 'none',
-<<<<<<< Updated upstream
-  duration_minutes = 10,
-=======
   duration_minutes = 15,
->>>>>>> Stashed changes
   updated_at = now()
 where slug in ('game-a', 'game-b', 'game-c');
 

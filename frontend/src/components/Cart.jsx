@@ -4,6 +4,7 @@ import { loadStripe } from '@stripe/stripe-js'
 import BrandLogo from './BrandLogo'
 import { qrPlaceholder } from '../data/showData'
 import { allExperiences } from '../data/experiences'
+import { minQtyForTicket } from '../utils/tickets'
 import { formatNorthAmericanPhone } from '../utils/validation'
 
 const BACKEND = import.meta.env.VITE_BACKEND_BASE || 'http://localhost:8000'
@@ -237,20 +238,54 @@ function SummaryRow({ label, value, muted, bold }) {
   )
 }
 
-function ProcessingFeeLabel() {
+function ProcessingFeeLabel({ open = false, onToggle }) {
+  const tooltipId = 'cart-processing-fee-tooltip'
   return (
     <span className="processing-fee-label">
       Processing fee
-      <span className="processing-fee-help">
+      <span className={`processing-fee-help ${open ? 'is-open' : ''}`}>
         <button
           className="processing-fee-icon"
           type="button"
           aria-label="Processing fee details"
+          aria-expanded={open}
+          aria-describedby={tooltipId}
+          onClick={(event) => {
+            event.stopPropagation()
+            onToggle?.()
+          }}
         >
           !
         </button>
-        <span className="processing-fee-tooltip" role="tooltip">
+        <span className="processing-fee-tooltip" id={tooltipId} role="tooltip">
           Includes a $1.80 platform fee per ticket plus a 2.5% payment processing fee.
+        </span>
+      </span>
+    </span>
+  )
+}
+
+function ComboDealLabel({ open = false, onToggle }) {
+  const tooltipId = 'cart-combo-deal-tooltip'
+  return (
+    <span className="combo-deal-label">
+      Combo Deal (10% off)
+      <span className={`combo-deal-help ${open ? 'is-open' : ''}`}>
+        <button
+          className="combo-deal-icon"
+          type="button"
+          aria-label="Combo deal details"
+          aria-expanded={open}
+          aria-describedby={tooltipId}
+          onClick={(event) => {
+            event.stopPropagation()
+            onToggle?.()
+          }}
+        >
+          !
+        </button>
+        <span className="combo-deal-tooltip" id={tooltipId} role="tooltip">
+          Book Panda&apos;s World and/or Back to Jurassic with any game to unlock this combo discount.
         </span>
       </span>
     </span>
@@ -421,15 +456,24 @@ export default function Cart({
   const [qrImage, setQrImage] = useState('')
   const [qrOrder, setQrOrder] = useState(null)
   const [qrLoading, setQrLoading] = useState(false)
+  const [showAlipayNotice, setShowAlipayNotice] = useState(false)
   const [confirmed, setConfirmed] = useState(null)
   const [reservation, setReservation] = useState(null)
   const [reservationLoading, setReservationLoading] = useState(false)
   const [timeLeft, setTimeLeft] = useState(0)
   const [paymentSubmitting, setPaymentSubmitting] = useState(false)
   const [rawQtyById, setRawQtyById] = useState({})
+  const [openSummaryTooltip, setOpenSummaryTooltip] = useState(null)
   const releasedReservationRef = useRef(null)
   const reservationCreatingRef = useRef(null)
   const ticketRailRef = useRef(null)
+
+  useEffect(() => {
+    if (!openSummaryTooltip) return undefined
+    const closeTooltip = () => setOpenSummaryTooltip(null)
+    document.addEventListener('click', closeTooltip)
+    return () => document.removeEventListener('click', closeTooltip)
+  }, [openSummaryTooltip])
 
   const subtotal = items.reduce((s, i) => s + i.unit_price * i.quantity, 0)
   const numTickets = items.reduce((s, i) => s + i.quantity, 0)
@@ -445,7 +489,7 @@ export default function Cart({
   const orderItems = useMemo(() => items.map((item) => ({
     eventId: Number(item.event_id),
     slotId: item.slot_id,
-    ticketTypeId: null,
+    ticketTypeId: Number.isFinite(Number(item.ticket_type_id)) ? Number(item.ticket_type_id) : null,
     eventName: itemShowTitle(item),
     slotDate: item.session_date_key,
     slotTime: item.session_time,
@@ -455,9 +499,13 @@ export default function Cart({
   })), [items])
 
   const liveSlotReady = orderItems.length > 0 && orderItems.every((item) => Number.isFinite(item.eventId) && item.slotId && item.quantity > 0)
-  const minQtyForTicketType = (ticketTypeId) => ticketTypeId === 'family' ? 3 : ticketTypeId === 'group' ? 6 : 1
+  const minQtyForCartItem = (item) => minQtyForTicket({
+    id: item?.ticket_type_id,
+    label: item?.ticket_type_label,
+    minQty: item?.ticket_min_qty,
+  })
   const zeroQtyItems = items.filter((item) => item.quantity <= 0)
-  const invalidItems = items.filter((item) => item.quantity > 0 && item.quantity < minQtyForTicketType(item.ticket_type_id))
+  const invalidItems = items.filter((item) => item.quantity > 0 && item.quantity < minQtyForCartItem(item))
   const canContinueReview = liveSlotReady && zeroQtyItems.length === 0 && invalidItems.length === 0
 
   const checkoutOrder = useMemo(() => ({
@@ -616,6 +664,39 @@ export default function Cart({
     return () => window.removeEventListener('beforeunload', releaseOnLeave)
   }, [releaseReservation, reservation?.id, step])
 
+  useEffect(() => {
+    setAppliedCoupon((prev) => (prev?.autoCombo ? null : prev))
+    if (!items.length) return undefined
+    const sub = items.reduce((s, i) => s + i.unit_price * i.quantity, 0)
+    let cancelled = false
+    fetch(`${BACKEND}/api/v1/combos/check`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ eventIds: items.map((i) => Number(i.event_id)), subtotal: sub }),
+    })
+      .then((r) => r.json())
+      .then(async (data) => {
+        if (cancelled || !data.eligible) return
+        const res = await fetch(`${BACKEND}/api/v1/coupons/validate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: data.coupon_code, subtotal: sub }),
+        })
+        const coupon = await res.json().catch(() => ({}))
+        if (!cancelled && coupon.valid) {
+          setAppliedCoupon({
+            code: coupon.code,
+            discountAmount: Number(coupon.discountAmount || 0),
+            discountType: coupon.discountType,
+            discountValue: Number(coupon.discountValue || 0),
+            autoCombo: true,
+          })
+        }
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [items])
+
   async function loadIssuedTickets(order, providerReference, method, snapshot) {
     if (!order?.id || !providerReference) return fallbackTickets(snapshot)
     try {
@@ -652,6 +733,7 @@ export default function Cart({
       tax,
       grand,
       couponCode: appliedCoupon?.code || '',
+      autoCombo: appliedCoupon?.autoCombo || false,
       tickets: [],
     }
     snapshot.tickets = await loadIssuedTickets(order, providerReference, method, snapshot)
@@ -695,6 +777,7 @@ export default function Cart({
   async function startQrPayment(method) {
     if (!contactReady || !liveSlotReady || !reservation?.id || timeLeft <= 0) return
     setPaymentMethod(method)
+    setShowAlipayNotice(method === 'alipay')
     setQrLoading(true)
     setPaymentError('')
     setQrImage('')
@@ -751,7 +834,8 @@ export default function Cart({
   }
 
   function updateTicketTypeWithMinimum(item, ticketTypeId) {
-    const minQty = minQtyForTicketType(ticketTypeId)
+    const option = item.ticket_options?.find((ticket) => ticket.id === ticketTypeId)
+    const minQty = minQtyForTicket(option || ticketTypeId)
     if (item.quantity > 0 && item.quantity < minQty) onUpdateQty(item.id, minQty)
     onUpdateTicketType(item.id, ticketTypeId)
     setPaymentError('')
@@ -763,7 +847,7 @@ export default function Cart({
   }
 
   function incrementCartQty(item) {
-    const minQty = minQtyForTicketType(item.ticket_type_id)
+    const minQty = minQtyForCartItem(item)
     const nextQty = item.quantity <= 0 ? minQty : item.quantity + 1
     updateQtyWithMinimum(item, nextQty)
   }
@@ -847,6 +931,9 @@ export default function Cart({
   const renderSummary = () => {
     const summaryItems = confirmed?.items || items
     const total = confirmed?.grand ?? grand
+    const toggleSummaryTooltip = (key) => {
+      setOpenSummaryTooltip((current) => current === key ? null : key)
+    }
     return (
       <aside className="crt-side">
         <div className="crt-summary-card">
@@ -865,19 +952,33 @@ export default function Cart({
             </div>
           ))}
           <SummaryRow label={`Subtotal`} value={fmt(confirmed?.subtotal ?? subtotal)} muted />
-          {Boolean(confirmed?.discount ?? discount) && <SummaryRow label={`Coupon${(confirmed?.couponCode || appliedCoupon?.code) ? ` (${confirmed?.couponCode || appliedCoupon?.code})` : ''}`} value={`-${fmt(confirmed?.discount ?? discount)}`} muted />}
-          <SummaryRow label={<ProcessingFeeLabel />} value={fmt(confirmed?.procFee ?? procFee)} muted />
+          {Boolean(confirmed?.discount ?? discount) && (
+            <SummaryRow
+              label={(confirmed?.autoCombo || appliedCoupon?.autoCombo)
+                ? <ComboDealLabel open={openSummaryTooltip === 'combo'} onToggle={() => toggleSummaryTooltip('combo')} />
+                : `Coupon${(confirmed?.couponCode || appliedCoupon?.code) ? ` (${confirmed?.couponCode || appliedCoupon?.code})` : ''}`}
+              value={`-${fmt(confirmed?.discount ?? discount)}`}
+              muted
+            />
+          )}
+          <SummaryRow label={<ProcessingFeeLabel open={openSummaryTooltip === 'processing'} onToggle={() => toggleSummaryTooltip('processing')} />} value={fmt(confirmed?.procFee ?? procFee)} muted />
           <SummaryRow label="GST (5%)" value={fmt(confirmed?.tax ?? tax)} muted />
           <div className="crt-sum-divider" />
           <SummaryRow label={step === 'confirm' ? 'Total paid' : 'Total due'} value={`${fmt(total)} CAD`} bold />
           {step === 'review' && (
             <div className="crt-promo-card-inline">
-              <label htmlFor="cart-promo-code">Promo code</label>
-              <div>
-                <input id="cart-promo-code" value={couponCode} onChange={(event) => setCouponCode(event.target.value)} placeholder="Enter code" />
-                <button onClick={applyCoupon} type="button">Apply</button>
-              </div>
-              {couponMessage && <span className={appliedCoupon ? 'ok' : ''}>{couponMessage}</span>}
+              {appliedCoupon?.autoCombo ? (
+                <div className="combo-banner">Combo deal applied 10% off</div>
+              ) : (
+                <>
+                  <label htmlFor="cart-promo-code">Promo code</label>
+                  <div>
+                    <input id="cart-promo-code" value={couponCode} onChange={(event) => setCouponCode(event.target.value)} placeholder="Enter code" />
+                    <button onClick={applyCoupon} type="button">Apply</button>
+                  </div>
+                  {couponMessage && <span className={appliedCoupon ? 'ok' : ''}>{couponMessage}</span>}
+                </>
+              )}
             </div>
           )}
           {step === 'review' && (
@@ -965,9 +1066,9 @@ export default function Cart({
                         </svg>
                         <span className="crt-remove-text">Remove</span>
                       </button>
-                      {item.quantity > 0 && item.quantity < minQtyForTicketType(item.ticket_type_id) && (
+                      {item.quantity > 0 && item.quantity < minQtyForCartItem(item) && (
                         <div className="crt-row-warning crt-cart-row-warning">
-                          {item.ticket_type_id === 'group' ? 'Group tickets require at least 6 people.' : 'Family tickets require at least 3 people.'}
+                          {item.ticket_type_label?.toLowerCase().includes('group') ? 'Group tickets require at least 6 people.' : 'Family tickets require at least 3 people.'}
                         </div>
                       )}
                     </article>
@@ -1029,7 +1130,7 @@ export default function Cart({
                 <div className="crt-form-panel">
                   <h3>Payment method</h3>
                   <div className="crt-pay-tabs">
-                    <button className={paymentMethod === 'card' ? 'active' : ''} onClick={() => setPaymentMethod('card')} type="button"><CreditCardLogo />Credit card</button>
+                    <button className={paymentMethod === 'card' ? 'active' : ''} onClick={() => { setShowAlipayNotice(false); setPaymentMethod('card') }} type="button"><CreditCardLogo />Credit card</button>
                     <button className={paymentMethod === 'wechat' ? 'active' : ''} onClick={() => startQrPayment('wechat')} type="button"><WeChatLogo />WeChat Pay</button>
                     <button className={paymentMethod === 'alipay' ? 'active' : ''} onClick={() => startQrPayment('alipay')} type="button"><AlipayLogo />Alipay</button>
                   </div>
@@ -1047,7 +1148,11 @@ export default function Cart({
                       </div>
                       <div>
                         <h4>{paymentMethod === 'wechat' ? 'WeChat Pay' : 'Alipay'}</h4>
-                        <p>Scan this code in your mobile wallet. This checkout updates automatically after payment is confirmed.</p>
+                        <p>
+                          {paymentMethod === 'alipay'
+                            ? 'Scan this code with the camera inside Alipay. iPhone Camera and other QR code readers will not complete this payment.'
+                            : 'Scan this code in WeChat Pay. This checkout updates automatically after payment is confirmed.'}
+                        </p>
                         {qrOrder && <small>Order ID: {qrOrder.orderNumber}</small>}
                       </div>
                     </div>
@@ -1124,6 +1229,16 @@ export default function Cart({
                 <button className="btk-secondary" onClick={() => setReservationConflictMessage('')} type="button">Close</button>
                 <button className="btk-primary" onClick={() => { setReservationConflictMessage(''); setStep('review') }} type="button">Update cart</button>
               </div>
+            </div>
+          </div>
+        )}
+        {showAlipayNotice && step === 'payment' && paymentMethod === 'alipay' && (
+          <div className="crt-alipay-notice-overlay" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label="Alipay scan instructions">
+            <div className="crt-alipay-notice">
+              <button className="crt-alipay-notice-cancel" onClick={() => setShowAlipayNotice(false)} type="button" aria-label="Cancel Alipay notice">Cancel</button>
+              <span className="crt-method-logo alipay" aria-hidden="true">支</span>
+              <h3>Use the Alipay app camera</h3>
+              <p>Scan the QR code with the camera inside Alipay. The iPhone Camera app and other QR code readers will not complete this payment.</p>
             </div>
           </div>
         )}
