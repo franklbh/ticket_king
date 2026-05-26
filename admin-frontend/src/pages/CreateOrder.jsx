@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Button from '@mui/material/Button'
 import Checkbox from '@mui/material/Checkbox'
 import FormControlLabel from '@mui/material/FormControlLabel'
@@ -23,6 +23,7 @@ const PAYMENT_METHODS = [
   { id: 'Other', label: 'Other', icon: 'fa-ellipsis-h' },
 ]
 const GST_RATE = 0.05
+const FINAL_STEP_REMINDER_MS = 5 * 60 * 1000
 
 function buildThemeOptions(events, availableSlots) {
   const slotCountByEvent = availableSlots.reduce((counts, slot) => {
@@ -172,6 +173,8 @@ export default function CreateOrder() {
   const [orderComplete, setOrderComplete] = useState(false)
   const [lastOrderId, setLastOrderId] = useState(null)
   const [submitError, setSubmitError] = useState(null)
+  const [completionReminderOpen, setCompletionReminderOpen] = useState(false)
+  const [completionReminderDismissed, setCompletionReminderDismissed] = useState(false)
   const { data: slots = [], error: slotsError, loading: loadingSlots } = useSlotsQuery(
     selectedDate ? { dateFrom: selectedDate, dateTo: selectedDate } : {},
     { initialData: [], enabled: Boolean(selectedDate) }
@@ -349,8 +352,30 @@ export default function CreateOrder() {
     return ''
   }, '')
 
+  useEffect(() => {
+    if (step !== 4 || orderComplete || creatingOrder || completionReminderOpen || completionReminderDismissed) {
+      return undefined
+    }
+
+    const reminderTimer = window.setTimeout(() => {
+      setCompletionReminderOpen(true)
+      setCompletionReminderDismissed(true)
+    }, FINAL_STEP_REMINDER_MS)
+
+    return () => window.clearTimeout(reminderTimer)
+  }, [completionReminderDismissed, completionReminderOpen, creatingOrder, orderComplete, step])
+
+  useEffect(() => {
+    if (step !== 4) {
+      setCompletionReminderOpen(false)
+      setCompletionReminderDismissed(false)
+    }
+  }, [step])
+
   async function handleConfirm() {
     setSubmitError(null)
+    setCompletionReminderOpen(false)
+    setCompletionReminderDismissed(true)
     const tickets = cartItems.map(item => ({
       event_id: item.eventId,
       event_name: item.eventName,
@@ -398,6 +423,8 @@ export default function CreateOrder() {
 
   function resetOrder() {
     setStep(1)
+    setCompletionReminderOpen(false)
+    setCompletionReminderDismissed(false)
     setSelectedTheme('')
     setSelectedSlot(null)
     setCartItems([])
@@ -1077,6 +1104,39 @@ export default function CreateOrder() {
                 sx={{ bgcolor: '#ef4444', '&:hover': { bgcolor: '#dc2626' } }}
               >
                 Yes, Modify Fees
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {completionReminderOpen && (
+        <div className="create-order-reminder-overlay" role="presentation">
+          <div className="create-order-reminder-modal" role="dialog" aria-modal="true" aria-labelledby="create-order-reminder-title">
+            <div className="create-order-reminder-header">
+              <h2 id="create-order-reminder-title">
+                <i className="fa fa-bell" />
+                Complete this order
+              </h2>
+              <button type="button" onClick={() => setCompletionReminderOpen(false)} aria-label="Close reminder">
+                <i className="fa fa-times" />
+              </button>
+            </div>
+            <div className="create-order-reminder-body">
+              <div className="create-order-reminder-warning">
+                <i className="fa fa-exclamation-circle" />
+                <span>
+                  This order has been on Step 4: Payment Method & Summary for more than 5 minutes. If payment is complete, press <strong>Create Order & Complete Payment</strong> so the order is not left hanging.
+                </span>
+              </div>
+            </div>
+            <div className="create-order-reminder-actions">
+              <Button
+                variant="contained"
+                onClick={() => setCompletionReminderOpen(false)}
+                startIcon={<i className="fa fa-check" />}
+              >
+                Got it
               </Button>
             </div>
           </div>

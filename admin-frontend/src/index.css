@@ -1876,6 +1876,115 @@ table tr:hover {
   text-transform: none;
 }
 
+.create-order-reminder-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: rgba(15, 23, 42, 0.42);
+}
+
+.create-order-reminder-modal {
+  width: min(540px, 100%);
+  overflow: hidden;
+  border: 1px solid #dbeafe;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 20px 56px rgba(15, 23, 42, 0.24);
+}
+
+.create-order-reminder-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 22px;
+  border-top: 5px solid #2563eb;
+  border-bottom: 1px solid #eef2f7;
+  background: #fff;
+  color: #111827;
+}
+
+.create-order-reminder-header h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.create-order-reminder-header h2 i {
+  color: #2563eb;
+  font-size: 18px;
+}
+
+.create-order-reminder-header button {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #64748b;
+  cursor: pointer;
+  font-size: 18px;
+}
+
+.create-order-reminder-header button:hover {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.create-order-reminder-body {
+  padding: 22px;
+}
+
+.create-order-reminder-warning {
+  display: flex;
+  gap: 10px;
+  padding: 14px 16px;
+  border-left: 4px solid #2563eb;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1e3a8a;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.create-order-reminder-warning i {
+  margin-top: 2px;
+  flex: 0 0 auto;
+  color: #2563eb;
+}
+
+.create-order-reminder-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 22px 20px;
+  border-top: 1px solid #e5e7eb;
+  background: #f8fafc;
+}
+
+.create-order-reminder-actions .MuiButton-root {
+  min-height: 40px;
+  padding-inline: 18px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 750;
+  text-transform: none;
+}
+
 .fee-modifier-panel {
   margin-bottom: 18px;
   padding: 18px;
