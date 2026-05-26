@@ -10468,12 +10468,73 @@ body:has(#booking) {
   opacity: 0.75 !important;
 }
 
-.bw-added-message {
-  margin-top: 10px;
-  color: #047857;
-  font-size: 13px;
-  font-weight: 800;
+.bw-added-notice-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.42);
+  backdrop-filter: blur(6px);
+}
+
+.bw-added-notice {
+  position: relative;
+  width: min(430px, 100%);
+  border: 1px solid #bdebdc;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 30px 80px rgba(15, 23, 42, 0.24);
+  padding: 56px 28px 28px;
   text-align: center;
+}
+
+.bw-added-notice-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  min-height: 36px;
+  border: 1px solid #d8deeb;
+  border-radius: 8px;
+  background: #fff;
+  color: #334155;
+  padding: 0 14px;
+  font-size: 14px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.bw-added-notice-close:hover {
+  border-color: #86efac;
+  color: #047857;
+}
+
+.bw-added-notice-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 999px;
+  margin: 0 auto 16px;
+  display: grid;
+  place-items: center;
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.bw-added-notice h3 {
+  margin: 0;
+  color: #111827;
+  font-size: 25px;
+  font-weight: 950;
+  line-height: 1.15;
+}
+
+.bw-added-notice p {
+  margin: 10px 0 0;
+  color: #64748b;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.45;
 }
 
 .crt-warning,
@@ -14404,6 +14465,41 @@ body:has(.btk-page) .topbar {
   color: #111827;
   font-size: 13px;
   font-weight: 850;
+}
+
+.btk-summary-line > span:first-child {
+  min-width: 0;
+}
+
+.btk-summary-line > strong {
+  flex: 0 0 auto;
+}
+
+.btk-summary-item-label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.btk-summary-item-label strong {
+  color: #111827;
+  font-size: 13px;
+  font-weight: 950;
+  line-height: 1.25;
+}
+
+.btk-summary-item-label small {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.btk-summary-item-label span {
+  color: #111827;
+  font-size: 12px;
+  font-weight: 850;
+  line-height: 1.25;
 }
 
 .btk-summary-line.muted {

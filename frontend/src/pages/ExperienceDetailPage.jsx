@@ -19,6 +19,16 @@ function Stars({ rating, size = 14 }) {
   )
 }
 
+function CartIcon() {
+  return (
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="9" cy="21" r="1" />
+      <circle cx="20" cy="21" r="1" />
+      <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
+    </svg>
+  )
+}
+
 /* ── Video Modal ── */
 function VideoModal({ src, onClose }) {
   useEffect(() => {
@@ -102,7 +112,7 @@ function BookingWidget({ experience, cartItems, onAddToCart }) {
   const [selTime, setSelTime] = useState(null)
   const [qty, setQty] = useState(() => ['adult', 'child', 'senior', 'group', 'family'].reduce((acc, id) => ({ ...acc, [id]: 0 }), {}))
   const [rawQty, setRawQty] = useState({})
-  const [addedMessage, setAddedMessage] = useState('')
+  const [showAddedNotice, setShowAddedNotice] = useState(false)
   const [backendSlots, setBackendSlots] = useState([])
   const [slotsLoading, setSlotsLoading] = useState(false)
   const cartSyncedSessionRef = useRef(null)
@@ -180,7 +190,7 @@ function BookingWidget({ experience, cartItems, onAddToCart }) {
       delete nextRawQty[ticket.id]
       return nextRawQty
     })
-    setAddedMessage('')
+    setShowAddedNotice(false)
   }
 
   const setTicketQty = (ticket, value) => {
@@ -190,7 +200,7 @@ function BookingWidget({ experience, cartItems, onAddToCart }) {
     const nextQty = { ...qty, [ticket.id]: parsed }
     setRawQty((previous) => ({ ...previous, [ticket.id]: normalizedValue }))
     setQty(nextQty)
-    setAddedMessage('')
+    setShowAddedNotice(false)
   }
 
   const commitTicketQty = (ticket) => {
@@ -211,7 +221,7 @@ function BookingWidget({ experience, cartItems, onAddToCart }) {
       tickets: ticketsFromQuantities(qty),
       openCart: false,
     })
-    setAddedMessage('Added to shopping cart.')
+    setShowAddedNotice(true)
   }
 
   useEffect(() => {
@@ -224,7 +234,6 @@ function BookingWidget({ experience, cartItems, onAddToCart }) {
     const sessionKey = `${experience.id}__${selectedDateKey}__${selTime.id || selTime.label || selTime.time || ''}`
     setQty(nextQty)
     setRawQty({})
-    setAddedMessage('')
     cartSyncedSessionRef.current = hasItems ? sessionKey : null
   }, [selectedDateKey, selTime, experience.id, getCartQuantitiesForSession])
 
@@ -235,7 +244,6 @@ function BookingWidget({ experience, cartItems, onAddToCart }) {
     if (!hasItems && cartSyncedSessionRef.current !== sessionKey) return
     setQty(nextQty)
     setRawQty({})
-    setAddedMessage('')
     cartSyncedSessionRef.current = hasItems ? sessionKey : null
   }, [cartItems, selectedDateKey, selTime, experience.id, getCartQuantitiesForSession])
 
@@ -390,7 +398,16 @@ function BookingWidget({ experience, cartItems, onAddToCart }) {
             ? `$${totalPrice.toFixed(2)} - Add to Cart`
             : 'Add to Cart'}
         </button>
-        {addedMessage && <div className="bw-added-message">{addedMessage}</div>}
+        {showAddedNotice && (
+          <div className="bw-added-notice-overlay" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label="Cart updated">
+            <div className="bw-added-notice">
+              <button className="bw-added-notice-close" onClick={() => setShowAddedNotice(false)} type="button" aria-label="Close cart notice">Cancel</button>
+              <div className="bw-added-notice-icon"><CartIcon /></div>
+              <h3>Added to shopping cart</h3>
+              <p>Your selected tickets were added successfully.</p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
