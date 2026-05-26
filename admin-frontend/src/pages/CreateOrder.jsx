@@ -686,7 +686,7 @@ export default function CreateOrder() {
                   <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 8 }}>
                     Time slots for {themeNameByKey.get(selectedTheme) || 'selected theme'}
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
+                  <div className="create-order-slot-grid">
                     {selectedThemeSlots.map(slot => {
                 const sold = slot.websiteSeats + slot.inStoreSeats
                 const remaining = Math.max(0, slot.totalSeats - sold)
@@ -698,21 +698,22 @@ export default function CreateOrder() {
                     onClick={() => handleSlotSelect(slot)}
                     disabled={pastSlot}
                     aria-disabled={pastSlot}
+                    className="create-order-slot-card"
                     style={{
-                      padding: 14, borderRadius: 8, textAlign: 'left',
+                      borderRadius: 8, textAlign: 'left',
                       border: isSelected ? '2px solid #6366f1' : '1px solid #e5e7eb',
                       background: pastSlot ? '#f3f4f6' : isSelected ? '#fef2f2' : '#fff',
                       cursor: pastSlot ? 'not-allowed' : 'pointer', transition: 'all 0.15s',
                       opacity: pastSlot ? 0.55 : 1,
                     }}
                   >
-                    <div style={{ fontWeight: 700, fontSize: 16, color: pastSlot ? '#9ca3af' : '#111827' }}>
+                    <div className="create-order-slot-time" style={{ color: pastSlot ? '#9ca3af' : '#111827' }}>
                       {slot.startTime} - {slot.endTime}
                     </div>
-                    <div style={{ fontSize: 12, color: pastSlot ? '#9ca3af' : '#6b7280', marginTop: 4 }}>
+                    <div className="create-order-slot-price" style={{ color: pastSlot ? '#9ca3af' : '#6b7280' }}>
                       {pastSlot ? 'Time passed' : `$${slot.price.toFixed(2)} / person`}
                     </div>
-                    <div style={{ fontSize: 12, marginTop: 6 }}>
+                    <div className="create-order-slot-seats">
                       <span style={{ color: pastSlot ? '#9ca3af' : remaining > 5 ? '#10b981' : remaining > 0 ? '#f59e0b' : '#ef4444', fontWeight: 500 }}>
                         {remaining} seats left
                       </span>

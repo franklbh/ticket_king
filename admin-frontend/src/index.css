@@ -943,6 +943,24 @@ body {
     grid-template-columns: 1fr !important;
   }
 
+  .create-order-slot-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .create-order-slot-card {
+    padding: 10px;
+  }
+
+  .create-order-slot-time {
+    font-size: 14px;
+  }
+
+  .create-order-slot-price,
+  .create-order-slot-seats {
+    font-size: 11px;
+  }
+
   .create-order-ticket-head {
     align-items: flex-start !important;
     flex-direction: column;
@@ -1625,6 +1643,35 @@ table tr:hover {
   flex: 0 0 auto;
 }
 
+.create-order-slot-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px;
+}
+
+.create-order-slot-card {
+  min-width: 0;
+  padding: 12px;
+}
+
+.create-order-slot-time {
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.create-order-slot-price {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+.create-order-slot-seats {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.25;
+}
+
 .create-order-date-trigger.MuiButton-root {
   white-space: nowrap;
 }
@@ -2212,6 +2259,24 @@ table tr:hover {
   .create-order-current-date span {
     min-width: 0;
     overflow-wrap: anywhere;
+  }
+
+  .create-order-slot-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .create-order-slot-card {
+    padding: 10px;
+  }
+
+  .create-order-slot-time {
+    font-size: 14px;
+  }
+
+  .create-order-slot-price,
+  .create-order-slot-seats {
+    font-size: 11px;
   }
 
   .create-order-theme-grid {
