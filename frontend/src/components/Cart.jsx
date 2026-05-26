@@ -441,6 +441,7 @@ export default function Cart({
   const [qrImage, setQrImage] = useState('')
   const [qrOrder, setQrOrder] = useState(null)
   const [qrLoading, setQrLoading] = useState(false)
+  const [showAlipayNotice, setShowAlipayNotice] = useState(false)
   const [confirmed, setConfirmed] = useState(null)
   const [reservation, setReservation] = useState(null)
   const [reservationLoading, setReservationLoading] = useState(false)
@@ -749,6 +750,7 @@ export default function Cart({
   async function startQrPayment(method) {
     if (!contactReady || !liveSlotReady || !reservation?.id || timeLeft <= 0) return
     setPaymentMethod(method)
+    setShowAlipayNotice(method === 'alipay')
     setQrLoading(true)
     setPaymentError('')
     setQrImage('')
@@ -1095,7 +1097,7 @@ export default function Cart({
                 <div className="crt-form-panel">
                   <h3>Payment method</h3>
                   <div className="crt-pay-tabs">
-                    <button className={paymentMethod === 'card' ? 'active' : ''} onClick={() => setPaymentMethod('card')} type="button"><CreditCardLogo />Credit card</button>
+                    <button className={paymentMethod === 'card' ? 'active' : ''} onClick={() => { setShowAlipayNotice(false); setPaymentMethod('card') }} type="button"><CreditCardLogo />Credit card</button>
                     <button className={paymentMethod === 'wechat' ? 'active' : ''} onClick={() => startQrPayment('wechat')} type="button"><WeChatLogo />WeChat Pay</button>
                     <button className={paymentMethod === 'alipay' ? 'active' : ''} onClick={() => startQrPayment('alipay')} type="button"><AlipayLogo />Alipay</button>
                   </div>
@@ -1113,7 +1115,11 @@ export default function Cart({
                       </div>
                       <div>
                         <h4>{paymentMethod === 'wechat' ? 'WeChat Pay' : 'Alipay'}</h4>
-                        <p>Scan this code in your mobile wallet. This checkout updates automatically after payment is confirmed.</p>
+                        <p>
+                          {paymentMethod === 'alipay'
+                            ? 'Scan this code with the camera inside Alipay. iPhone Camera and other QR code readers will not complete this payment.'
+                            : 'Scan this code in WeChat Pay. This checkout updates automatically after payment is confirmed.'}
+                        </p>
                         {qrOrder && <small>Order ID: {qrOrder.orderNumber}</small>}
                       </div>
                     </div>
@@ -1190,6 +1196,16 @@ export default function Cart({
                 <button className="btk-secondary" onClick={() => setReservationConflictMessage('')} type="button">Close</button>
                 <button className="btk-primary" onClick={() => { setReservationConflictMessage(''); setStep('review') }} type="button">Update cart</button>
               </div>
+            </div>
+          </div>
+        )}
+        {showAlipayNotice && step === 'payment' && paymentMethod === 'alipay' && (
+          <div className="crt-alipay-notice-overlay" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label="Alipay scan instructions">
+            <div className="crt-alipay-notice">
+              <button className="crt-alipay-notice-cancel" onClick={() => setShowAlipayNotice(false)} type="button" aria-label="Cancel Alipay notice">Cancel</button>
+              <span className="crt-method-logo alipay" aria-hidden="true">支</span>
+              <h3>Use the Alipay app camera</h3>
+              <p>Scan the QR code with the camera inside Alipay. The iPhone Camera app and other QR code readers will not complete this payment.</p>
             </div>
           </div>
         )}

@@ -14535,6 +14535,71 @@ body:has(.btk-page) .topbar {
   margin-top: 0;
 }
 
+.crt-alipay-notice-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.44);
+  backdrop-filter: blur(6px);
+}
+
+.crt-alipay-notice {
+  position: relative;
+  width: min(460px, 100%);
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 30px 80px rgba(15, 23, 42, 0.24);
+  padding: 56px 30px 30px;
+  text-align: center;
+}
+
+.crt-alipay-notice .crt-method-logo.alipay {
+  width: 58px;
+  height: 58px;
+  margin: 0 auto 18px;
+  font-size: 36px;
+}
+
+.crt-alipay-notice h3 {
+  margin: 0;
+  color: #111827;
+  font-size: 26px;
+  font-weight: 950;
+  line-height: 1.15;
+}
+
+.crt-alipay-notice p {
+  margin: 12px 0 0;
+  color: #475569;
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1.55;
+}
+
+.crt-alipay-notice-cancel {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  min-height: 36px;
+  border: 1px solid #d8deeb;
+  border-radius: 8px;
+  background: #fff;
+  color: #334155;
+  padding: 0 14px;
+  font-size: 14px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.crt-alipay-notice-cancel:hover {
+  border-color: #93c5fd;
+  color: #0f5ec7;
+}
+
 .btk-cart-callout {
   margin-top: 16px;
   padding: 12px;
@@ -14770,6 +14835,18 @@ body:has(.btk-page) .topbar {
 
   .btk-added-actions {
     grid-template-columns: 1fr;
+  }
+
+  .crt-alipay-notice {
+    padding: 54px 20px 24px;
+  }
+
+  .crt-alipay-notice h3 {
+    font-size: 23px;
+  }
+
+  .crt-alipay-notice p {
+    font-size: 15px;
   }
 }
 
