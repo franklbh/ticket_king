@@ -96,6 +96,14 @@ const BACKEND_EVENT_SLUGS = {
   'ocean-quest': 'game-c',
 }
 
+const DISPLAY_TICKET_LABELS = {
+  adult: 'Adult',
+  child: 'Child',
+  senior: 'Senior',
+  group: 'Group',
+  family: 'Family',
+}
+
 function BookingWidget({ experience, cartItems, onAddToCart }) {
   const today = new Date()
   const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -154,7 +162,7 @@ function BookingWidget({ experience, cartItems, onAddToCart }) {
           : key === 'family' ? 'Ticket for min. 3 people, max. 2 adults.'
             : undefined
       )
-      return { ...ticket, key, desc, notice }
+      return { ...ticket, key, label: DISPLAY_TICKET_LABELS[key] || ticket.label, desc, notice }
     })
   }, [fallbackTicketTypes, selTime])
   const calendarCells = [

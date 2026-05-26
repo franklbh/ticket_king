@@ -1,9 +1,9 @@
 export function ticketKeyFromLabel(label = '') {
   const normalized = String(label).toLowerCase()
-  if (normalized.includes('child')) return 'child'
-  if (normalized.includes('senior')) return 'senior'
-  if (normalized.includes('group')) return 'group'
   if (normalized.includes('family')) return 'family'
+  if (normalized.includes('group')) return 'group'
+  if (normalized.includes('senior')) return 'senior'
+  if (normalized.includes('child') || normalized.includes('youth')) return 'child'
   return 'adult'
 }
 

@@ -94,6 +94,17 @@ function monthTitle(date) {
   return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
 }
 
+function isPastDateKey(dateKey) {
+  return dateKey < todayIso()
+}
+
+function isPastSlot(slot) {
+  if (!slot || slot.date !== todayIso()) return false
+  const now = new Date()
+  const currentMinutes = now.getHours() * 60 + now.getMinutes()
+  return minutesFromTime(slot.startTime) <= currentMinutes
+}
+
 function money(value) {
   return Math.round((Number(value) || 0) * 100) / 100
 }
@@ -239,6 +250,7 @@ export default function CreateOrder() {
   }
 
   function handleSlotSelect(slot) {
+    if (isPastSlot(slot)) return
     setSelectedSlot(slot)
     const themeForSlot = themeOptions.find(option => option.eventId === String(slot.event))
     setSelectedTheme(themeForSlot?.key || selectedTheme)
@@ -295,7 +307,7 @@ export default function CreateOrder() {
   }
 
   function handleDateChange(value) {
-    if (!value) return
+    if (!value || isPastDateKey(value)) return
     setSelectedDate(value)
     setDatePickerMonth(monthStartFromDateKey(value))
     setSelectedTheme('')
@@ -314,7 +326,8 @@ export default function CreateOrder() {
       ...Array.from({ length: leadingBlanks }, (_, idx) => ({ key: `blank-${idx}`, blank: true })),
       ...Array.from({ length: daysInMonth }, (_, idx) => {
         const date = new Date(datePickerMonth.getFullYear(), datePickerMonth.getMonth(), idx + 1)
-        return { key: dateKeyFromDate(date), day: idx + 1 }
+        const key = dateKeyFromDate(date)
+        return { key, day: idx + 1, past: isPastDateKey(key) }
       }),
     ]
   })()
@@ -595,8 +608,10 @@ export default function CreateOrder() {
                       <button
                         key={cell.key}
                         type="button"
-                        className={cell.key === selectedDate ? 'selected' : ''}
+                        className={`${cell.key === selectedDate ? 'selected' : ''} ${cell.past ? 'past' : ''}`.trim()}
                         onClick={() => selectPickerDate(cell.key)}
+                        disabled={cell.past}
+                        aria-disabled={cell.past}
                       >
                         {cell.day}
                       </button>
@@ -676,25 +691,29 @@ export default function CreateOrder() {
                 const sold = slot.websiteSeats + slot.inStoreSeats
                 const remaining = Math.max(0, slot.totalSeats - sold)
                 const isSelected = selectedSlot?.id === slot.id
+                const pastSlot = isPastSlot(slot)
                 return (
                   <button
                     key={slot.id}
                     onClick={() => handleSlotSelect(slot)}
+                    disabled={pastSlot}
+                    aria-disabled={pastSlot}
                     style={{
                       padding: 14, borderRadius: 8, textAlign: 'left',
                       border: isSelected ? '2px solid #6366f1' : '1px solid #e5e7eb',
-                      background: isSelected ? '#fef2f2' : '#fff',
-                      cursor: 'pointer', transition: 'all 0.15s',
+                      background: pastSlot ? '#f3f4f6' : isSelected ? '#fef2f2' : '#fff',
+                      cursor: pastSlot ? 'not-allowed' : 'pointer', transition: 'all 0.15s',
+                      opacity: pastSlot ? 0.55 : 1,
                     }}
                   >
-                    <div style={{ fontWeight: 700, fontSize: 16, color: '#111827' }}>
+                    <div style={{ fontWeight: 700, fontSize: 16, color: pastSlot ? '#9ca3af' : '#111827' }}>
                       {slot.startTime} - {slot.endTime}
                     </div>
-                    <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>
-                      ${slot.price.toFixed(2)} / person
+                    <div style={{ fontSize: 12, color: pastSlot ? '#9ca3af' : '#6b7280', marginTop: 4 }}>
+                      {pastSlot ? 'Time passed' : `$${slot.price.toFixed(2)} / person`}
                     </div>
                     <div style={{ fontSize: 12, marginTop: 6 }}>
-                      <span style={{ color: remaining > 5 ? '#10b981' : remaining > 0 ? '#f59e0b' : '#ef4444', fontWeight: 500 }}>
+                      <span style={{ color: pastSlot ? '#9ca3af' : remaining > 5 ? '#10b981' : remaining > 0 ? '#f59e0b' : '#ef4444', fontWeight: 500 }}>
                         {remaining} seats left
                       </span>
                     </div>
