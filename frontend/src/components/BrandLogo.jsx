@@ -1,4 +1,4 @@
-import logoWhite from '../user_media/logo_white.png'
+import logoWhite from '../picture/logo_white.png'
 
 function BrandLogo({ height = 40 }) {
   return (
