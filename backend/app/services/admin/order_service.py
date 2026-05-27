@@ -31,6 +31,7 @@ from app.services.admin.normalizers import (
 )
 from app.services.admin.repository import admin_repository
 from app.utils.datetime import utc_now, utc_now_iso_seconds
+from app.utils.email import send_booking_confirmation
 
 
 class OrderService:
@@ -173,18 +174,30 @@ class OrderService:
         actor: dict[str, Any],
         client_ip: str | None = None,
     ) -> dict[str, Any]:
-        order = await self.get_order(order_id)
+        row = await self._resolve_order_row(order_id)
+        tickets = await admin_repository.select_where(
+            settings.admin_tickets_table,
+            column="order_id",
+            value=uuid.UUID(str(row["id"])),
+            limit=settings.max_table_rows,
+        )
+        sent = await send_booking_confirmation(
+            to_email=row.get("guest_email") or "",
+            to_name=row.get("guest_name") or "",
+            order_number=row.get("order_number") or order_id,
+            tickets=tickets,
+        )
         await write_audit_log(
             actor,
             "Resend Email",
             "Order",
             order_id,
-            {"email": order.user.email, "reason": payload.reason, "queued": False, "message": "Email provider is not configured in this backend."},
+            {"email": row.get("guest_email"), "reason": payload.reason, "sent": sent},
             client_ip,
         )
         return {
             "ok": True,
-            "message": "Resend request audited. Email dispatch provider is not configured.",
+            "message": "Email sent." if sent else "SMTP not configured.",
             "id": order_id,
         }
 
