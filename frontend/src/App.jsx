@@ -892,6 +892,7 @@ function App() {
           onOpenNav={() => setShowNavMenu(true)}
           onSelectExperience={openExperience}
           renderLangSelect={renderLangSelect}
+          selectedLang={selectedLang}
           t={t}
         />
       )}

@@ -1,4 +1,14 @@
-import introVideo from '../picture/Intro_video.mp4'
+import terracottaVideo from '../video/terracotta_EN.mp4'
+import pandaVideoEn from '../video/panda_EN.mp4'
+import pandaVideoZh from '../video/panda_CH.mp4'
+import dinoVideoEn from '../video/dino_EN.mp4'
+import dinoVideoZh from '../video/dino_CH.mp4'
+import heroVideoEn from '../video/hero_EN.mp4'
+import heroVideoZh from '../video/hero_CH.mp4'
+import beatVideoEn from '../video/beat_EN.mp4'
+import beatVideoZh from '../video/beat_CH.mp4'
+import guluVideoEn from '../video/gulu_EN.mp4'
+import guluVideoZh from '../video/gulu_CH.mp4'
 import terracottaImg from '../picture/cover_terracotta.jpg'
 import pandaImg from '../picture/panda.jpg'
 import dinoImg from '../picture/dino.jpg'
@@ -39,7 +49,8 @@ export const vrExperiences = [
     peakPrices:    { adult: 45.95, child: 34.95, senior: 41.95, family: 39.95, group: 40.95 },
     cardGradient: 'linear-gradient(160deg, #fff7ed 0%, #fdba74 48%, #ea580c 100%)',
     heroImg: terracottaImg,
-    demoVideo: introVideo,
+    demoVideo: terracottaVideo,
+    demoVideos: { en: terracottaVideo, zh: terracottaVideo },
     priceFrom: 27.95,
     highlights: [
       'Walk corridors of the underground mausoleum',
@@ -92,7 +103,8 @@ export const vrExperiences = [
     accentGlow: 'rgba(34, 197, 94, 0.32)',
     cardGradient: 'linear-gradient(160deg, #f0fdf4 0%, #86efac 48%, #16a34a 100%)',
     heroImg: pandaImg,
-    demoVideo: introVideo,
+    demoVideo: pandaVideoEn,
+    demoVideos: { en: pandaVideoEn, zh: pandaVideoZh },
     priceFrom: 21.95,
     highlights: [
       'Embody a giant panda in lush bamboo forests',
@@ -145,7 +157,8 @@ export const vrExperiences = [
     accentGlow: 'rgba(239, 68, 68, 0.32)',
     cardGradient: 'linear-gradient(160deg, #fff1f2 0%, #fca5a5 48%, #dc2626 100%)',
     heroImg: dinoImg,
-    demoVideo: introVideo,
+    demoVideo: dinoVideoEn,
+    demoVideos: { en: dinoVideoEn, zh: dinoVideoZh },
     priceFrom: 24.95,
     highlights: [
       'Ride a fire-breathing dragon above ancient kingdoms',
@@ -201,7 +214,8 @@ export const arcadeGames = [
     accentGlow: 'rgba(139, 92, 246, 0.34)',
     cardGradient: 'linear-gradient(160deg, #faf5ff 0%, #c4b5fd 48%, #7c3aed 100%)',
     heroImg: heroGameImg,
-    demoVideo: introVideo,
+    demoVideo: heroVideoEn,
+    demoVideos: { en: heroVideoEn, zh: heroVideoZh },
     priceFrom: 23.95,
     highlights: [
       'Team-based VR survival combat',
@@ -254,7 +268,8 @@ export const arcadeGames = [
     accentGlow: 'rgba(14, 165, 233, 0.34)',
     cardGradient: 'linear-gradient(160deg, #f0f9ff 0%, #7dd3fc 48%, #0284c7 100%)',
     heroImg: hyperBeatSlashImg,
-    demoVideo: introVideo,
+    demoVideo: beatVideoEn,
+    demoVideos: { en: beatVideoEn, zh: beatVideoZh },
     priceFrom: 20.95,
     highlights: [
       'Slice flying beat blocks with light blades',
@@ -307,7 +322,8 @@ export const arcadeGames = [
     accentGlow: 'rgba(20, 184, 166, 0.34)',
     cardGradient: 'linear-gradient(160deg, #ecfeff 0%, #5eead4 48%, #0d9488 100%)',
     heroImg: guluGuluImg,
-    demoVideo: introVideo,
+    demoVideo: guluVideoEn,
+    demoVideos: { en: guluVideoEn, zh: guluVideoZh },
     priceFrom: 18.95,
     highlights: [
       'Battle a colorful cute monster legion',

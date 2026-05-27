@@ -493,6 +493,7 @@ function ExperienceDetailPage({
   onOpenCart,
   onOpenNav,
   renderLangSelect,
+  selectedLang,
   t,
 }) {
   const [showVideo, setShowVideo] = useState(false)
@@ -501,6 +502,8 @@ function ExperienceDetailPage({
   const [bookingBeforeDetails, setBookingBeforeDetails] = useState(false)
 
   const similar = allExperiences.filter((e) => e.id !== experience.id)
+  const videoLanguage = selectedLang?.code === 'zh-Hans' || selectedLang?.code === 'zh-Hant' ? 'zh' : 'en'
+  const demoVideo = experience.demoVideos?.[videoLanguage] || experience.demoVideo
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' })
@@ -550,7 +553,7 @@ function ExperienceDetailPage({
         {/* Main image */}
         <button
           className="exp2-photo-main"
-          onClick={() => experience.demoVideo ? setShowVideo(true) : setLightboxIdx(0)}
+          onClick={() => demoVideo ? setShowVideo(true) : setLightboxIdx(0)}
           type="button"
           aria-label="Play demo video"
         >
@@ -558,7 +561,7 @@ function ExperienceDetailPage({
             ? <div className="exp2-photo-fill" style={{ backgroundImage: `url(${mainImg})` }} />
             : <div className="exp2-photo-fill exp2-photo-gradient" style={{ background: experience.cardGradient }} />}
           <div className="exp2-photo-overlay" />
-          {experience.demoVideo && (
+          {demoVideo && (
             <div className="exp2-play-circle">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
             </div>
@@ -797,7 +800,7 @@ function ExperienceDetailPage({
       </div>
 
       {/* ── Modals ── */}
-      {showVideo && <VideoModal src={experience.demoVideo} onClose={() => setShowVideo(false)} />}
+      {showVideo && <VideoModal src={demoVideo} onClose={() => setShowVideo(false)} />}
       {lightboxIdx !== null && <Lightbox images={gallery} startIndex={lightboxIdx} onClose={() => setLightboxIdx(null)} />}
     </div>
   )
