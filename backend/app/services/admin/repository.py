@@ -58,6 +58,100 @@ class AdminRepository:
     async def dashboard(self, *, start_date: date | None, days: int | None) -> dict[str, Any]:
         return await asyncio.to_thread(self._dashboard_sync, start_date, days)
 
+    async def income_by_event(self, *, start_date: date | None) -> list[dict[str, Any]]:
+        return await asyncio.to_thread(self._income_by_event_sync, start_date)
+
+    def _income_by_event_sync(self, start_date: date | None) -> list[dict[str, Any]]:
+        today = date.today()
+        with self._session() as db:
+            orders = self._table(db, settings.admin_orders_table)
+            slots = self._table(db, settings.admin_slots_table)
+            events = self._table(db, settings.admin_events_table)
+
+            order_activity_date = func.coalesce(slots.c.business_date, func.date(orders.c.created_at))
+            amount = func.coalesce(orders.c.total_amount, 0)
+            event_status = func.lower(cast(events.c.status, String))
+
+            filters = [order_activity_date <= today]
+            if start_date is not None:
+                filters.append(order_activity_date >= start_date)
+
+            stmt = (
+                select(
+                    events.c.id.label("event_id"),
+                    events.c.name.label("event_name"),
+                    func.coalesce(func.sum(amount), 0).label("revenue"),
+                )
+                .select_from(
+                    events
+                    .outerjoin(slots, slots.c.event_id == events.c.id)
+                    .outerjoin(orders, and_(orders.c.slot_id == slots.c.id, orders.c.slot_id.is_not(None)))
+                )
+                .where(event_status == "active", *filters)
+                .group_by(events.c.id, events.c.name)
+                .order_by(events.c.id)
+            )
+            return [dict(row) for row in db.execute(stmt).mappings().all()]
+
+    async def report(self, *, filters: dict[str, Any]) -> list[dict[str, Any]]:
+        return await asyncio.to_thread(self._report_sync, filters)
+
+    def _report_sync(self, filters: dict[str, Any]) -> list[dict[str, Any]]:
+        with self._session() as db:
+            tickets = self._table(db, settings.admin_tickets_table)
+            orders  = self._table(db, settings.admin_orders_table)
+            slots   = self._table(db, settings.admin_slots_table)
+            events  = self._table(db, settings.admin_events_table)
+
+            ticket_status_col = func.lower(cast(tickets.c[settings.admin_ticket_status_column], String))
+            activity_date = func.coalesce(slots.c.business_date, func.date(orders.c.created_at))
+
+            stmt = (
+                select(
+                    activity_date.label("date"),
+                    events.c.headset_brand.label("ip_brand"),
+                    events.c.name.label("event_name"),
+                    tickets.c.ticket_type,
+                    ticket_status_col.label("ticket_status"),
+                    tickets.c.checked_in_at,
+                    orders.c.created_at.label("order_date"),
+                    slots.c.slot_time_label.label("slot_time"),
+                    orders.c.id.label("order_id"),
+                    func.coalesce(tickets.c.net_ticket_amount, 0).label("ticket_amount"),
+                    orders.c.payment_method,
+                    orders.c.remarks,
+                )
+                .select_from(
+                    tickets
+                    .join(orders, tickets.c.order_id == orders.c.id)
+                    .join(slots, orders.c.slot_id == slots.c.id)
+                    .join(events, slots.c.event_id == events.c.id)
+                )
+            )
+
+            wheres = []
+            if filters.get("date_from"):
+                wheres.append(activity_date >= filters["date_from"])
+            if filters.get("date_to"):
+                wheres.append(activity_date <= filters["date_to"])
+            if filters.get("headset_brand"):
+                wheres.append(func.lower(cast(events.c.headset_brand, String)) == filters["headset_brand"].lower())
+            if filters.get("event_ids"):
+                wheres.append(events.c.id.in_(filters["event_ids"]))
+            if filters.get("ticket_types"):
+                wheres.append(tickets.c.ticket_type.in_(filters["ticket_types"]))
+            if filters.get("ticket_statuses"):
+                wheres.append(ticket_status_col.in_([s.lower() for s in filters["ticket_statuses"]]))
+            if filters.get("payment_methods"):
+                wheres.append(func.lower(cast(orders.c.payment_method, String)).in_(
+                    [m.lower() for m in filters["payment_methods"]]
+                ))
+            if wheres:
+                stmt = stmt.where(*wheres)
+
+            stmt = stmt.order_by(activity_date, events.c.headset_brand, events.c.name).limit(5000)
+            return [dict(row) for row in db.execute(stmt).mappings().all()]
+
     async def list_orders(self, filters: dict[str, Any]) -> tuple[list[dict[str, Any]], int]:
         return await asyncio.to_thread(self._list_orders_sync, filters)
 

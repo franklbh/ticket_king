@@ -13,6 +13,7 @@ from app.api.routes.admin import orders as admin_orders
 from app.api.routes.admin import scanner as admin_scanner
 from app.api.routes.admin import tickets as admin_tickets
 from app.api.routes.admin import users as admin_users
+from app.api.routes.admin import reports as admin_reports
 from app.core.config import settings
 
 API_V1_PREFIX = settings.api_v1_prefix
@@ -51,6 +52,7 @@ def create_app() -> FastAPI:
     app.include_router(admin_scanner.router, prefix=ADMIN_API_PREFIX)
     app.include_router(admin_logs.router, prefix=ADMIN_API_PREFIX)
     app.include_router(admin_users.router, prefix=ADMIN_API_PREFIX)
+    app.include_router(admin_reports.router, prefix=ADMIN_API_PREFIX)
     app.include_router(test_db.router)
     app.include_router(auth.router)
 

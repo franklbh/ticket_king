@@ -27,6 +27,7 @@ const t = {
     scanner: 'Scanner',
     admins: 'Admins',
     logs: 'Logs',
+    reports: 'Reports',
 
     // System
     adminPanel: 'Admin Panel',
@@ -50,6 +51,9 @@ const t = {
     salesTrend: 'Sales Trend',
     ticketDistribution: 'Ticket Distribution',
     popularSlots: 'Popular Slots',
+    incomeByProject: 'Revenue by Project',
+    projectRevenue: 'Project Revenue',
+    todayShort: 'Today',
     quickActions: 'Quick Actions',
     ordersManagement: 'Orders Management',
     ticketsManagement: 'Tickets Management',
@@ -357,6 +361,7 @@ const t = {
     scanner: '扫描仪',
     admins: '管理员',
     logs: '日志',
+    reports: '综合报表',
 
     // System
     adminPanel: '管理面板',
@@ -380,6 +385,9 @@ const t = {
     salesTrend: '销售趋势',
     ticketDistribution: '票型分布',
     popularSlots: '热门时段',
+    incomeByProject: '各项目收入',
+    projectRevenue: '项目营收',
+    todayShort: '今日',
     quickActions: '快速操作',
     ordersManagement: '订单管理',
     ticketsManagement: '票务管理',
@@ -687,6 +695,7 @@ const t = {
     scanner: '掃描器',
     admins: '管理員',
     logs: '日誌',
+    reports: '綜合報表',
 
     // System
     adminPanel: '管理面板',
@@ -710,6 +719,9 @@ const t = {
     salesTrend: '銷售趨勢',
     ticketDistribution: '票型分佈',
     popularSlots: '熱門時段',
+    incomeByProject: '各項目收入',
+    projectRevenue: '項目營收',
+    todayShort: '今日',
     quickActions: '快速操作',
     ordersManagement: '訂單管理',
     ticketsManagement: '票務管理',

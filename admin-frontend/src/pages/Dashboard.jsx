@@ -12,7 +12,7 @@ import {
 import { useLang } from '../context/authHooks'
 import { useT } from '../i18n/translations'
 import { useAuth } from '../context/authHooks'
-import { useDashboardQuery } from '../hooks/dashboard'
+import { useDashboardQuery, useIncomeByEventQuery } from '../hooks/dashboard'
 import {
   CustomTooltip,
   PopularSlotsChart,
@@ -25,8 +25,10 @@ import { AdminAlert, AdminCard, PageHeader } from '../components/AdminUI'
 import { can } from '../auth/permissions'
 
 const RANGE_TO_API = { last7Days: '7d', last14Days: '14d', last30Days: '30d', last90Days: '90d', allTime: 'all' }
-
 const RANGE_OPTIONS = ['last7Days', 'last14Days', 'last30Days', 'last90Days', 'allTime']
+
+const PROJECT_RANGE_TO_API = { today: 'today', last7Days: '7d', last14Days: '14d', last30Days: '30d', last90Days: '90d', allTime: 'all' }
+const PROJECT_RANGE_OPTIONS = ['today', 'last7Days', 'last14Days', 'last30Days', 'last90Days', 'allTime']
 
 const EMPTY_DASHBOARD = {
   stats: { todayRevenue: 0, todayOrders: 0, todayTickets: 0, pendingOrders: 0, activeSlots: 0 },
@@ -36,16 +38,44 @@ const EMPTY_DASHBOARD = {
   popularSlots: [],
 }
 
+function ProjectRevenueTooltip({ active, payload }) {
+  if (!active || !payload?.length) return null
+  const row = payload[0].payload
+  return (
+    <Box
+      sx={{
+        minWidth: 170,
+        maxWidth: 240,
+        p: 1.35,
+        border: '1px solid rgba(148, 163, 184, 0.24)',
+        borderRadius: 2,
+        background: '#fff',
+        boxShadow: '0 18px 42px rgba(15, 23, 42, 0.16)',
+      }}
+    >
+      <Typography fontWeight={800} fontSize={13} color="#111827" lineHeight={1.2} sx={{ overflowWrap: 'anywhere' }}>
+        {row.eventName || 'Project'}
+      </Typography>
+      <Typography fontWeight={900} fontSize={18} color="#2563eb" lineHeight={1.1} sx={{ mt: 0.65 }}>
+        {row.percentLabel || `${row.percent}%`}
+      </Typography>
+    </Box>
+  )
+}
+
 export default function Dashboard() {
   const { lang } = useLang()
   const { admin } = useAuth()
   const t = useT(lang)
   const navigate = useNavigate()
   const [range, setRange] = useState('allTime')
+  const [projectRange, setProjectRange] = useState('today')
   const { data: dashboard, error, loading } = useDashboardQuery(
     RANGE_TO_API[range],
     { initialData: EMPTY_DASHBOARD }
   )
+  const { data: incomeByEvent } = useIncomeByEventQuery(PROJECT_RANGE_TO_API[projectRange])
+  const { data: incomeForPie } = useIncomeByEventQuery(RANGE_TO_API[range])
 
   const stats = dashboard?.stats || EMPTY_DASHBOARD.stats
   const trend = dashboard?.salesTrend || []
@@ -133,7 +163,7 @@ export default function Dashboard() {
         </Box>
 
         {/* Charts row */}
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', xl: '1fr 320px' }, gap: 3 }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: 'minmax(0, 1fr) 300px', xl: 'minmax(0, 1fr) 340px' }, gap: { xs: 2, lg: 3 }, alignItems: 'start' }}>
           {/* Sales trend */}
           <Box>
             <Typography variant="subtitle2" fontWeight={800} sx={{ mb: 1.5 }}>{t.salesTrend}</Typography>
@@ -151,38 +181,127 @@ export default function Dashboard() {
             </ResponsiveContainer>
           </Box>
 
-          {/* Ticket distribution */}
+          {/* Project revenue distribution */}
           <Box>
-            <Typography variant="subtitle2" fontWeight={800} sx={{ mb: 1.5 }}>{t.ticketDistribution}</Typography>
-            <ResponsiveContainer width="100%" height={200}>
-              <PieChart>
-                <Pie
-                  data={distribution}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={50}
-                  outerRadius={85}
-                  paddingAngle={2}
-                  dataKey="value"
-                  label={({ payload }) => payload.value > 0 ? `${payload.percent}%` : ''}
-                  labelLine={false}
-                >
-                  {distribution.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                </Pie>
-                <Tooltip formatter={(value, name, props) => [`${value} tickets (${props.payload.percent}%)`, name]} />
-              </PieChart>
-            </ResponsiveContainer>
-            <Box sx={{ mt: 1 }}>
-              {distribution.map((d, i) => (
-                <Box key={i} sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.5, fontSize: 12 }}>
-                  <div style={{ width: 10, height: 10, borderRadius: 2, background: d.color, flexShrink: 0 }} />
-                  <span style={{ color: '#6b7280' }}>{d.name}</span>
-                  <span style={{ marginLeft: 'auto', fontWeight: 600 }}>{d.value}</span>
-                  <span style={{ width: 42, textAlign: 'right', color: '#6b7280', fontWeight: 600 }}>{d.percent}%</span>
-                </Box>
-              ))}
-            </Box>
+            <Typography variant="subtitle2" fontWeight={800} sx={{ mb: 1.5 }}>{t.incomeByProject}</Typography>
+            {(() => {
+              const COLORS = ['#1e40af', '#3b82f6', '#93c5fd', '#f59e0b', '#10b981', '#a78bfa']
+              const total = (incomeForPie || []).reduce((s, r) => s + r.revenue, 0) || 1
+              const pieData = (incomeForPie || [])
+                .map((r, i) => {
+                  const percent = r.revenue / total * 100
+                  return {
+                    ...r,
+                    color: COLORS[i % COLORS.length],
+                    percent,
+                    percentLabel: `${percent.toFixed(percent >= 10 ? 0 : 1)}%`,
+                  }
+                })
+              return (
+                <>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <PieChart>
+                      <Pie data={pieData} cx="50%" cy="50%" innerRadius={50} outerRadius={85}
+                        paddingAngle={2} dataKey="revenue" nameKey="eventName">
+                        {pieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                      </Pie>
+                      <Tooltip content={<ProjectRevenueTooltip />} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <Box sx={{ mt: 1 }}>
+                    {pieData.map((d, i) => (
+                      <Box key={i} sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.5, fontSize: 12 }}>
+                        <div style={{ width: 10, height: 10, borderRadius: 2, background: d.color, flexShrink: 0 }} />
+                        <span style={{ color: '#6b7280' }}>{d.eventName}</span>
+                        <span style={{ marginLeft: 'auto', fontWeight: 600 }}>${d.revenue.toFixed(2)}</span>
+                        <span style={{ width: 42, textAlign: 'right', color: '#6b7280', fontWeight: 600 }}>{d.percentLabel}</span>
+                      </Box>
+                    ))}
+                  </Box>
+                </>
+              )
+            })()}
           </Box>
+        </Box>
+      </AdminCard>
+
+      {/* Revenue by Project */}
+      <AdminCard className="mb-6">
+        <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'stretch', sm: 'center' }} justifyContent="space-between" spacing={2} sx={{ mb: 2.5 }}>
+          <Typography variant="h6" fontWeight={800} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <i className="fa fa-store" style={{ color: '#6366f1' }} />
+            {t.projectRevenue}
+          </Typography>
+          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+            <ToggleButtonGroup
+              exclusive
+              size="small"
+              value={projectRange}
+              onChange={(_, value) => value && setProjectRange(value)}
+              sx={{ flexWrap: 'wrap', gap: 0.75, '& .MuiToggleButtonGroup-grouped': { border: '1px solid #e5e7eb !important', borderRadius: '8px !important', fontWeight: 700 } }}
+            >
+              {PROJECT_RANGE_OPTIONS.map(r => (
+                <ToggleButton key={r} value={r} sx={{ textTransform: 'none', px: { xs: 1, sm: 1.5 }, py: 0.6, fontSize: 13 }}>
+                  {r === 'today' ? t.todayShort : t[r]}
+                </ToggleButton>
+              ))}
+            </ToggleButtonGroup>
+            <button
+              onClick={() => {
+                if (!incomeByEvent?.length) return
+                const header = 'Project,Revenue (CAD)\n'
+                const rows = incomeByEvent.map(row => `"${row.eventName}",${row.revenue.toFixed(2)}`).join('\n')
+                const blob = new Blob([header + rows], { type: 'text/csv' })
+                const url = URL.createObjectURL(blob)
+                const a = document.createElement('a')
+                a.href = url
+                a.download = `income_by_project_${projectRange}.csv`
+                a.click()
+                URL.revokeObjectURL(url)
+              }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '5px 14px', borderRadius: 8, border: '1px solid #e5e7eb',
+                background: '#f9fafb', cursor: 'pointer', fontSize: 13, fontWeight: 700, color: '#374151',
+              }}
+            >
+              <i className="fa fa-download" />
+              {t.exportCSV}
+            </button>
+          </Stack>
+        </Stack>
+        <Box sx={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+            <thead>
+              <tr style={{ background: '#6366f1', borderBottom: '2px solid #e5e7eb' }}>
+                <th style={{ textAlign: 'left', padding: '8px 12px', color: '#fff', fontWeight: 700 }}>Project</th>
+                <th style={{ textAlign: 'right', padding: '8px 12px', color: '#fff', fontWeight: 700 }}>Revenue (CAD)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(incomeByEvent || []).map((row, i) => (
+                <tr key={row.eventId} style={{ borderBottom: '1px solid #f3f4f6', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
+                  <td style={{ padding: '10px 12px', fontWeight: 600, color: '#111827' }}>{row.eventName}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: '#6366f1' }}>
+                    ${row.revenue.toFixed(2)}
+                  </td>
+                </tr>
+              ))}
+              {!incomeByEvent?.length && (
+                <tr><td colSpan={2} style={{ padding: '20px 12px', textAlign: 'center', color: '#9ca3af' }}>No data</td></tr>
+              )}
+            </tbody>
+            {incomeByEvent?.length > 0 && (
+              <tfoot>
+                <tr style={{ borderTop: '2px solid #e5e7eb' }}>
+                  <td style={{ padding: '10px 12px', fontWeight: 700, color: '#111827' }}>Total</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 800, color: '#6366f1' }}>
+                    ${incomeByEvent.reduce((s, r) => s + r.revenue, 0).toFixed(2)}
+                  </td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
         </Box>
       </AdminCard>
 

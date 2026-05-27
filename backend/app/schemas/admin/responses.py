@@ -222,6 +222,27 @@ class DashboardResponse(AdminModel):
     popular_slots: list[PopularSlotPoint] = Field(alias="popularSlots")
 
 
+class EventIncomeItem(AdminModel):
+    event_id: int = Field(alias="eventId")
+    event_name: str = Field(alias="eventName")
+    revenue: float
+
+
+class ReportRow(AdminModel):
+    date: str | None = None
+    ip_brand: str | None = Field(default=None, alias="ipBrand")
+    event_name: str | None = Field(default=None, alias="eventName")
+    ticket_type: str | None = Field(default=None, alias="ticketType")
+    ticket_status: str | None = Field(default=None, alias="ticketStatus")
+    checked_in_at: str | None = Field(default=None, alias="checkedInAt")
+    order_date: str | None = Field(default=None, alias="orderDate")
+    slot_time: str | None = Field(default=None, alias="slotTime")
+    order_id: str | None = Field(default=None, alias="orderId")
+    ticket_amount: float = Field(default=0, alias="ticketAmount")
+    payment_method: str | None = Field(default=None, alias="paymentMethod")
+    remarks: str | None = None
+
+
 class WalkInOrderResponse(AdminModel):
     order: OrderRead
     tickets: list[TicketRead]

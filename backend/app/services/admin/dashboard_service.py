@@ -114,5 +114,24 @@ class DashboardService:
             })
         return result
 
+    async def income_by_event(self, range_key: str = "all") -> list[dict]:
+        today = date.today()
+        if range_key == "today":
+            start = today
+        elif range_key == "all":
+            start = None
+        else:
+            days = {"7d": 7, "14d": 14, "30d": 30, "90d": 90}.get(range_key, 7)
+            start = today - timedelta(days=days - 1)
+        rows = await admin_repository.income_by_event(start_date=start)
+        return [
+            {
+                "eventId": row["event_id"],
+                "eventName": row["event_name"],
+                "revenue": round(as_float(row.get("revenue")), 2),
+            }
+            for row in rows
+        ]
+
 
 dashboard_service = DashboardService()
