@@ -41,6 +41,31 @@ class OrderService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found.")
         return row
 
+    def _validate_walk_in_ticket_selection(
+        self,
+        payload: WalkInOrderCreate,
+        slot_map: dict[str, dict[str, Any]],
+    ) -> None:
+        if not payload.tickets:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Select a date, time slot, and ticket type before creating an order.",
+            )
+
+        for item in payload.tickets:
+            slot_id = str(item.slot_id or payload.slot_id or "").strip()
+            ticket_type_id = str(item.ticket_type_id or "").strip()
+            if not slot_id or not ticket_type_id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Each ticket line must have a date, time slot, and ticket type.",
+                )
+            if slot_id not in slot_map:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Selected time slot was not found.",
+                )
+
     async def list_orders(self, filters: dict[str, Any]) -> OrderPage:
         rows, total = await admin_repository.list_orders(filters)
         orders = [normalize_order(row) for row in rows]
@@ -255,6 +280,7 @@ class OrderService:
         order_id = str(uuid.uuid4())
         order_number = self._order_number()
         slot_map = await slots_by_id()
+        self._validate_walk_in_ticket_selection(payload, slot_map)
         total_amount = round(sum(item.quantity * item.unit_price for item in payload.tickets), 2)
         adjusted_ticket_amount = max(0, round(total_amount + payload.admin_adjustment, 2))
         admin_adjustment = round(adjusted_ticket_amount - total_amount, 2)
