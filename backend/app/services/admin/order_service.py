@@ -66,8 +66,25 @@ class OrderService:
                     detail="Selected time slot was not found.",
                 )
 
+    async def _enrich_add_on(self, rows: list[dict]) -> None:
+        tt_rows = await admin_repository.select(settings.admin_ticket_types_table)
+        add_on_map = {str(r["id"]): r.get("add_on") for r in tt_rows}
+        ev_rows = await admin_repository.select(settings.admin_events_table)
+        event_name_map = {str(r["id"]): r.get("name") for r in ev_rows}
+        for row in rows:
+            details = row.get("ticket_details") or []
+            if isinstance(details, list):
+                for item in details:
+                    tid = str(item.get("ticket_type_id") or "")
+                    if tid and tid in add_on_map:
+                        item["add_on"] = add_on_map[tid]
+                    eid = str(item.get("event_id") or "")
+                    if eid and eid in event_name_map:
+                        item["event_name"] = event_name_map[eid]
+
     async def list_orders(self, filters: dict[str, Any]) -> OrderPage:
         rows, total = await admin_repository.list_orders(filters)
+        await self._enrich_add_on(rows)
         orders = [normalize_order(row) for row in rows]
         return paginate(
             OrderRead,
@@ -80,6 +97,7 @@ class OrderService:
 
     async def get_order(self, order_id: str) -> OrderRead:
         row = await self._resolve_order_row(order_id)
+        await self._enrich_add_on([row])
         return to_model(OrderRead, normalize_order(row))
 
     async def update_order_status(

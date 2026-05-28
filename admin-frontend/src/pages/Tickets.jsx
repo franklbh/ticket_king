@@ -13,7 +13,7 @@ import LoadingIndicator from '../components/LoadingIndicator'
 import QrCodeDialog from '../components/QrCodeDialog'
 import { AdminAlert, EmptyTableRow, FilterCard, PageHeader, TableShell } from '../components/AdminUI'
 import { ApplyFiltersButton, DateRangeFilter, ResetFiltersButton, SelectFilter, TextFilter } from '../components/FilterControls'
-import { localizeTicketTypeName } from '../utils/localization'
+import { localizeCatalogName, localizeTicketTypeName } from '../utils/localization'
 
 const PAGE_SIZE = 10
 const TODAY = new Date().toISOString().slice(0, 10)
@@ -474,6 +474,7 @@ export default function Tickets() {
                       <div style={{ lineHeight: 1.2 }}>
                         <div style={{ fontWeight: 800, color: '#374151' }}>{shortDate(tk.slotDate)}</div>
                         <div style={{ color: '#6b7280', fontSize: 12 }}>{tk.slotStart}-{tk.slotEnd}</div>
+                        {tk.eventName && <div style={{ color: '#6366f1', fontSize: 11 }}>{localizeCatalogName(tk.eventName, lang)}</div>}
                       </div>
                       <button
                         title={t.viewSlot}

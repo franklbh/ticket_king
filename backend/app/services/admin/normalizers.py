@@ -156,6 +156,28 @@ def normalize_order(
         slot_date = to_date_string(pick(row, "slot_date", "date"))
     start_time = str(start_time)[:5] if start_time else None
     end_time = str(end_time)[:5] if end_time else None
+
+    # Build per-event slots list from ticket_details
+    details = pick(row, "ticket_details") or []
+    seen_slot_keys: set = set()
+    slots_list: list = []
+    if isinstance(details, list):
+        for _item in details:
+            d = to_date_string(_item.get("slot_date"))
+            ts, te = split_slot_time(_item.get("slot_time"))
+            ts = str(ts)[:5] if ts else None
+            te = str(te)[:5] if te else None
+            en = _item.get("event_name")
+            key = (d, ts, en)
+            if d and key not in seen_slot_keys:
+                seen_slot_keys.add(key)
+                slots_list.append({"date": d, "startTime": ts, "endTime": te, "eventName": en})
+    if slot_date is None and slots_list:
+        slot_date = slots_list[0]["date"]
+        start_time = start_time or slots_list[0]["startTime"]
+        end_time = end_time or slots_list[0]["endTime"]
+    elif slot_date and not slots_list:
+        slots_list = [{"date": slot_date, "startTime": start_time, "endTime": end_time}]
     counts = (ticket_counts or {}).get(order_id) or (ticket_counts or {}).get(order_pk, {})
     total = as_int(pick(row, "ticket_total", "ticket_count", "total_tickets"), counts.get("total", 0))
     used = as_int(pick(row, "completed_tickets", "used_tickets"), counts.get("used", 0))
@@ -171,6 +193,7 @@ def normalize_order(
             "startTime": start_time,
             "endTime": end_time,
         },
+        "slots": slots_list,
         "ticketDetails": pick(row, "ticket_details"),
         "ticketCount": {
             "total": total,
@@ -203,6 +226,20 @@ def normalize_ticket(
         start_time = pick(row, "slot_start_time", "start_time", default=start_time)
         end_time = pick(row, "slot_end_time", "end_time", default=end_time)
         slot_date = to_date_string(pick(row, "slot_date", "date"))
+    event_name = None
+    order_details = pick(row, "order_ticket_details") or []
+    if isinstance(order_details, list) and order_details:
+        ticket_type = pick(row, "ticket_type")
+        matched = next(
+            (d for d in order_details if d.get("ticket_type") == ticket_type),
+            order_details[0],
+        )
+        event_name = matched.get("event_name")
+        if slot_date is None:
+            slot_date = to_date_string(matched.get("slot_date"))
+            ts, te = split_slot_time(matched.get("slot_time"))
+            start_time = str(ts)[:5] if ts else None
+            end_time = str(te)[:5] if te else None
     start_time = str(start_time)[:5] if start_time else None
     end_time = str(end_time)[:5] if end_time else None
     status = normalize_ticket_status(pick(row, "ticket_status", "status"))
@@ -221,6 +258,7 @@ def normalize_ticket(
         "slotDate": slot_date,
         "slotStart": start_time,
         "slotEnd": end_time,
+        "eventName": event_name,
         "status": status,
         "verifiedAt": to_datetime_string(pick(row, "check_in_at", "verified_at", "checked_in_at")),
         "createdAt": to_datetime_string(pick(row, "created_at", "order_created_at")),

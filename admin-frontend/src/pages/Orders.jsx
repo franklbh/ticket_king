@@ -14,6 +14,7 @@ import LoadingIndicator from '../components/LoadingIndicator'
 import { AdminAlert, EmptyTableRow, FilterCard, PageHeader, TableShell } from '../components/AdminUI'
 import { ApplyFiltersButton, DateRangeFilter, ResetFiltersButton, StatusChipFilter, TextFilter } from '../components/FilterControls'
 import { formatDateShort, todayIso, weekdayName } from '../utils/date'
+import { localizeCatalogName } from '../utils/localization'
 import { formatNorthAmericanPhone } from '../utils/phone'
 
 const STATUS_LIST = ['paid', 'completed', 'refunded', 'cancelled']
@@ -38,6 +39,7 @@ function getTicketItems(order) {
   const details = Array.isArray(order.ticketDetails) ? order.ticketDetails : []
   return details.map(item => ({
     type: item.ticket_type || item.ticketType || item.name || 'Ticket',
+    addOn: item.add_on || item.addOn || null,
     count: Number(item.quantity || item.count || 0),
     price: Number(item.unit_price || item.price || 0),
   })).filter(item => item.count > 0)
@@ -228,7 +230,10 @@ function TicketDetailContent({ order, t }) {
       <div style={{ height: 2, background: '#f59e0b', borderRadius: 1, marginBottom: 12 }} />
       {items.map((it, i) => (
         <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, fontSize: 13 }}>
-          <span style={{ flex: 1, color: '#374151' }}>{it.type}</span>
+          <span style={{ flex: 1, color: '#374151' }}>
+            {it.type}
+            {it.addOn && <span style={{ marginLeft: 6, fontSize: 11, background: '#eef2ff', color: '#4f46e5', borderRadius: 4, padding: '1px 6px' }}>{it.addOn}</span>}
+          </span>
           <span style={{ color: '#9ca3af', whiteSpace: 'nowrap' }}>${it.price.toFixed(2)} × {it.count}</span>
           <span style={{ fontWeight: 600, color: '#10b981', minWidth: 52, textAlign: 'right' }}>${(it.price * it.count).toFixed(2)}</span>
         </div>
@@ -644,10 +649,18 @@ export default function Orders() {
 
                   {/* Slot Info */}
                   <td>
-                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
-                      <span style={{ fontSize: 13, fontWeight: 500 }}>
-                        {o.slot?.date ? o.slot.date.slice(5) : t.noSlot} {o.slot?.startTime || ''}{o.slot?.endTime ? `-${o.slot.endTime}` : ''}
-                      </span>
+                    <div style={{ display: 'inline-flex', alignItems: 'flex-start', gap: 6 }}>
+                      <div>
+                        {(o.slots?.length ? o.slots : o.slot?.date ? [o.slot] : []).map((s, i) => (
+                          <div key={i} style={{ whiteSpace: 'nowrap' }}>
+                            <span style={{ fontSize: 13, fontWeight: 500 }}>{s.date ? s.date.slice(5) : ''} {s.startTime || ''}{s.endTime ? `-${s.endTime}` : ''}</span>
+                            {s.eventName && <span style={{ marginLeft: 4, fontSize: 11, color: '#6b7280' }}>{localizeCatalogName(s.eventName, lang)}</span>}
+                          </div>
+                        ))}
+                        {!o.slots?.length && !o.slot?.date && (
+                          <span style={{ fontSize: 13, fontWeight: 500 }}>{t.noSlot}</span>
+                        )}
+                      </div>
                       <IconBtn icon="fa-calendar" onClick={() => navigate('/slots')} title={t.viewSlot} color="#6366f1" bg="#eef2ff" />
                       <IconBtn icon="fa-exchange-alt" onClick={() => openModal('changeSlot', o)} title={t.changeOrderSlot} amber />
                     </div>

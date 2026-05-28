@@ -44,6 +44,7 @@ class SlotInfo(AdminModel):
     date: str | None = None
     start_time: str | None = Field(default=None, alias="startTime")
     end_time: str | None = Field(default=None, alias="endTime")
+    event_name: str | None = Field(default=None, alias="eventName")
 
 
 class TicketCountInfo(AdminModel):
@@ -57,6 +58,7 @@ class OrderRead(AdminModel):
     user: CustomerInfo
     email_status: str = Field(alias="emailStatus")
     slot: SlotInfo
+    slots: list[SlotInfo] = Field(default_factory=list)
     ticket_details: Any = Field(alias="ticketDetails")
     ticket_count: TicketCountInfo = Field(alias="ticketCount")
     amount: float = 0
@@ -83,6 +85,7 @@ class TicketRead(AdminModel):
     slot_date: str | None = Field(default=None, alias="slotDate")
     slot_start: str | None = Field(default=None, alias="slotStart")
     slot_end: str | None = Field(default=None, alias="slotEnd")
+    event_name: str | None = Field(default=None, alias="eventName")
     status: str
     verified_at: str | None = Field(default=None, alias="verifiedAt")
     created_at: str | None = Field(default=None, alias="createdAt")
