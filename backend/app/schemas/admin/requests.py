@@ -108,7 +108,7 @@ class AdminAccountCreate(BaseModel):
     department: str | None = None
     position: str | None = None
     staff_role: str | None = Field(default=None, alias="staffRole")
-    role: Literal["administrator", "admin"] = "administrator"
+    role: Literal["administrator", "admin", "partner"] = "administrator"
 
     model_config = {"populate_by_name": True}
 

@@ -7,7 +7,7 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import MetaData, String, Table, and_, case, cast, func, insert, or_, select, text, update
+from sqlalchemy import MetaData, String, Table, and_, case, cast, delete, func, insert, or_, select, text, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -218,6 +218,19 @@ class AdminRepository:
         values: dict[str, Any],
     ) -> list[dict[str, Any]]:
         return await asyncio.to_thread(self._update_sync, table_name, match_column, match_value, values)
+
+    async def delete_where(self, table_name: str, *, column: str, value: Any) -> int:
+        return await asyncio.to_thread(self._delete_where_sync, table_name, column, value)
+
+    def _delete_where_sync(self, table_name: str, column: str, value: Any) -> int:
+        with self._session() as db:
+            table = self._table(db, table_name)
+            if column not in table.c:
+                raise HTTPException(status_code=400, detail=f"Invalid SQL column: {column}")
+            value = self._coerce_column_value(table, column, value)
+            result = db.execute(delete(table).where(table.c[column] == value))
+            db.commit()
+            return result.rowcount
 
     async def claim_order_fulfillment(self, order_id: Any, *, updated_at: str) -> list[dict[str, Any]]:
         return await asyncio.to_thread(self._claim_order_fulfillment_sync, order_id, updated_at)

@@ -85,6 +85,14 @@ async def deactivate_user(
     return await user_service.deactivate_user(user_id, actor)
 
 
+@router.delete("/{user_id}/permanent")
+async def delete_user(
+    user_id: str,
+    actor: dict = Depends(require_permission("users:write")),
+) -> dict:
+    return await user_service.delete_user(user_id, actor)
+
+
 @router.post("/{user_id}/password-reset", response_model=ActionResponse)
 async def request_password_reset(
     user_id: str,

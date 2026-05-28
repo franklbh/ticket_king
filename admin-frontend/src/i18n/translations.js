@@ -398,6 +398,8 @@ const t = {
     noTimeRestriction: 'No restriction',
     noTicketsData: 'No ticket details available',
     qty: 'Qty',
+    deleteAdmin: 'Delete',
+    confirmDeleteAdmin: 'Are you sure you want to permanently delete this admin account? This action cannot be undone.',
 
     // Scanner extra
     tapToDismiss: 'Tap to dismiss',
@@ -963,6 +965,8 @@ const t = {
     noTimeRestriction: '不限',
     noTicketsData: '暂无票务详情',
     qty: '数量',
+    deleteAdmin: '删除',
+    confirmDeleteAdmin: '确定要永久删除此管理员账户吗？此操作无法撤销。',
 
     // Scanner extra
     tapToDismiss: '点击关闭',
@@ -1528,6 +1532,8 @@ const t = {
     noTimeRestriction: '不限',
     noTicketsData: '暫無票務詳情',
     qty: '數量',
+    deleteAdmin: '刪除',
+    confirmDeleteAdmin: '確定要永久刪除此管理員帳戶嗎？此操作無法撤銷。',
 
     // Scanner extra
     tapToDismiss: '點擊關閉',

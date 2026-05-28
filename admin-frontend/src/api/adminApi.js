@@ -349,6 +349,10 @@ export function deactivateUser(userId) {
   return apiRequest(`/users/${encodeURIComponent(userId)}`, { method: 'DELETE' })
 }
 
+export function deleteUser(userId) {
+  return apiRequest(`/users/${encodeURIComponent(userId)}/permanent`, { method: 'DELETE' })
+}
+
 export function requestUserPasswordReset(userId) {
   return apiRequest(`/users/${encodeURIComponent(userId)}/password-reset`, { method: 'POST' })
 }
