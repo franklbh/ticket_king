@@ -4,6 +4,36 @@ import dinoImg from '../picture/dino.jpg'
 import heroGameImg from '../picture/zombies.jpg'
 import guluGuluImg from '../picture/gulugulu.jpg'
 import hyperBeatSlashImg from '../picture/HyperBeatSlash.jpg'
+import terracottaGallery1 from '../picture/terracotta/1.jpg'
+import terracottaGallery2 from '../picture/terracotta/2.png'
+import terracottaGallery3 from '../picture/terracotta/3.png'
+import terracottaGallery4 from '../picture/terracotta/4.png'
+import terracottaGallery5 from '../picture/terracotta/5.png'
+import pandaGallery1 from '../picture/panda/1.png'
+import pandaGallery2 from '../picture/panda/2.png'
+import pandaGallery3 from '../picture/panda/3.png'
+import pandaGallery4 from '../picture/panda/4.png'
+import pandaGallery5 from '../picture/panda/5.png'
+import dinoGallery1 from '../picture/dino/1.png'
+import dinoGallery2 from '../picture/dino/2.png'
+import dinoGallery3 from '../picture/dino/3.png'
+import dinoGallery4 from '../picture/dino/4.png'
+import dinoGallery5 from '../picture/dino/5.png'
+import heroGallery1 from '../picture/hero/1.png'
+import heroGallery2 from '../picture/hero/2.png'
+import heroGallery3 from '../picture/hero/3.png'
+import heroGallery4 from '../picture/hero/4.png'
+import heroGallery5 from '../picture/hero/5.png'
+import beatGallery1 from '../picture/beat/1.png'
+import beatGallery2 from '../picture/beat/2.png'
+import beatGallery3 from '../picture/beat/3.png'
+import beatGallery4 from '../picture/beat/4.png'
+import beatGallery5 from '../picture/beat/5.png'
+import guluGallery1 from '../picture/gulu/1.png'
+import guluGallery2 from '../picture/gulu/2.png'
+import guluGallery3 from '../picture/gulu/3.png'
+import guluGallery4 from '../picture/gulu/4.png'
+import guluGallery5 from '../picture/gulu/5.png'
 
 const videoBaseUrl = (import.meta.env.VITE_VIDEO_BASE_URL || '').replace(/\/$/, '')
 const videoUrl = (filename) => videoBaseUrl ? `${videoBaseUrl}/${filename}` : ''
@@ -19,16 +49,15 @@ const beatVideoZh = videoUrl('beat_CH.mp4')
 const guluVideoEn = videoUrl('gulu_EN.mp4')
 const guluVideoZh = videoUrl('gulu_CH.mp4')
 
-const galleryImg1 = '/picture/gallery1.png'
-const galleryImg2 = '/picture/gallery2.png'
-const galleryImg3 = '/picture/gallery3.png'
-const galleryImg4 = '/picture/gallery4.png'
-const galleryImg5 = '/picture/gallery5.png'
-const galleryImg6 = '/picture/gallery6.png'
-const galleryImg7 = '/picture/gallery7.png'
-const galleryImg8 = '/picture/gallery8.png'
 const commenterImg1 = '/picture/comment_p1.jpg'
 const commenterImg2 = '/picture/comment_p2.jpg'
+
+const terracottaGallery = [terracottaGallery1, terracottaGallery2, terracottaGallery3, terracottaGallery4, terracottaGallery5]
+const pandaGallery = [pandaGallery1, pandaGallery2, pandaGallery3, pandaGallery4, pandaGallery5]
+const dinoGallery = [dinoGallery1, dinoGallery2, dinoGallery3, dinoGallery4, dinoGallery5]
+const heroGallery = [heroGallery1, heroGallery2, heroGallery3, heroGallery4, heroGallery5]
+const beatGallery = [beatGallery1, beatGallery2, beatGallery3, beatGallery4, beatGallery5]
+const guluGallery = [guluGallery1, guluGallery2, guluGallery3, guluGallery4, guluGallery5]
 
 export const vrExperiences = [
   {
@@ -79,7 +108,7 @@ export const vrExperiences = [
       '“Terracotta Warriors: Secrets of the First Emperor’s Mausoleum” is a groundbreaking location-based VR experience created by Xi’an Hongwen, in collaboration with VIVE Arts and Wevr. For the first time, this immersive production is officially licensed by the Emperor Qin Shi Huang’s Mausoleum Site Museum.',
     longDescription:
       'The project brings together world-class creative and technical teams to deliver an authentic, interactive journey that stays true to the latest archaeological discoveries. Audiences travel back to the Great Qin and embark on an unforgettable adventure into the heart of mausoleum.',
-    gallery: [terracottaImg, galleryImg1, galleryImg2, galleryImg3, galleryImg4, galleryImg5, galleryImg6, galleryImg7, galleryImg8],
+    gallery: terracottaGallery,
     reviews: [
       { quote: "I felt like I was really standing among the Terracotta Warriors. The level of detail and atmosphere were incredible — both educational and breathtaking.", name: 'Emily R.', rating: 5, img: commenterImg1 },
       { quote: "The experience transported me straight into ancient China. It's amazing how real everything felt, from the sounds to the lighting. Highly recommended!", name: 'Michael T.', rating: 5, img: commenterImg2 },
@@ -187,7 +216,7 @@ export const vrExperiences = [
       "Panda's World is a calm, family-friendly VR journey through bamboo forests, mountain paths, and warm wildlife moments. It is designed for guests who want a beautiful introduction to VR without intense motion or complicated controls.",
     longDescription:
       'The experience moves at a relaxed pace, making it easy for children, parents, and first-time VR guests to enjoy together. Expect bright nature visuals, simple interaction, comfortable guidance, and a peaceful story that feels light, playful, and easy to follow.',
-    gallery: [pandaImg, galleryImg3, galleryImg5, galleryImg1, galleryImg7, galleryImg2, galleryImg6],
+    gallery: pandaGallery,
     reviews: [
       { quote: "My kids absolutely loved it. The experience felt gentle, bright, and easy to follow, and my 6-year-old was comfortable the whole time.", name: 'Sarah L.', rating: 5, img: commenterImg1 },
       { quote: 'A beautiful and peaceful VR experience. The bamboo forest visuals were stunning, and it was perfect for a family outing.', name: 'David K.', rating: 5, img: commenterImg2 },
@@ -295,7 +324,7 @@ export const vrExperiences = [
       'Back to the Jurassic sends you into a prehistoric world filled with towering dinosaurs, dramatic landscapes, and cinematic VR moments. It is a more thrilling experience for guests who want movement, scale, and adventure.',
     longDescription:
       'Explore ancient environments, come face to face with lifelike creatures, and feel the scale of the Jurassic era through immersive visuals and surround audio. The experience is guided and easy to follow, while still delivering a stronger sense of motion and excitement.',
-    gallery: [dinoImg, galleryImg2, galleryImg4, galleryImg6, galleryImg8, galleryImg1, galleryImg5],
+    gallery: dinoGallery,
     reviews: [
       { quote: 'The dinosaurs felt huge and surprisingly real. It was exciting without being confusing, and the sound made the scenes feel massive.', name: 'Jason M.', rating: 5, img: commenterImg2 },
       { quote: 'A really fun adventure. The prehistoric scenes were beautiful, and the dinosaur moments made everyone in our group react.', name: 'Priya S.', rating: 5, img: commenterImg1 },
@@ -406,7 +435,7 @@ export const arcadeGames = [
       "Zombies have besieged the city, and your squad is the last line of defense. Hero is a full-sensory multiplayer combat experience where teamwork, quick decisions, and steady aim decide the city's survival.",
     longDescription:
       'Team up with real players, move through urban battlefield maps, and clear coordinated survival challenges together. Designed for competitive groups, Hero blends location-based VR combat with cinematic chaos and physical immersion.',
-    gallery: [heroGameImg, galleryImg4, galleryImg6, galleryImg2, galleryImg8, galleryImg3, galleryImg7],
+    gallery: heroGallery,
     reviews: [
       { quote: "My group had an absolute blast. The competitive element made it so much more exciting than passive VR. We've already booked our rematch!", name: 'Kevin L.', rating: 5, img: commenterImg2 },
       { quote: "Best multiplayer VR I've tried anywhere. The arena maps are cleverly designed and the leaderboard had everyone talking trash. 10/10.", name: 'Monica H.', rating: 5, img: commenterImg1 },
@@ -514,7 +543,7 @@ export const arcadeGames = [
       'HyperBeat Slash turns music into a physical VR challenge. Step into vivid rhythm stages, slash incoming targets, and chase combos in a fast, colorful, screen-free esports experience.',
     longDescription:
       'Each track surrounds players with glowing beat blocks, reactive lights, and full-body movement. It is easy to start, satisfying to master, and built for guests who want energetic gameplay without a long learning curve.',
-    gallery: [hyperBeatSlashImg, galleryImg1, galleryImg5, galleryImg3, galleryImg7, galleryImg4, galleryImg8],
+    gallery: beatGallery,
     reviews: [
       { quote: 'The music and movement clicked immediately. Everyone in our group wanted another round because the score chase was so addictive.', name: 'Rachel T.', rating: 5, img: commenterImg1 },
       { quote: 'Bright, active, and really easy to understand. It felt like a workout and an arcade game at the same time.', name: 'Brian C.', rating: 5, img: commenterImg2 },
@@ -622,7 +651,7 @@ export const arcadeGames = [
       'GULU GULU is a bright, fast, family-friendly VR battle where players take on a cute monster legion in a screen-free, full-sensory arena.',
     longDescription:
       'Jump into colorful stages, react quickly, and work together through playful combat rounds. It is built for guests who want arcade energy, approachable rules, and a lively group experience.',
-    gallery: [guluGuluImg, galleryImg3, galleryImg7, galleryImg1, galleryImg5, galleryImg2, galleryImg6],
+    gallery: guluGallery,
     reviews: [
       { quote: 'GULU GULU was perfect for our family. Bright, silly, and easy to jump into, but still exciting enough for the adults.', name: 'Amy W.', rating: 5, img: commenterImg1 },
       { quote: 'The monster battles were chaotic in the best way. Everyone understood what to do right away and laughed the whole time.', name: 'Daniel R.', rating: 5, img: commenterImg2 },
