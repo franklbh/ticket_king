@@ -21,11 +21,14 @@ import { useEventsQuery, useSlotsQuery } from '../hooks/catalog'
 import { useAdminMutation } from '../hooks/useAdminApi'
 import { formatDateWithDay, todayIso } from '../utils/date'
 import { ApplyFiltersButton, DateRangeFilter, ResetFiltersButton, SelectFilter } from '../components/FilterControls'
+import { localizeCatalogName } from '../utils/localization'
 
 const PAGE_SIZE = 15
 const TODAY = todayIso()
 
 function SeatBar({ website, inStore, total }) {
+  const { lang } = useLang()
+  const t = useT(lang)
   const sold = website + inStore
   const pct = total > 0 ? (sold / total) * 100 : 0
   const webPct = total > 0 ? (website / total) * 100 : 0
@@ -37,44 +40,45 @@ function SeatBar({ website, inStore, total }) {
         <div style={{ position: 'absolute', left: `${webPct}%`, top: 0, height: '100%', width: `${inStorePct}%`, background: '#10b981' }} />
       </div>
       <div style={{ fontSize: 11, color: '#6b7280' }}>
-        <span style={{ color: '#6366f1' }}>Website: {website}</span>
+        <span style={{ color: '#6366f1' }}>{t.websiteLabel} {website}</span>
         {' · '}
-        <span style={{ color: '#10b981' }}>In-store: {inStore}</span>
+        <span style={{ color: '#10b981' }}>{t.inStoreLabel} {inStore}</span>
       </div>
     </div>
   )
 }
 
-function SlotModal({ slot, events, onClose, onSave }) {
+function SlotModal({ slot, events, onClose, onSave, lang = 'en' }) {
+  const t = useT(lang)
   const [form, setForm] = useState(slot || {
     event: events[0]?.id || 1, date: '', startTime: '', endTime: '', price: 37.95, totalSeats: 20, status: 'active'
   })
   return (
     <Dialog open onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>{slot ? 'Edit Slot' : 'Create Slot'}</DialogTitle>
+      <DialogTitle>{slot ? t.editSlot : t.createNewSlot}</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ pt: 1 }}>
           <Select size="small" value={form.event} onChange={e => setForm(f => ({ ...f, event: Number(e.target.value) }))}>
-            {events.map(ev => <MenuItem key={ev.id} value={ev.id}>{ev.name}</MenuItem>)}
+            {events.map(ev => <MenuItem key={ev.id} value={ev.id}>{localizeCatalogName(ev.name, lang)}</MenuItem>)}
           </Select>
-          <TextField size="small" type="date" label="Date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} InputLabelProps={{ shrink: true }} />
+          <TextField size="small" type="date" label={t.date} value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} InputLabelProps={{ shrink: true }} />
           <div className="grid grid-cols-2 gap-3">
-            <TextField size="small" type="time" label="Start Time" value={form.startTime} onChange={e => setForm(f => ({ ...f, startTime: e.target.value }))} InputLabelProps={{ shrink: true }} />
-            <TextField size="small" type="time" label="End Time" value={form.endTime} onChange={e => setForm(f => ({ ...f, endTime: e.target.value }))} InputLabelProps={{ shrink: true }} />
+            <TextField size="small" type="time" label={t.startTime} value={form.startTime} onChange={e => setForm(f => ({ ...f, startTime: e.target.value }))} InputLabelProps={{ shrink: true }} />
+            <TextField size="small" type="time" label={t.endTime} value={form.endTime} onChange={e => setForm(f => ({ ...f, endTime: e.target.value }))} InputLabelProps={{ shrink: true }} />
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <TextField size="small" type="number" label="Price ($)" value={form.price} onChange={e => setForm(f => ({ ...f, price: Number(e.target.value) }))} />
-            <TextField size="small" type="number" label="Total Seats" value={form.totalSeats} onChange={e => setForm(f => ({ ...f, totalSeats: Number(e.target.value) }))} />
+            <TextField size="small" type="number" label={t.priceCAD} value={form.price} onChange={e => setForm(f => ({ ...f, price: Number(e.target.value) }))} />
+            <TextField size="small" type="number" label={t.totalSeats} value={form.totalSeats} onChange={e => setForm(f => ({ ...f, totalSeats: Number(e.target.value) }))} />
           </div>
           <Select size="small" value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
-            <MenuItem value="active">Active</MenuItem>
-            <MenuItem value="disabled">Disabled</MenuItem>
+            <MenuItem value="active">{t.active}</MenuItem>
+            <MenuItem value="disabled">{t.disabled}</MenuItem>
           </Select>
         </Stack>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>{'Cancel'}</Button>
-        <Button variant="contained" onClick={() => onSave(form)}>Save</Button>
+        <Button onClick={onClose}>{t.cancel}</Button>
+        <Button variant="contained" onClick={() => onSave(form)}>{t.save}</Button>
       </DialogActions>
     </Dialog>
   )
@@ -152,7 +156,7 @@ export default function Slots() {
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   if (loadingSlots) {
-    return <LoadingIndicator label="Loading live slots..." />
+    return <LoadingIndicator label={t.loadingSlots} />
   }
 
   async function handleSave(form) {
@@ -231,6 +235,7 @@ export default function Slots() {
           events={events}
           onClose={() => setModal(null)}
           onSave={handleSave}
+          lang={lang}
         />
       )}
       {loadError && (
@@ -241,11 +246,11 @@ export default function Slots() {
       <PageHeader
         icon="fa-calendar"
         title={t.timeSlotsManagement}
-        subtitle="Manage all event slots"
+        subtitle={t.manageSlots}
         actions={
         <Stack direction="row" spacing={1}>
-          <Button variant="outlined" size="small" onClick={batchCreateSlots} startIcon={<i className="fa fa-layer-group" />}>Batch Create</Button>
-          <Button variant="outlined" size="small" disabled={appliedFilters.event === 'all'} onClick={archiveSelectedEvent} startIcon={<i className="fa fa-archive" />}>Archive Event</Button>
+          <Button variant="outlined" size="small" onClick={batchCreateSlots} startIcon={<i className="fa fa-layer-group" />}>{t.batchCreate}</Button>
+          <Button variant="outlined" size="small" disabled={appliedFilters.event === 'all'} onClick={archiveSelectedEvent} startIcon={<i className="fa fa-archive" />}>{t.archiveEvent}</Button>
           <Button variant="contained" size="small" onClick={() => setModal('create')}>{t.createSlot}</Button>
         </Stack>
         }
@@ -255,7 +260,7 @@ export default function Slots() {
       <FilterCard>
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-[2fr_2fr_1fr_auto] mb-3">
           <SelectFilter label={t.event} value={filters.event} onChange={value => setFilters(f => ({ ...f, event: value }))} options={[{ value: 'all', label: t.allEvents }, ...events.map(ev => ({ value: String(ev.id), label: ev.name }))]} />
-          <DateRangeFilter label="Date Range" from={filters.dateFrom} to={filters.dateTo} onFromChange={value => setFilters(f => ({ ...f, dateFrom: value }))} onToChange={value => setFilters(f => ({ ...f, dateTo: value }))} />
+          <DateRangeFilter label={t.dateRange} from={filters.dateFrom} to={filters.dateTo} onFromChange={value => setFilters(f => ({ ...f, dateFrom: value }))} onToChange={value => setFilters(f => ({ ...f, dateTo: value }))} />
           <SelectFilter label={t.status} value={filters.status} onChange={value => setFilters(f => ({ ...f, status: value }))} options={[{ value: 'all', label: t.allStatus }, { value: 'active', label: t.active }, { value: 'disabled', label: t.disabled }]} />
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
             <ApplyFiltersButton onClick={applyFilters} />
@@ -275,13 +280,13 @@ export default function Slots() {
             <thead>
               <tr>
                 <th>ID</th>
-                <th>Event</th>
-                <th>Date</th>
-                <th>Time</th>
-                <th>Price</th>
-                <th>Seats</th>
-                <th>Status</th>
-                <th>Actions</th>
+                <th>{t.event}</th>
+                <th>{t.date}</th>
+                <th>{t.time}</th>
+                <th>{t.price}</th>
+                <th>{t.seats}</th>
+                <th>{t.status}</th>
+                <th>{t.actions}</th>
               </tr>
             </thead>
             <tbody>
@@ -294,7 +299,7 @@ export default function Slots() {
                   <tr key={s.id}>
                     <td style={{ fontWeight: 600, color: '#6366f1', fontFamily: 'monospace', fontSize: 13 }}>#{s.id}</td>
                     <td style={{ fontSize: 13, maxWidth: 250 }}>
-                      {events.find(e => e.id === s.event)?.name}
+                      {localizeCatalogName(events.find(e => e.id === s.event)?.name, lang)}
                     </td>
                     <td style={{ whiteSpace: 'nowrap', fontSize: 13 }}>
                       <div>{s.date}</div>
@@ -315,7 +320,7 @@ export default function Slots() {
                           sx={{ minWidth: 0, px: 0.75, py: 0, fontSize: 11 }}
                           startIcon={<i className="fa fa-eye" />}
                         >
-                          View
+                          {t.view}
                         </Button>
                       </div>
                     </td>
@@ -328,7 +333,7 @@ export default function Slots() {
                     <td>
                       <div style={{ display: 'flex', gap: 6 }}>
                         <Button variant="contained" size="small" onClick={() => setModal(s)} startIcon={<i className="fa fa-edit" />}>{t.edit}</Button>
-                        <Button variant="outlined" size="small" onClick={() => changeCapacity(s)} startIcon={<i className="fa fa-chair" />}>Capacity</Button>
+                        <Button variant="outlined" size="small" onClick={() => changeCapacity(s)} startIcon={<i className="fa fa-chair" />}>{t.adjustCapacity}</Button>
                         <Button
                           onClick={() => toggleSlotStatus(s)}
                           variant="contained"

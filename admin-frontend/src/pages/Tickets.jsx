@@ -13,6 +13,7 @@ import LoadingIndicator from '../components/LoadingIndicator'
 import QrCodeDialog from '../components/QrCodeDialog'
 import { AdminAlert, EmptyTableRow, FilterCard, PageHeader, TableShell } from '../components/AdminUI'
 import { ApplyFiltersButton, DateRangeFilter, ResetFiltersButton, SelectFilter, TextFilter } from '../components/FilterControls'
+import { localizeTicketTypeName } from '../utils/localization'
 
 const PAGE_SIZE = 10
 const TODAY = new Date().toISOString().slice(0, 10)
@@ -42,7 +43,7 @@ function normalizeTicketTypeLabel(label) {
     .replace(/\s*\)/g, ')')
 }
 
-function ExportConfirmDialog({ title, message, filters, onCancel, onConfirm }) {
+function ExportConfirmDialog({ title, message, filters, onCancel, onConfirm, t }) {
   return (
     <div
       style={{ position: 'fixed', inset: 0, background: 'rgba(17,24,39,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}
@@ -60,7 +61,7 @@ function ExportConfirmDialog({ title, message, filters, onCancel, onConfirm }) {
         </div>
         <div style={{ paddingLeft: 46, color: '#6b7280', fontSize: 18, lineHeight: 1.55 }}>
           <div style={{ marginBottom: 28 }}>{message}</div>
-          <div style={{ marginBottom: 6 }}>Current filters:</div>
+          <div style={{ marginBottom: 6 }}>{t.currentFilters}</div>
           <div style={{ fontSize: 16 }}>
             {filters.map((item, index) => (
               <div key={index}>· {item}</div>
@@ -69,10 +70,10 @@ function ExportConfirmDialog({ title, message, filters, onCancel, onConfirm }) {
         </div>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 28 }}>
           <button className="btn-secondary" onClick={onCancel} style={{ padding: '9px 22px', fontSize: 14, borderRadius: 8 }}>
-            Cancel
+            {t.cancel}
           </button>
           <button className="btn-primary" onClick={onConfirm} style={{ padding: '9px 22px', fontSize: 14, borderRadius: 8 }}>
-            Confirm
+            {t.confirmBtn}
           </button>
         </div>
       </div>
@@ -140,8 +141,9 @@ export default function Tickets() {
   const tickets = ticketsData?.items || []
   const ticketTypeOptions = useMemo(
     () => [...new Set(ticketTypes.map(type => normalizeTicketTypeLabel(type.name)).filter(Boolean))]
-      .sort((left, right) => left.localeCompare(right)),
-    [ticketTypes]
+      .sort((left, right) => left.localeCompare(right))
+      .map(value => ({ value, label: localizeTicketTypeName(value, lang) })),
+    [ticketTypes, lang]
   )
   const [qrTicket, setQrTicket] = useState(null)
   const [showExportConfirm, setShowExportConfirm] = useState(false)
@@ -285,12 +287,12 @@ export default function Tickets() {
   }
 
   if (loadingTickets) {
-    return <LoadingIndicator label="Loading live tickets..." />
+    return <LoadingIndicator label={t.loadingTickets} />
   }
 
   return (
     <div>
-      {qrTicket && <QrCodeDialog title="Ticket QR Code" value={qrTicket} subtitle="Scan this in the admin scanner." onClose={() => setQrTicket(null)} />}
+      {qrTicket && <QrCodeDialog title={t.ticketQRCode} value={qrTicket} subtitle={t.scanInAdminScanner} onClose={() => setQrTicket(null)} />}
       {loadError && (
         <AdminAlert tone="warning">
           Backend tickets could not be loaded: {loadError.message}
@@ -298,11 +300,12 @@ export default function Tickets() {
       )}
       {showExportConfirm && (
         <ExportConfirmDialog
-          title="Confirm Action"
-          message="You are about to export ticket data"
+          title={t.confirmAction}
+          message={t.exportTicketsConfirm}
           filters={ticketExportFilters()}
           onCancel={() => setShowExportConfirm(false)}
           onConfirm={exportCSV}
+          t={t}
         />
       )}
 
@@ -312,9 +315,9 @@ export default function Tickets() {
         subtitle={t.manageTickets}
         actions={
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <Button variant="outlined" size="small" disabled={!selectedIds.length} onClick={() => batchStatus('used')}>Batch Used</Button>
-          <Button variant="outlined" size="small" disabled={!selectedIds.length} onClick={() => batchStatus('not_used')}>Batch Unused</Button>
-          <Button variant="outlined" color="warning" size="small" disabled={!selectedIds.length} onClick={() => batchStatus('voided')}>Batch Void</Button>
+          <Button variant="outlined" size="small" disabled={!selectedIds.length} onClick={() => batchStatus('used')}>{t.batchUsed}</Button>
+          <Button variant="outlined" size="small" disabled={!selectedIds.length} onClick={() => batchStatus('not_used')}>{t.batchUnused}</Button>
+          <Button variant="outlined" color="warning" size="small" disabled={!selectedIds.length} onClick={() => batchStatus('voided')}>{t.batchVoid}</Button>
           <Button variant="outlined" size="small" onClick={() => setShowExportConfirm(true)} disabled={exporting} startIcon={<i className="fa fa-file-export" />}>
             {t.exportCSV}
           </Button>
@@ -366,17 +369,17 @@ export default function Tickets() {
           <span style={{ fontSize: 13, fontWeight: 500, color: '#374151' }}>{t.ticketType}:</span>
           {ticketTypeOptions.map(type => (
             <Chip
-              key={type}
-              label={type}
-              color={filters.types.includes(type) ? 'primary' : 'default'}
-              variant={filters.types.includes(type) ? 'filled' : 'outlined'}
+              key={type.value}
+              label={type.label}
+              color={filters.types.includes(type.value) ? 'primary' : 'default'}
+              variant={filters.types.includes(type.value) ? 'filled' : 'outlined'}
               icon={<i className="fa fa-ticket" />}
-              onClick={() => toggleType(type)}
+              onClick={() => toggleType(type.value)}
               sx={{ fontWeight: 700 }}
             />
           ))}
           <Button size="small" variant="contained" onClick={applyFilters} startIcon={<i className="fa fa-check" />}>
-            Apply
+            {t.apply}
           </Button>
         </div>
       </FilterCard>
@@ -435,12 +438,12 @@ export default function Tickets() {
                         {t.qrCode}
                       </button>
                       <button
-                        title="Regenerate QR"
+                        title={t.regenerateQR}
                         onClick={() => regenerateQr(tk)}
                         style={{ ...actionButton, background: THEME.utilityBg, color: THEME.utilityText, border: `1px solid ${THEME.utilityBorder}` }}
                       >
                         <i className="fa fa-sync" />
-                        Reissue
+                        {t.reissue}
                       </button>
                     </div>
                   </td>
@@ -465,7 +468,7 @@ export default function Tickets() {
                     </div>
                   </td>
                   <td style={{ fontSize: 13, color: '#4b5563' }}><div style={truncate}>{tk.remarks || '-'}</div></td>
-                  <td style={{ fontSize: 13, color: '#374151' }}><div style={truncate} title={tk.ticketType}>{tk.ticketType}</div></td>
+                  <td style={{ fontSize: 13, color: '#374151' }}><div style={truncate} title={tk.ticketType}>{localizeTicketTypeName(tk.ticketType, lang)}</div></td>
                   <td style={{ fontSize: 13 }}>
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
                       <div style={{ lineHeight: 1.2 }}>

@@ -122,7 +122,7 @@ export default function Marketing() {
   }
 
   if (loadingSettings && !loadedSettings) {
-    return <LoadingIndicator label="Loading marketing settings..." />
+    return <LoadingIndicator label={t.loadingMarketing} />
   }
 
   const paged = records
@@ -136,14 +136,14 @@ export default function Marketing() {
       <PageHeader
         icon="fa-bullhorn"
         title={t.marketingManagement}
-        subtitle="Configure automatic marketing emails with discount coupons after ticket check-in"
+        subtitle={t.marketingSub}
         actions={
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <Button variant="outlined" size="small" disabled={!canWriteMarketing} onClick={testSend} startIcon={<i className="fa fa-paper-plane" />}>
-            Test Send
+            {t.testSend}
           </Button>
           <Button variant="contained" size="small" disabled={!canWriteMarketing} onClick={createRecord} startIcon={<i className="fa fa-plus" />}>
-            Create Record
+            {t.createRecord}
           </Button>
         </div>
         }
@@ -181,10 +181,10 @@ export default function Marketing() {
                 <span style={{ fontWeight: 600, fontSize: 14 }}>{t.enableMarketing}</span>
                 <Toggle disabled={!canWriteMarketing} checked={settings.enabled} onChange={() => setSettings(s => ({ ...s, enabled: !s.enabled }))} />
                 <span style={{ fontSize: 14, color: settings.enabled ? '#10b981' : '#6b7280', fontWeight: 500 }}>
-                  {settings.enabled ? 'Enabled' : 'Disabled'}
+                  {settings.enabled ? t.enabled : t.disabled}
                 </span>
               </div>
-              <p style={{ margin: 0, fontSize: 12, color: '#9ca3af' }}>When enabled, marketing emails will be automatically sent after ticket check-in</p>
+              <p style={{ margin: 0, fontSize: 12, color: '#9ca3af' }}>{t.enableMarketingHelper}</p>
             </div>
 
             <div className="marketing-field-grid">
@@ -197,7 +197,7 @@ export default function Marketing() {
                   disabled={!canWriteMarketing}
                   onChange={e => setSettings(s => ({ ...s, sendDelay: Number(e.target.value) }))}
                 />
-                <p style={{ margin: '4px 0 0', fontSize: 12, color: '#9ca3af' }}>Time to wait after check-in before sending. Recommended: exhibition duration + 20 minutes</p>
+                <p style={{ margin: '4px 0 0', fontSize: 12, color: '#9ca3af' }}>{t.sendDelayHelper}</p>
               </div>
               <div>
                 <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 6 }}>{t.couponValidity}</label>
@@ -208,7 +208,7 @@ export default function Marketing() {
                   disabled={!canWriteMarketing}
                   onChange={e => setSettings(s => ({ ...s, couponValidity: Number(e.target.value) }))}
                 />
-                <p style={{ margin: '4px 0 0', fontSize: 12, color: '#9ca3af' }}>How long the coupon will be valid from creation date</p>
+                <p style={{ margin: '4px 0 0', fontSize: 12, color: '#9ca3af' }}>{t.couponValidityHelper}</p>
               </div>
             </div>
           </div>
@@ -239,12 +239,12 @@ export default function Marketing() {
                 />
                 <Chip color="success" size="small" icon={<i className="fa fa-tag" />} label={discountPreview} sx={{ fontWeight: 800 }} />
               </div>
-              <p style={{ margin: '4px 0 0', fontSize: 12, color: '#9ca3af' }}>E.g. 10 means 10% discount</p>
+              <p style={{ margin: '4px 0 0', fontSize: 12, color: '#9ca3af' }}>{t.discountSettingHelper}</p>
             </div>
 
             <div className="marketing-field-grid">
               <div>
-                <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 6 }}>Minimum Purchase ($)</label>
+                <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 6 }}>{t.minimumPurchaseMarketing}</label>
                 <input
                   className="form-input"
                   type="number"
@@ -253,7 +253,7 @@ export default function Marketing() {
                   disabled={!canWriteMarketing}
                   onChange={e => setSettings(s => ({ ...s, minPurchase: Number(e.target.value) }))}
                 />
-                <p style={{ margin: '4px 0 0', fontSize: 12, color: '#9ca3af' }}>Set to 0 for no minimum</p>
+                <p style={{ margin: '4px 0 0', fontSize: 12, color: '#9ca3af' }}>{t.setZeroNoMin}</p>
               </div>
               <div>
                 <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 6 }}>{t.maximumUses}</label>
@@ -265,7 +265,7 @@ export default function Marketing() {
                   disabled={!canWriteMarketing}
                   onChange={e => setSettings(s => ({ ...s, maxUses: Number(e.target.value) }))}
                 />
-                <p style={{ margin: '4px 0 0', fontSize: 12, color: '#9ca3af' }}>How many times the coupon can be used</p>
+                <p style={{ margin: '4px 0 0', fontSize: 12, color: '#9ca3af' }}>{t.howManyCouponUses}</p>
               </div>
             </div>
           </div>
@@ -283,10 +283,10 @@ export default function Marketing() {
                 <span style={{ fontWeight: 600, fontSize: 14 }}>{t.enableReferral}</span>
                 <Toggle disabled={!canWriteMarketing} checked={settings.referralEnabled} onChange={() => setSettings(s => ({ ...s, referralEnabled: !s.referralEnabled }))} />
                 <span style={{ fontSize: 14, color: settings.referralEnabled ? '#10b981' : '#6b7280', fontWeight: 500 }}>
-                  {settings.referralEnabled ? 'Enabled' : 'Disabled'}
+                  {settings.referralEnabled ? t.enabled : t.disabled}
                 </span>
               </div>
-              <p style={{ margin: 0, fontSize: 12, color: '#9ca3af' }}>When enabled, the referral reward message will be shown in marketing emails</p>
+              <p style={{ margin: 0, fontSize: 12, color: '#9ca3af' }}>{t.enableReferralHelper}</p>
             </div>
             <div className="marketing-settings-column">
               <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 6 }}>{t.referralReward}</label>
@@ -298,14 +298,14 @@ export default function Marketing() {
                 disabled={!canWriteMarketing}
                 onChange={e => setSettings(s => ({ ...s, referralReward: Number(e.target.value) }))}
               />
-              <p style={{ margin: '4px 0 0', fontSize: 12, color: '#9ca3af' }}>Reward percentage when a friend uses the referral code</p>
+              <p style={{ margin: '4px 0 0', fontSize: 12, color: '#9ca3af' }}>{t.referralRewardHelper}</p>
             </div>
           </div>
         </div>
 
         <div style={{ marginTop: 20 }}>
           <Button variant="contained" disabled={!canWriteMarketing} onClick={handleSaveSettings} startIcon={<i className={`fa fa-${saved ? 'check' : 'save'}`} />}>
-            {saved ? 'Saved!' : t.saveSettings}
+            {saved ? t.saved : t.saveSettings}
           </Button>
         </div>
       </AdminCard>
@@ -332,7 +332,7 @@ export default function Marketing() {
             </thead>
             <tbody>
               {paged.length === 0 ? (
-                <EmptyTableRow colSpan={8}>No marketing records found</EmptyTableRow>
+                <EmptyTableRow colSpan={8}>{t.noMarketingRecords}</EmptyTableRow>
               ) : paged.map(r => (
                 <tr key={r.id}>
                   <td style={{ color: '#9ca3af', fontSize: 13 }}>{r.id}</td>
@@ -370,12 +370,12 @@ export default function Marketing() {
                   </td>
                   <td>
                     <span className={`badge ${r.status === 'sent' ? 'badge-green' : r.status === 'failed' ? 'badge-red' : 'badge-gray'}`}>
-                      {r.status}
+                      {t[r.status] || r.status}
                     </span>
                   </td>
                   <td>
                     {r.couponUsed
-                      ? <span className="badge badge-purple">Used</span>
+                      ? <span className="badge badge-purple">{t.used}</span>
                       : <span style={{ color: '#9ca3af', fontSize: 13 }}>-</span>
                     }
                   </td>
@@ -384,12 +384,12 @@ export default function Marketing() {
                     <div style={{ display: 'inline-flex', gap: 6, whiteSpace: 'nowrap' }}>
                       {r.status !== 'cancelled' && (
                         <Button variant="outlined" color="warning" size="small" disabled={!canWriteMarketing} onClick={() => cancelRecord(r)}>
-                          Cancel
+                          {t.cancel}
                         </Button>
                       )}
                       {['failed', 'cancelled'].includes(r.status) && (
                         <Button variant="contained" size="small" disabled={!canWriteMarketing} onClick={() => retryRecord(r)}>
-                          Retry
+                          {t.retry}
                         </Button>
                       )}
                     </div>

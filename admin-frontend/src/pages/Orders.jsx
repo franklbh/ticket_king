@@ -125,7 +125,7 @@ function Modal({ title, onClose, children, width = 520 }) {
   )
 }
 
-function ExportConfirmDialog({ title, message, filters, onCancel, onConfirm }) {
+function ExportConfirmDialog({ title, message, filters, onCancel, onConfirm, t }) {
   return (
     <div
       style={{ position: 'fixed', inset: 0, background: 'rgba(17,24,39,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}
@@ -143,7 +143,7 @@ function ExportConfirmDialog({ title, message, filters, onCancel, onConfirm }) {
         </div>
         <div style={{ paddingLeft: 46, color: '#6b7280', fontSize: 18, lineHeight: 1.55 }}>
           <div style={{ marginBottom: 28 }}>{message}</div>
-          <div style={{ marginBottom: 6 }}>Current filters:</div>
+          <div style={{ marginBottom: 6 }}>{t.currentFilters}</div>
           <div style={{ fontSize: 16 }}>
             {filters.map((item, index) => (
               <div key={index}>· {item}</div>
@@ -152,10 +152,10 @@ function ExportConfirmDialog({ title, message, filters, onCancel, onConfirm }) {
         </div>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 28 }}>
           <button className="btn-secondary" onClick={onCancel} style={{ padding: '9px 22px', fontSize: 14, borderRadius: 8 }}>
-            Cancel
+            {t.cancel}
           </button>
           <button className="btn-primary" onClick={onConfirm} style={{ padding: '9px 22px', fontSize: 14, borderRadius: 8 }}>
-            Confirm
+            {t.confirmBtn}
           </button>
         </div>
       </div>
@@ -200,7 +200,7 @@ function EmailHistoryContent({ order, t }) {
         </div>
         {order.user.email && (
           <div style={{ fontSize: 12, color: '#374151', marginBottom: 3 }}>
-            <span style={{ color: '#9ca3af' }}>Email: </span>{order.user.email}
+            <span style={{ color: '#9ca3af' }}>{t.email}: </span>{order.user.email}
           </div>
         )}
         <div style={{ fontSize: 12, color: '#374151' }}>
@@ -247,7 +247,7 @@ function AmountDetailContent({ order, t }) {
   const rows = [
     { label: t.ticketPrice, value: `+$${ticketPrice.toFixed(2)}`, color: '#10b981' },
     ...(coupon < 0 ? [{
-      label: order.couponCode?.startsWith('COMBO-') ? 'Combo Discount (10%)' : order.couponCode ? `${t.couponDiscountLabel} (${order.couponCode})` : t.couponDiscountLabel,
+      label: order.couponCode?.startsWith('COMBO-') ? `${t.comboDiscount} (10%)` : order.couponCode ? `${t.couponDiscountLabel} (${order.couponCode})` : t.couponDiscountLabel,
       value: `$${coupon.toFixed(2)}`, color: '#dc2626'
     }] : []),
     { label: t.gstLabel, value: `+$${gst.toFixed(2)}`, color: '#10b981' },
@@ -276,18 +276,18 @@ function AmountDetailContent({ order, t }) {
   )
 }
 
-function CouponContent({ order }) {
+function CouponContent({ order, t }) {
   const { coupon } = getAmountBreakdown(order)
   return (
     <div>
-      <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 10 }}>{order.couponCode?.startsWith('COMBO-') ? 'Combo Discount' : 'Coupon Details'}</div>
+      <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 10 }}>{order.couponCode?.startsWith('COMBO-') ? t.comboDiscount : t.couponDetails}</div>
       <div style={{ height: 1, background: '#f3f4f6', marginBottom: 12 }} />
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 6 }}>
-        <span style={{ color: '#9ca3af' }}>Code</span>
+        <span style={{ color: '#9ca3af' }}>{t.code}</span>
         <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#6366f1' }}>{order.couponCode}</span>
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-        <span style={{ color: '#9ca3af' }}>Discount</span>
+        <span style={{ color: '#9ca3af' }}>{t.discount}</span>
         <span style={{ fontWeight: 600, color: '#dc2626' }}>{coupon.toFixed(2)}</span>
       </div>
     </div>
@@ -513,18 +513,19 @@ export default function Orders() {
   const inlineActions = { display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'nowrap', verticalAlign: 'middle' }
 
   if (loadingOrders) {
-    return <LoadingIndicator label="Loading live orders..." />
+    return <LoadingIndicator label={t.loadingOrders} />
   }
 
   return (
     <div onClick={() => setPopover(null)}>
       {showExportConfirm && (
         <ExportConfirmDialog
-          title="Confirm Action"
-          message="You are about to export order data"
+          title={t.confirmAction}
+          message={t.exportOrdersConfirm}
           filters={orderExportFilters()}
           onCancel={() => setShowExportConfirm(false)}
           onConfirm={exportCSV}
+          t={t}
         />
       )}
       {/* Header */}
@@ -557,7 +558,7 @@ export default function Orders() {
             <DateRangeFilter label={t.slotDateRange} from={filters.slotDateFrom} to={filters.slotDateTo} onFromChange={value => setFilters(f => ({ ...f, slotDateFrom: value }))} onToChange={value => setFilters(f => ({ ...f, slotDateTo: value }))} />
             {filters.slotStart && (
               <div style={{ marginTop: 5, fontSize: 12, color: '#4f46e5', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                Slot start: {filters.slotStart}
+                {t.slotStart} {filters.slotStart}
               </div>
             )}
           </div>
@@ -637,7 +638,7 @@ export default function Orders() {
                       {o.emailStatus === 'sent' && (
                         <IconBtn icon="fa-info-circle" onClick={e => openPopover('email', o.id, e)} title={t.sendHistory} color="#6366f1" bg="#eef2ff" />
                       )}
-                      <IconBtn icon="fa-paper-plane" onClick={() => resendEmail(o)} title="Resend email" color="#6366f1" bg="#eef2ff" />
+                      <IconBtn icon="fa-paper-plane" onClick={() => resendEmail(o)} title={t.resendEmail} color="#6366f1" bg="#eef2ff" />
                     </div>
                   </td>
 
@@ -645,7 +646,7 @@ export default function Orders() {
                   <td>
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
                       <span style={{ fontSize: 13, fontWeight: 500 }}>
-                        {o.slot?.date ? o.slot.date.slice(5) : 'No slot'} {o.slot?.startTime || ''}{o.slot?.endTime ? `-${o.slot.endTime}` : ''}
+                        {o.slot?.date ? o.slot.date.slice(5) : t.noSlot} {o.slot?.startTime || ''}{o.slot?.endTime ? `-${o.slot.endTime}` : ''}
                       </span>
                       <IconBtn icon="fa-calendar" onClick={() => navigate('/slots')} title={t.viewSlot} color="#6366f1" bg="#eef2ff" />
                       <IconBtn icon="fa-exchange-alt" onClick={() => openModal('changeSlot', o)} title={t.changeOrderSlot} amber />
@@ -681,11 +682,11 @@ export default function Orders() {
                     {o.couponDiscount < 0 ? (
                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
                         <span style={{ color: '#dc2626', fontWeight: 500, fontSize: 13 }}>{o.couponDiscount.toFixed(2)}</span>
-                        <IconBtn icon="fa-tag" onClick={e => openPopover('coupon', o.id, e)} title="Coupon Details" color="#6366f1" bg="#eef2ff" />
-                        <IconBtn icon="fa-times" onClick={() => removeCoupon(o)} title="Remove coupon" color="#dc2626" bg="#fee2e2" />
+                        <IconBtn icon="fa-tag" onClick={e => openPopover('coupon', o.id, e)} title={t.couponDetails} color="#6366f1" bg="#eef2ff" />
+                        <IconBtn icon="fa-times" onClick={() => removeCoupon(o)} title={t.removeCoupon} color="#dc2626" bg="#fee2e2" />
                       </div>
                     ) : (
-                      <IconBtn icon="fa-plus" onClick={() => applyCoupon(o)} title="Apply coupon" color="#6366f1" bg="#eef2ff" />
+                      <IconBtn icon="fa-plus" onClick={() => applyCoupon(o)} title={t.applyCoupon} color="#6366f1" bg="#eef2ff" />
                     )}
                   </td>
 
@@ -717,7 +718,7 @@ export default function Orders() {
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}>
                       <div>
                         <div style={{ fontSize: 12 }}>{o.createdAt}</div>
-                        <div style={{ fontSize: 11, color: '#9ca3af' }}>By {o.createdBy.split('(')[0].trim()}</div>
+                        <div style={{ fontSize: 11, color: '#9ca3af' }}>{t.by} {o.createdBy.split('(')[0].trim()}</div>
                       </div>
                       <IconBtn icon="fa-info-circle" onClick={e => openPopover('ip', o.id, e)} title={t.ipAddress} color="#6366f1" bg="#eef2ff" />
                     </div>
@@ -737,7 +738,7 @@ export default function Orders() {
           {popover.type === 'ticket' && <TicketDetailContent order={popoverOrder} t={t} />}
           {popover.type === 'amount' && <AmountDetailContent order={popoverOrder} t={t} />}
           {popover.type === 'ip' && <IpContent order={popoverOrder} t={t} copiedId={copiedId} onCopy={copyIp} />}
-          {popover.type === 'coupon' && <CouponContent order={popoverOrder} />}
+          {popover.type === 'coupon' && <CouponContent order={popoverOrder} t={t} />}
         </Popover>
       )}
 

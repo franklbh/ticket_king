@@ -23,6 +23,7 @@ import {
 import LoadingIndicator from '../components/LoadingIndicator'
 import { AdminAlert, AdminCard, PageHeader } from '../components/AdminUI'
 import { can } from '../auth/permissions'
+import { localizeCatalogName } from '../utils/localization'
 
 const RANGE_TO_API = { last7Days: '7d', last14Days: '14d', last30Days: '30d', last90Days: '90d', allTime: 'all' }
 const RANGE_OPTIONS = ['last7Days', 'last14Days', 'last30Days', 'last90Days', 'allTime']
@@ -38,7 +39,7 @@ const EMPTY_DASHBOARD = {
   popularSlots: [],
 }
 
-function ProjectRevenueTooltip({ active, payload }) {
+function ProjectRevenueTooltip({ active, payload, t }) {
   if (!active || !payload?.length) return null
   const row = payload[0].payload
   return (
@@ -54,7 +55,7 @@ function ProjectRevenueTooltip({ active, payload }) {
       }}
     >
       <Typography fontWeight={800} fontSize={13} color="#111827" lineHeight={1.2} sx={{ overflowWrap: 'anywhere' }}>
-        {row.eventName || 'Project'}
+        {row.eventName || (t ? t.project : 'Project')}
       </Typography>
       <Typography fontWeight={900} fontSize={18} color="#2563eb" lineHeight={1.1} sx={{ mt: 0.65 }}>
         {row.percentLabel || `${row.percent}%`}
@@ -74,19 +75,21 @@ export default function Dashboard() {
     RANGE_TO_API[range],
     { initialData: EMPTY_DASHBOARD }
   )
-  const { data: incomeByEvent } = useIncomeByEventQuery(PROJECT_RANGE_TO_API[projectRange])
-  const { data: incomeForPie } = useIncomeByEventQuery(RANGE_TO_API[range])
+  const { data: rawIncomeByEvent } = useIncomeByEventQuery(PROJECT_RANGE_TO_API[projectRange])
+  const { data: rawIncomeForPie } = useIncomeByEventQuery(RANGE_TO_API[range])
 
   const stats = dashboard?.stats || EMPTY_DASHBOARD.stats
   const trend = dashboard?.salesTrend || []
   const popularSlots = dashboard?.popularSlots || []
   const distribution = dashboard?.ticketDistribution || []
+  const incomeByEvent = (rawIncomeByEvent || []).map(row => ({ ...row, eventName: localizeCatalogName(row.eventName, lang) }))
+  const incomeForPie = (rawIncomeForPie || []).map(row => ({ ...row, eventName: localizeCatalogName(row.eventName, lang) }))
   const totalRevenue = dashboard?.summary?.totalRevenue || 0
   const totalOrders  = dashboard?.summary?.totalOrders || 0
   const totalTickets = dashboard?.summary?.totalTickets || 0
 
   if (loading) {
-    return <LoadingIndicator label="Loading live dashboard data..." />
+    return <LoadingIndicator label={t.loadingDashboard} />
   }
 
   return (
@@ -98,7 +101,7 @@ export default function Dashboard() {
       />
       {error && (
         <AdminAlert tone="error">
-          Backend data could not be loaded: {error.message}
+          {t.backendLoadError} {error.message}
         </AdminAlert>
       )}
       {/* Top stat cards */}
@@ -175,8 +178,8 @@ export default function Dashboard() {
                 <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} />
                 <Tooltip content={<CustomTooltip />} />
                 <Legend />
-                <Line yAxisId="left" type="linear" dataKey="revenue" name="Revenue (CAD)" stroke="#6366f1" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
-                <Line yAxisId="right" type="linear" dataKey="tickets" name="Ticket Count" stroke="#10b981" strokeWidth={2} dot={{ r: 3 }} fill="#d1fae5" />
+                <Line yAxisId="left" type="linear" dataKey="revenue" name={t.revenueCAD} stroke="#6366f1" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                <Line yAxisId="right" type="linear" dataKey="tickets" name={t.ticketCount} stroke="#10b981" strokeWidth={2} dot={{ r: 3 }} fill="#d1fae5" />
               </LineChart>
             </ResponsiveContainer>
           </Box>
@@ -205,7 +208,7 @@ export default function Dashboard() {
                         paddingAngle={2} dataKey="revenue" nameKey="eventName">
                         {pieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
                       </Pie>
-                      <Tooltip content={<ProjectRevenueTooltip />} />
+                      <Tooltip content={<ProjectRevenueTooltip t={t} />} />
                     </PieChart>
                   </ResponsiveContainer>
                   <Box sx={{ mt: 1 }}>
@@ -274,8 +277,8 @@ export default function Dashboard() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
             <thead>
               <tr style={{ background: '#6366f1', borderBottom: '2px solid #e5e7eb' }}>
-                <th style={{ textAlign: 'left', padding: '8px 12px', color: '#fff', fontWeight: 700 }}>Project</th>
-                <th style={{ textAlign: 'right', padding: '8px 12px', color: '#fff', fontWeight: 700 }}>Revenue (CAD)</th>
+                <th style={{ textAlign: 'left', padding: '8px 12px', color: '#fff', fontWeight: 700 }}>{t.project}</th>
+                <th style={{ textAlign: 'right', padding: '8px 12px', color: '#fff', fontWeight: 700 }}>{t.revenueCAD}</th>
               </tr>
             </thead>
             <tbody>
@@ -288,13 +291,13 @@ export default function Dashboard() {
                 </tr>
               ))}
               {!incomeByEvent?.length && (
-                <tr><td colSpan={2} style={{ padding: '20px 12px', textAlign: 'center', color: '#9ca3af' }}>No data</td></tr>
+                <tr><td colSpan={2} style={{ padding: '20px 12px', textAlign: 'center', color: '#9ca3af' }}>{t.noData}</td></tr>
               )}
             </tbody>
             {incomeByEvent?.length > 0 && (
               <tfoot>
                 <tr style={{ borderTop: '2px solid #e5e7eb' }}>
-                  <td style={{ padding: '10px 12px', fontWeight: 700, color: '#111827' }}>Total</td>
+                  <td style={{ padding: '10px 12px', fontWeight: 700, color: '#111827' }}>{t.total}</td>
                   <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 800, color: '#6366f1' }}>
                     ${incomeByEvent.reduce((s, r) => s + r.revenue, 0).toFixed(2)}
                   </td>

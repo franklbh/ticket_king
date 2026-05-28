@@ -45,7 +45,7 @@ const CSS = `
   .scan-ripple { animation: fadeUp 0.22s ease; }
 `
 
-function ScanOverlay({ result, onDismiss, onOverride }) {
+function ScanOverlay({ result, onDismiss, onOverride, t }) {
   if (!result) return null
   const ok = result.valid
   return (
@@ -92,7 +92,7 @@ function ScanOverlay({ result, onDismiss, onOverride }) {
         </div>
       )}
       <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11, marginTop: 16 }}>
-        tap to dismiss
+        {t.tapToDismiss}
       </div>
       {!ok && result.code && (
         <button
@@ -112,7 +112,7 @@ function ScanOverlay({ result, onDismiss, onOverride }) {
             fontWeight: 700,
           }}
         >
-          Override Check-in
+          {t.overrideCheckin}
         </button>
       )}
     </div>
@@ -276,7 +276,7 @@ export default function Scanner() {
       const next = {
         ...ticket,
         valid: true,
-        validMsg: 'Override successful',
+        validMsg: t.overrideSuccessful,
         code: ticket.code,
       }
       playBeep(true)
@@ -308,7 +308,7 @@ export default function Scanner() {
           </div>
           <div>
             <div style={{ fontWeight: 700, fontSize: 14, color: '#111827', lineHeight: 1.1 }}>WE Are VR</div>
-            <div style={{ fontSize: 10, color: '#9ca3af', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Ticket Scanner</div>
+            <div style={{ fontSize: 10, color: '#9ca3af', letterSpacing: '0.05em', textTransform: 'uppercase' }}>{t.scannerTitle}</div>
           </div>
         </div>
 
@@ -405,7 +405,7 @@ export default function Scanner() {
             )}
 
             {/* Result overlay */}
-            <ScanOverlay result={result} onDismiss={() => setResult(null)} onOverride={handleOverride} />
+            <ScanOverlay result={result} onDismiss={() => setResult(null)} onOverride={handleOverride} t={t} />
 
             {/* Idle state */}
             {!cameraOn && (
@@ -431,7 +431,7 @@ export default function Scanner() {
                       padding: '10px 24px', background: '#6366f1', color: '#fff',
                       border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 14, fontWeight: 600,
                     }}>
-                      <i className="fa fa-redo" style={{ marginRight: 6 }} />Retry
+                      <i className="fa fa-redo" style={{ marginRight: 6 }} />{t.retry}
                     </button>
                   </div>
                 ) : (

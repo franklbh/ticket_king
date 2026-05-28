@@ -24,7 +24,7 @@ function AdminModal({ admin, onClose, onSave, t }) {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-box" onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <h3 style={{ margin: 0, fontWeight: 700 }}>{admin ? `${t.edit} Admin` : t.createAdmin}</h3>
+          <h3 style={{ margin: 0, fontWeight: 700 }}>{admin ? `${t.edit} ${t.admin}` : t.createAdmin}</h3>
           <button onClick={onClose} style={{ border: 'none', background: 'transparent', fontSize: 20, cursor: 'pointer', color: '#6b7280' }}>×</button>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -35,17 +35,17 @@ function AdminModal({ admin, onClose, onSave, t }) {
             </div>
             <div>
               <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>{t.email}</label>
-              <input className="form-input" type="email" value={form.email || ''} onChange={e => setForm(f => ({ ...f, email: e.target.value || null }))} placeholder="Optional" />
+              <input className="form-input" type="email" value={form.email || ''} onChange={e => setForm(f => ({ ...f, email: e.target.value || null }))} placeholder={t.optional} />
             </div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div>
               <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>{t.department}</label>
-              <input className="form-input" value={form.department || ''} onChange={e => setForm(f => ({ ...f, department: e.target.value || null }))} placeholder="Optional" />
+              <input className="form-input" value={form.department || ''} onChange={e => setForm(f => ({ ...f, department: e.target.value || null }))} placeholder={t.optional} />
             </div>
             <div>
               <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>{t.position}</label>
-              <input className="form-input" value={form.position || ''} onChange={e => setForm(f => ({ ...f, position: e.target.value || null }))} placeholder="Optional" />
+              <input className="form-input" value={form.position || ''} onChange={e => setForm(f => ({ ...f, position: e.target.value || null }))} placeholder={t.optional} />
             </div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -84,7 +84,7 @@ function IPModal({ ip, onClose, t }) {
           <button onClick={onClose} style={{ border: 'none', background: 'transparent', fontSize: 20, cursor: 'pointer', color: '#6b7280' }}>×</button>
         </div>
         <div style={{ fontSize: 13, lineHeight: 1.8 }}>
-          <div><strong>IP Address:</strong> {ip}</div>
+          <div><strong>{t.ipAddress}:</strong> {ip}</div>
         </div>
       </div>
     </div>
@@ -178,7 +178,7 @@ export default function Admins() {
   }
 
   if (loadingAdmins) {
-    return <LoadingIndicator label="Loading live admin users..." />
+    return <LoadingIndicator label={t.loadingAdmins} />
   }
 
   return (
@@ -266,9 +266,9 @@ export default function Admins() {
                   </td>
                   <td>
                     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                      <Button variant="outlined" size="small" onClick={() => showAdminDetail(a)}>Detail</Button>
-                      <Button variant="outlined" size="small" onClick={() => showLoginHistory(a)}>Logins</Button>
-                      <Button variant="outlined" size="small" onClick={() => sendPasswordReset(a)}>Reset</Button>
+                      <Button variant="outlined" size="small" onClick={() => showAdminDetail(a)}>{t.detail}</Button>
+                      <Button variant="outlined" size="small" onClick={() => showLoginHistory(a)}>{t.logins}</Button>
+                      <Button variant="outlined" size="small" onClick={() => sendPasswordReset(a)}>{t.resetBtn}</Button>
                       <Button variant="contained" size="small" onClick={() => setModal(a)} startIcon={<i className="fa fa-edit" />}>{t.edit}</Button>
                       {a.role !== 'owner' && (
                         <Button

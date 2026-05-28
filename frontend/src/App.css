@@ -4483,34 +4483,68 @@ small { color: #7c6157; }
 
 /* What to expect */
 .exp2-expect-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .exp2-expect-card {
   display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 14px 0;
-  border-bottom: 1px solid #f5f5f5;
+  align-items: flex-start;
+  gap: 13px;
+  min-height: 118px;
+  padding: 16px;
+  border: 1px solid #e8eef2;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #fff 0%, #fbfdff 100%);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.04);
+  min-width: 0;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
 }
 
-.exp2-expect-card:last-child { border-bottom: none; }
+.exp2-expect-card:hover {
+  border-color: #d8e2ea;
+  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.08);
+  transform: translateY(-1px);
+}
 
-.exp2-expect-icon { font-size: 26px; flex-shrink: 0; width: 36px; text-align: center; }
+.exp2-expect-card > div {
+  min-width: 0;
+}
+
+.exp2-expect-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #bbf7d0;
+  font-size: 21px;
+  font-weight: 900;
+  line-height: 1;
+  flex-shrink: 0;
+  text-align: center;
+  letter-spacing: 0;
+}
 
 .exp2-expect-label {
-  font-size: 15px;
-  font-weight: 700;
+  font-size: 16px;
+  font-weight: 850;
   color: #111;
-  margin-bottom: 2px;
+  margin-bottom: 5px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
 .exp2-expect-desc {
-  font-size: 13px;
-  color: #888;
+  font-size: 14px;
+  color: #66727c;
   font-family: 'Proza Libre', serif;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 
 /* Timeline */
@@ -4586,6 +4620,8 @@ small { color: #7c6157; }
   font-weight: 700;
   color: #111;
   text-align: right;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 /* Gallery strip */
@@ -5272,6 +5308,8 @@ small { color: #7c6157; }
 
   .exp2-highlights-grid { grid-template-columns: 1fr; }
 
+  .exp2-expect-grid { grid-template-columns: 1fr; }
+
   .exp2-review-scroll { grid-template-columns: 1fr; }
 
   .exp2-similar-grid { grid-template-columns: 1fr; }
@@ -5287,6 +5325,33 @@ small { color: #7c6157; }
   .exp2-title { font-size: 26px; }
 
   .exp2-section-h { font-size: 18px; }
+
+  .exp2-subtitle {
+    font-size: 16px;
+    line-height: 1.35;
+  }
+
+  .exp2-expect-card {
+    gap: 12px;
+    min-height: 0;
+    padding: 14px;
+  }
+
+  .exp2-expect-icon {
+    width: 38px;
+    height: 38px;
+    font-size: 19px;
+  }
+
+  .exp2-practical-row {
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .exp2-practical-value {
+    max-width: 58%;
+    line-height: 1.35;
+  }
 }
 
 /* ═══════════════════════════════════════════════════════

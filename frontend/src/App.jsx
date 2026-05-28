@@ -190,9 +190,15 @@ function App() {
   )
   const localizedExperiences = useMemo(() => allExperiences.map((exp) => {
     const prefix = EXPERIENCE_COPY_KEYS[exp.id]
-    if (!prefix) return exp
-    return { ...exp, title: t(`${prefix}Title`), subtitle: t(`${prefix}Sub`), tagline: t(`${prefix}Tagline`) }
-  }), [t])
+    const translatedBase = prefix
+      ? { title: t(`${prefix}Title`), subtitle: t(`${prefix}Sub`), tagline: t(`${prefix}Tagline`) }
+      : {}
+    return { ...exp, ...translatedBase, ...(exp.localized?.[selectedLang.code] || {}) }
+  }), [selectedLang.code, t])
+  const localizedSelectedExperience = useMemo(
+    () => localizedExperiences.find((exp) => exp.id === selectedExperience?.id) || selectedExperience,
+    [localizedExperiences, selectedExperience],
+  )
   const dateLocale = selectedLang.code === 'zh-Hans' ? 'zh-CN' : selectedLang.code === 'zh-Hant' ? 'zh-TW' : 'en-US'
   const monthDisplay = (date) => date.toLocaleDateString(dateLocale, { month: 'short', year: 'numeric' })
   const fullDateDisplay = (date) => date.toLocaleDateString(dateLocale, { month: 'short', day: 'numeric' })
@@ -868,6 +874,7 @@ function App() {
           handleSignup={handleSignup}
           onClose={() => setView('main')}
           resetAuthForm={resetAuthForm}
+          selectedLang={selectedLang}
           setAuthForm={setAuthForm}
           setAuthMessage={setAuthMessage}
           setAuthMode={setAuthMode}
@@ -882,7 +889,8 @@ function App() {
           cartCount={cartCount}
           cartItems={cartItems}
           currentUser={currentUser}
-          experience={selectedExperience}
+          experience={localizedSelectedExperience}
+          experiences={localizedExperiences}
           onBack={backToExperienceSection}
           onBuyTicket={addExperienceTicketsToCart}
           onLogout={handleLogout}
@@ -957,7 +965,7 @@ function App() {
               availableSlotsLoaded={availableSlotsLoaded}
               availableSlotsLoading={availableSlotsLoading}
               bookingExperience={bookingExperience}
-              bookingExperiences={allExperiences}
+              bookingExperiences={localizedExperiences}
               bookingRef={bookingRef}
               bookingSteps={bookingSteps}
               calendarMonth={calendarMonth}
@@ -1119,6 +1127,7 @@ function App() {
             openBookingsPage()
           }}
           resetAuthForm={resetAuthForm}
+          selectedLang={selectedLang}
           setAuthForm={setAuthForm}
           setAuthMode={setAuthMode}
         />

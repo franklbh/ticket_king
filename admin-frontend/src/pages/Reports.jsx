@@ -8,6 +8,7 @@ import { useReportQuery } from '../hooks/report'
 import { FilterCard, PageHeader, TableShell, EmptyTableRow } from '../components/AdminUI'
 import { DateRangeFilter, ApplyFiltersButton, StatusChipFilter } from '../components/FilterControls'
 import LoadingIndicator from '../components/LoadingIndicator'
+import { localizeCatalogName } from '../utils/localization'
 
 const QUICK_RANGES = [
   { key: 'today', getRange: () => { const d = todayStr(); return [d, d] } },
@@ -123,6 +124,8 @@ function StatusBadge({ status }) {
 }
 
 function ReportMobileCards({ renderRows }) {
+  const { lang } = useLang()
+  const t = useT(lang)
   return (
     <div className="reports-mobile-list">
       {renderRows.map((item, idx) => {
@@ -132,7 +135,7 @@ function ReportMobileCards({ renderRows }) {
         if (item.type === 'event_subtotal') {
           return (
             <div key={`mes-${idx}`} className="reports-mobile-total reports-mobile-subtotal">
-              <span>{item.event} subtotal</span>
+              <span>{item.event} {t.subtotal}</span>
               <strong>{item.count} tickets · ${item.amount.toFixed(2)}</strong>
             </div>
           )
@@ -140,7 +143,7 @@ function ReportMobileCards({ renderRows }) {
         if (item.type === 'brand_total') {
           return (
             <div key={`mbt-${idx}`} className="reports-mobile-total reports-mobile-brand-total">
-              <span>{item.brand} total</span>
+              <span>{item.brand} {t.total}</span>
               <strong>{item.count} tickets · ${item.amount.toFixed(2)}</strong>
             </div>
           )
@@ -148,7 +151,7 @@ function ReportMobileCards({ renderRows }) {
         if (item.type === 'grand_total') {
           return (
             <div key={`mgt-${idx}`} className="reports-mobile-total reports-mobile-grand-total">
-              <span>Grand total</span>
+              <span>{t.grandTotal}</span>
               <strong>{item.count} tickets · ${item.amount.toFixed(2)}</strong>
             </div>
           )
@@ -165,11 +168,11 @@ function ReportMobileCards({ renderRows }) {
             </div>
             <div className="reports-mobile-amount">${(row.ticketAmount || 0).toFixed(2)}</div>
             <div className="reports-mobile-grid">
-              <span>IP Brand</span><strong>{row.ipBrand || '—'}</strong>
-              <span>Ticket</span><strong>{row.ticketType || '—'}</strong>
-              <span>Payment</span><strong>{row.paymentMethod || '—'}</strong>
-              <span>Verified</span><strong>{row.checkedInAt || '—'}</strong>
-              <span>Order ID</span><strong className="reports-mobile-mono">{row.orderId || '—'}</strong>
+              <span>{t.ipBrand}</span><strong>{row.ipBrand || '—'}</strong>
+              <span>{t.ticketType}</span><strong>{row.ticketType || '—'}</strong>
+              <span>{t.payment}</span><strong>{row.paymentMethod || '—'}</strong>
+              <span>{t.verifiedAt}</span><strong>{row.checkedInAt || '—'}</strong>
+              <span>{t.orderID}</span><strong className="reports-mobile-mono">{row.orderId || '—'}</strong>
             </div>
             {row.remarks && <div className="reports-mobile-remarks">{row.remarks}</div>}
           </article>
@@ -183,7 +186,7 @@ const COL_COUNT = 11
 
 export default function Reports() {
   const { admin } = useAuth()
-  const lang = useLang()
+  const { lang } = useLang()
   const t = useT(lang)
   const isPartner = (admin?.role || '') === 'partner'
   const quickLabels = QUICK_LABELS[lang] || QUICK_LABELS.en
@@ -201,7 +204,11 @@ export default function Reports() {
   )
 
   const { data: rows, loading } = useReportQuery(appliedFilters, { enabled: Boolean(appliedFilters) })
-  const renderRows = useMemo(() => buildRenderRows(rows || []), [rows])
+  const localizedRows = useMemo(
+    () => (rows || []).map(row => ({ ...row, eventName: localizeCatalogName(row.eventName, lang) })),
+    [rows, lang],
+  )
+  const renderRows = useMemo(() => buildRenderRows(localizedRows), [localizedRows])
 
   useEffect(() => {
     setAppliedFilters(buildFilters(dateFrom, dateTo, ipBrands, isPartner))
@@ -268,17 +275,17 @@ export default function Reports() {
             onToChange={v => { setDateTo(v); setActiveQuick(null) }}
           />
           {!isPartner && (
-            <StatusChipFilter label="IP Brand" values={ipBrands} options={IP_OPTIONS} onToggle={toggleIp} />
+            <StatusChipFilter label={t.ipBrand} values={ipBrands} options={IP_OPTIONS} onToggle={toggleIp} />
           )}
         </Box>
         <Box className="reports-filter-actions" sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
           <ApplyFiltersButton onClick={handleSearch} label={t.search || 'Search'} />
-          {rows?.length > 0 && (
+          {localizedRows.length > 0 && (
             <Button
               variant="outlined"
               size="medium"
               startIcon={<i className="fa fa-download" />}
-              onClick={() => exportCsv(rows)}
+              onClick={() => exportCsv(localizedRows)}
             >
               {t.exportCSV || 'Export CSV'}
             </Button>
@@ -291,7 +298,7 @@ export default function Reports() {
       {showEmpty && (
         <Box sx={{ textAlign: 'center', py: 8, color: 'text.secondary' }}>
           <i className="fa fa-inbox" style={{ fontSize: 40, opacity: 0.3 }} />
-          <p style={{ marginTop: 12, fontSize: 15 }}>No data found for the selected period.</p>
+          <p style={{ marginTop: 12, fontSize: 15 }}>{t.noDataForPeriod}</p>
         </Box>
       )}
 
@@ -301,17 +308,17 @@ export default function Reports() {
             <table className="reports-table w-full text-sm">
               <thead>
                 <tr style={{ background: '#f3f4f6' }}>
-                  <th className="px-3 py-2 text-left font-semibold" style={{ color: '#111827' }}>Date</th>
-                  <th className="px-3 py-2 text-left font-semibold" style={{ color: '#111827' }}>IP Brand</th>
-                  <th className="px-3 py-2 text-left font-semibold" style={{ color: '#111827' }}>Project</th>
-                  <th className="px-3 py-2 text-left font-semibold" style={{ color: '#111827' }}>Ticket Type</th>
-                  <th className="px-3 py-2 text-left font-semibold" style={{ color: '#111827' }}>Payment</th>
-                  <th className="px-3 py-2 text-right font-semibold" style={{ color: '#111827' }}>Amount (CAD)</th>
-                  <th className="px-3 py-2 text-left font-semibold" style={{ color: '#111827' }}>Status</th>
-                  <th className="px-3 py-2 text-left font-semibold" style={{ color: '#111827' }}>Verified At</th>
-                  <th className="px-3 py-2 text-left font-semibold" style={{ color: '#111827' }}>Order ID</th>
-                  <th className="px-3 py-2 text-left font-semibold" style={{ color: '#111827' }}>Slot Time</th>
-                  <th className="px-3 py-2 text-left font-semibold" style={{ color: '#111827' }}>Remarks</th>
+                  <th className="px-3 py-2 text-left font-semibold" style={{ color: '#111827' }}>{t.date}</th>
+                  <th className="px-3 py-2 text-left font-semibold" style={{ color: '#111827' }}>{t.ipBrand}</th>
+                  <th className="px-3 py-2 text-left font-semibold" style={{ color: '#111827' }}>{t.project}</th>
+                  <th className="px-3 py-2 text-left font-semibold" style={{ color: '#111827' }}>{t.ticketType}</th>
+                  <th className="px-3 py-2 text-left font-semibold" style={{ color: '#111827' }}>{t.payment}</th>
+                  <th className="px-3 py-2 text-right font-semibold" style={{ color: '#111827' }}>{t.amountCAD}</th>
+                  <th className="px-3 py-2 text-left font-semibold" style={{ color: '#111827' }}>{t.status}</th>
+                  <th className="px-3 py-2 text-left font-semibold" style={{ color: '#111827' }}>{t.verifiedAt}</th>
+                  <th className="px-3 py-2 text-left font-semibold" style={{ color: '#111827' }}>{t.orderID}</th>
+                  <th className="px-3 py-2 text-left font-semibold" style={{ color: '#111827' }}>{t.slotTime}</th>
+                  <th className="px-3 py-2 text-left font-semibold" style={{ color: '#111827' }}>{t.remarks}</th>
                 </tr>
               </thead>
               <tbody>
@@ -329,7 +336,7 @@ export default function Reports() {
                     return (
                       <tr key={`es-${idx}`} style={{ background: '#dbeafe' }}>
                         <td colSpan={5} className="px-3 py-1 font-semibold text-xs" style={{ color: '#1e3a8a' }}>
-                          {item.event} — Subtotal ({item.count} tickets)
+                          {item.event} — {t.subtotal} ({item.count} tickets)
                         </td>
                         <td className="px-3 py-1 text-right font-semibold text-xs" style={{ color: '#1e3a8a' }}>
                           ${item.amount.toFixed(2)}
@@ -342,7 +349,7 @@ export default function Reports() {
                     return (
                       <tr key={`bt-${idx}`} style={{ background: '#bfdbfe' }}>
                         <td colSpan={5} className="px-3 py-1.5 font-bold text-xs" style={{ color: '#1e3a8a' }}>
-                          {item.brand} Total ({item.count} tickets)
+                          {item.brand} {t.total} ({item.count} tickets)
                         </td>
                         <td className="px-3 py-1.5 text-right font-bold text-xs" style={{ color: '#1e3a8a' }}>
                           ${item.amount.toFixed(2)}
@@ -355,7 +362,7 @@ export default function Reports() {
                     return (
                       <tr key={`gt-${idx}`} style={{ background: '#1e3a8a' }}>
                         <td colSpan={5} className="px-3 py-2 font-bold text-sm text-white">
-                          Grand Total ({item.count} tickets)
+                          {t.grandTotal} ({item.count} tickets)
                         </td>
                         <td className="px-3 py-2 text-right font-bold text-sm text-white">
                           ${item.amount.toFixed(2)}

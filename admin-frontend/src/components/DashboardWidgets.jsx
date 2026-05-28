@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { useLang } from '../context/authHooks'
+import { useT } from '../i18n/translations'
 import Box from '@mui/material/Box'
 import ButtonBase from '@mui/material/ButtonBase'
 import Card from '@mui/material/Card'
@@ -75,8 +77,10 @@ export function CustomTooltip({ active, payload, label }) {
 }
 
 export function PopularSlotsChart({ data }) {
+  const { lang } = useLang()
+  const t = useT(lang)
   const [hoveredIdx, setHoveredIdx] = useState(null)
-  if (!data.length) return <Box sx={{ py: 8, textAlign: 'center', color: 'text.disabled' }}>No data</Box>
+  if (!data.length) return <Box sx={{ py: 8, textAlign: 'center', color: 'text.disabled' }}>{t.noData}</Box>
 
   return (
     <Stack spacing={1.5}>
@@ -103,11 +107,11 @@ export function PopularSlotsChart({ data }) {
                 <Stack spacing={0.5}>
                   <Typography variant="caption" color="primary" fontWeight={800}>
                   <i className="fa fa-ticket" />
-                  {' '}Slot Breakdown
+                  {' '}{t.slotBreakdown}
                   </Typography>
                   <Typography variant="caption" color="text.secondary">{date} {time}</Typography>
-                  <Typography variant="body2">Sold seats from live ticket records</Typography>
-                  <Typography variant="body2" fontWeight={800}>{s.sold} / {s.total} seats</Typography>
+                  <Typography variant="body2">{t.soldSeatsLive}</Typography>
+                  <Typography variant="body2" fontWeight={800}>{t.seatsCount.replace('{sold}', s.sold).replace('{total}', s.total)}</Typography>
                 </Stack>
               </Paper>
             )}
