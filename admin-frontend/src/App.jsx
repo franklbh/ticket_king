@@ -14,6 +14,7 @@ import CreateOrder from './pages/CreateOrder'
 import Scanner from './pages/Scanner'
 import Admins from './pages/Admins'
 import Logs from './pages/Logs'
+import Reports from './pages/Reports'
 import { can, firstAllowedPath } from './auth/permissions'
 
 function AccessDenied() {
@@ -63,6 +64,7 @@ function AppRoutes() {
         <Route path="create-order" element={<ProtectedRoute permission="orders:write"><CreateOrder /></ProtectedRoute>} />
         <Route path="admins" element={<ProtectedRoute permission="users:read"><Admins /></ProtectedRoute>} />
         <Route path="logs" element={<ProtectedRoute permission="logs:read"><Logs /></ProtectedRoute>} />
+        <Route path="reports" element={<ProtectedRoute permission="reports:read"><Reports /></ProtectedRoute>} />
       </Route>
       <Route path="*" element={<Navigate to={defaultPath} replace />} />
     </Routes>

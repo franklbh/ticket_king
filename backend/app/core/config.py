@@ -70,6 +70,14 @@ class Settings(BaseSettings):
     # Showpass
     showpass_webhook_secret: str | None = None
 
+    # Brevo SMTP
+    smtp_host: str = "smtp-relay.brevo.com"
+    smtp_port: int = 587
+    smtp_user: str | None = None
+    smtp_password: str | None = None
+    smtp_from_email: str | None = None
+    smtp_from_name: str = "Ticket King"
+
     @field_validator("backend_cors_origins", mode="before")
     @classmethod
     def parse_cors_origins(cls, value: str | list[str]) -> list[str] | str:

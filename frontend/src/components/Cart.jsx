@@ -4,6 +4,7 @@ import { loadStripe } from '@stripe/stripe-js'
 import BrandLogo from './BrandLogo'
 import { qrPlaceholder } from '../data/showData'
 import { allExperiences } from '../data/experiences'
+import { translations } from '../i18n/translations'
 import { minQtyForTicket } from '../utils/tickets'
 import { formatNorthAmericanPhone } from '../utils/validation'
 
@@ -238,16 +239,16 @@ function SummaryRow({ label, value, muted, bold }) {
   )
 }
 
-function ProcessingFeeLabel({ open = false, onToggle }) {
+function ProcessingFeeLabel({ open = false, onToggle, t }) {
   const tooltipId = 'cart-processing-fee-tooltip'
   return (
     <span className="processing-fee-label">
-      Processing fee
+      {t('processingFee')}
       <span className={`processing-fee-help ${open ? 'is-open' : ''}`}>
         <button
           className="processing-fee-icon"
           type="button"
-          aria-label="Processing fee details"
+          aria-label={t('processingFeeDetails')}
           aria-expanded={open}
           aria-describedby={tooltipId}
           onClick={(event) => {
@@ -258,18 +259,18 @@ function ProcessingFeeLabel({ open = false, onToggle }) {
           !
         </button>
         <span className="processing-fee-tooltip" id={tooltipId} role="tooltip">
-          Includes a $1.80 platform fee per ticket plus a 2.5% payment processing fee.
+          {t('processingFeeTooltip')}
         </span>
       </span>
     </span>
   )
 }
 
-function ComboDealLabel({ open = false, onToggle }) {
+function ComboDealLabel({ open = false, onToggle, copy, t }) {
   const tooltipId = 'cart-combo-deal-tooltip'
   return (
     <span className="combo-deal-label">
-      Combo Deal (10% off)
+      {t('comboDealTitle')}
       <span className={`combo-deal-help ${open ? 'is-open' : ''}`}>
         <button
           className="combo-deal-icon"
@@ -285,19 +286,19 @@ function ComboDealLabel({ open = false, onToggle }) {
           !
         </button>
         <span className="combo-deal-tooltip" id={tooltipId} role="tooltip">
-          Book Panda&apos;s World and/or Back to Jurassic with any game to unlock this combo discount.
+          {copy}
         </span>
       </span>
     </span>
   )
 }
 
-function Stepper({ step }) {
+function Stepper({ step, t }) {
   const steps = [
-    ['review', 'Review', 'Review your cart'],
-    ['contact', 'Contact', 'Enter your details'],
-    ['payment', 'Payment', 'Secure checkout'],
-    ['confirm', 'Confirm', 'Get your tickets'],
+    ['review', t('review'), t('reviewCart')],
+    ['contact', t('contact'), t('enterYourDetails')],
+    ['payment', t('payment'), t('secureCheckout')],
+    ['confirm', t('confirm'), t('getYourTickets')],
   ]
   const activeIndex = Math.max(0, steps.findIndex(([id]) => id === step))
   return (
@@ -312,12 +313,12 @@ function Stepper({ step }) {
   )
 }
 
-function TrustList({ compact = false }) {
+function TrustList({ compact = false, t }) {
   return (
     <div className={`crt-trust-card ${compact ? 'compact' : ''}`}>
-      <div><ShieldIcon /><span><strong>Secure & encrypted</strong><small>Your data is protected with industry-standard encryption.</small></span></div>
-      <div><ShieldIcon /><span><strong>Flexible booking</strong><small>Easy to manage your bookings after purchase.</small></span></div>
-      <div><ShieldIcon /><span><strong>Need help?</strong><small>Contact our support team anytime.</small></span></div>
+      <div><ShieldIcon /><span><strong>{t('secureEncrypted')}</strong><small>{t('secureEncryptedCopy')}</small></span></div>
+      <div><ShieldIcon /><span><strong>{t('flexibleBooking')}</strong><small>{t('flexibleBookingCopy')}</small></span></div>
+      <div><ShieldIcon /><span><strong>{t('needHelp')}</strong><small>{t('supportAnytime')}</small></span></div>
     </div>
   )
 }
@@ -335,8 +336,9 @@ function ItemImage({ item, className }) {
   )
 }
 
-function itemShowTitle(item) {
-  return experienceById.get(item.show_id)?.title || item.show_title
+function itemShowTitle(item, langCode = 'en') {
+  const experience = experienceById.get(item.show_id)
+  return experience?.localized?.[langCode]?.title || experience?.title || item.show_title
 }
 
 function contactFromUser(user, getDisplayName) {
@@ -439,6 +441,7 @@ export default function Cart({
   resetAuthForm,
   setAuthForm,
   setAuthMode,
+  selectedLang,
 }) {
   const [step, setStep] = useState('review')
   const [contact, setContact] = useState({ first: '', last: '', email: '', phone: '', request: '', optIn: true })
@@ -467,6 +470,16 @@ export default function Cart({
   const releasedReservationRef = useRef(null)
   const reservationCreatingRef = useRef(null)
   const ticketRailRef = useRef(null)
+  const comboTooltipCopy = selectedLang?.code === 'zh-Hans'
+    ? '预订熊猫的世界和/或重返侏罗纪，再搭配任意游戏，即可享受组合优惠。'
+    : selectedLang?.code === 'zh-Hant'
+      ? '預訂熊貓的世界和/或重返侏羅紀，再搭配任意遊戲，即可享受組合優惠。'
+      : 'Book Panda’s World and/or Back to the Jurassic with any game to unlock this combo discount.'
+  const langCode = selectedLang?.code || 'en'
+  const t = useCallback((key, params = {}) => {
+    const template = translations[langCode]?.[key] ?? translations.en[key] ?? key
+    return Object.entries(params).reduce((text, [name, value]) => text.replaceAll(`{${name}}`, value), template)
+  }, [langCode])
 
   useEffect(() => {
     if (!openSummaryTooltip) return undefined
@@ -490,13 +503,13 @@ export default function Cart({
     eventId: Number(item.event_id),
     slotId: item.slot_id,
     ticketTypeId: Number.isFinite(Number(item.ticket_type_id)) ? Number(item.ticket_type_id) : null,
-    eventName: itemShowTitle(item),
+    eventName: itemShowTitle(item, langCode),
     slotDate: item.session_date_key,
     slotTime: item.session_time,
     ticketType: item.ticket_type_label,
     quantity: item.quantity,
     unitPrice: item.unit_price,
-  })), [items])
+  })), [items, langCode])
 
   const liveSlotReady = orderItems.length > 0 && orderItems.every((item) => Number.isFinite(item.eventId) && item.slotId && item.quantity > 0)
   const minQtyForCartItem = (item) => minQtyForTicket({
@@ -937,44 +950,44 @@ export default function Cart({
     return (
       <aside className="crt-side">
         <div className="crt-summary-card">
-          <h3>Order Summary</h3>
+          <h3>{t('orderSummary')}</h3>
           <div className="crt-side-count">
-            <strong>{summaryItems.reduce((s, item) => s + item.quantity, 0)} items</strong>
+            <strong>{t('ticketCount', { count: summaryItems.reduce((s, item) => s + item.quantity, 0) })}</strong>
           </div>
           {step !== 'review' && summaryItems.slice(0, 4).map((item) => (
             <div className="crt-side-item" key={item.id}>
               <ItemImage item={item} className="crt-side-thumb" />
               <div>
-                <strong>{itemShowTitle(item)}</strong>
+                <strong>{itemShowTitle(item, langCode)}</strong>
                 <span>{item.session_date} · {item.session_time}</span>
               </div>
               <b>{fmt(item.unit_price * item.quantity)}</b>
             </div>
           ))}
-          <SummaryRow label={`Subtotal`} value={fmt(confirmed?.subtotal ?? subtotal)} muted />
+          <SummaryRow label={t('subtotal')} value={fmt(confirmed?.subtotal ?? subtotal)} muted />
           {Boolean(confirmed?.discount ?? discount) && (
             <SummaryRow
               label={(confirmed?.autoCombo || appliedCoupon?.autoCombo)
-                ? <ComboDealLabel open={openSummaryTooltip === 'combo'} onToggle={() => toggleSummaryTooltip('combo')} />
+                ? <ComboDealLabel open={openSummaryTooltip === 'combo'} onToggle={() => toggleSummaryTooltip('combo')} copy={comboTooltipCopy} t={t} />
                 : `Coupon${(confirmed?.couponCode || appliedCoupon?.code) ? ` (${confirmed?.couponCode || appliedCoupon?.code})` : ''}`}
               value={`-${fmt(confirmed?.discount ?? discount)}`}
               muted
             />
           )}
-          <SummaryRow label={<ProcessingFeeLabel open={openSummaryTooltip === 'processing'} onToggle={() => toggleSummaryTooltip('processing')} />} value={fmt(confirmed?.procFee ?? procFee)} muted />
+          <SummaryRow label={<ProcessingFeeLabel open={openSummaryTooltip === 'processing'} onToggle={() => toggleSummaryTooltip('processing')} t={t} />} value={fmt(confirmed?.procFee ?? procFee)} muted />
           <SummaryRow label="GST (5%)" value={fmt(confirmed?.tax ?? tax)} muted />
           <div className="crt-sum-divider" />
-          <SummaryRow label={step === 'confirm' ? 'Total paid' : 'Total due'} value={`${fmt(total)} CAD`} bold />
+          <SummaryRow label={step === 'confirm' ? t('totalPaid') : t('totalDue')} value={`${fmt(total)} CAD`} bold />
           {step === 'review' && (
             <div className="crt-promo-card-inline">
               {appliedCoupon?.autoCombo ? (
-                <div className="combo-banner">Combo deal applied 10% off</div>
+                <div className="combo-banner">{t('comboDealApplied')}</div>
               ) : (
                 <>
-                  <label htmlFor="cart-promo-code">Promo code</label>
+                  <label htmlFor="cart-promo-code">{t('couponCode')}</label>
                   <div>
-                    <input id="cart-promo-code" value={couponCode} onChange={(event) => setCouponCode(event.target.value)} placeholder="Enter code" />
-                    <button onClick={applyCoupon} type="button">Apply</button>
+                    <input id="cart-promo-code" value={couponCode} onChange={(event) => setCouponCode(event.target.value)} placeholder={t('couponCode')} />
+                    <button onClick={applyCoupon} type="button">{t('apply')}</button>
                   </div>
                   {couponMessage && <span className={appliedCoupon ? 'ok' : ''}>{couponMessage}</span>}
                 </>
@@ -983,21 +996,21 @@ export default function Cart({
           )}
           {step === 'review' && (
             <button className="crt-primary" onClick={continueToContact} disabled={!canContinueReview} type="button">
-              Continue to Contact →
+              {t('continueToContact')} →
             </button>
           )}
           {step === 'confirm' && (
             <div className="crt-confirm-actions">
-              <button className="crt-outline" onClick={downloadReceipt} type="button">Download receipt</button>
-              <button className="crt-primary" onClick={() => onManageBooking?.(confirmed)} type="button">Manage booking</button>
+              <button className="crt-outline" onClick={downloadReceipt} type="button">{t('downloadReceipt')}</button>
+              <button className="crt-primary" onClick={() => onManageBooking?.(confirmed)} type="button">{t('manageBooking')}</button>
             </div>
           )}
         </div>
-        {step !== 'confirm' ? <TrustList compact /> : (
+        {step !== 'confirm' ? <TrustList compact t={t} /> : (
           <div className="crt-trust-card compact">
-            <h3>Need help?</h3>
-            <div><ShieldIcon /><span><strong>Email us</strong><small>info@vrvr.show</small></span></div>
-            <div><ShieldIcon /><span><strong>Call us</strong><small>+1(778) 805-4699</small></span></div>
+            <h3>{t('needHelp')}</h3>
+            <div><ShieldIcon /><span><strong>{t('emailUs')}</strong><small>info@vrvr.show</small></span></div>
+            <div><ShieldIcon /><span><strong>{t('callUs')}</strong><small>+1(778) 805-4699</small></span></div>
           </div>
         )}
       </aside>
@@ -1005,46 +1018,46 @@ export default function Cart({
   }
 
   return (
-    <div className="crt-overlay" role="dialog" aria-modal="true" aria-label="Shopping cart">
+    <div className="crt-overlay" role="dialog" aria-modal="true" aria-label={t('shoppingCart')}>
       <div className="crt-panel">
         <div className="crt-shell-top">
-          <div className="crt-title-row"><CartIcon /><h2>{step === 'confirm' ? 'Your Cart' : 'Your Cart'}</h2><span>{numTickets || confirmed?.items?.reduce((s, item) => s + item.quantity, 0)} items</span></div>
-          <button className="crt-close" onClick={closeCart} aria-label="Close cart" type="button">×</button>
+          <div className="crt-title-row"><CartIcon /><h2>{t('shoppingCart')}</h2><span>{t('ticketCount', { count: numTickets || confirmed?.items?.reduce((s, item) => s + item.quantity, 0) })}</span></div>
+          <button className="crt-close" onClick={closeCart} aria-label={t('close')} type="button">×</button>
         </div>
 
-        <Stepper step={step} />
+        <Stepper step={step} t={t} />
 
         {items.length === 0 && !confirmed ? (
           <div className="crt-empty">
             <div className="crt-empty-icon"><CartIcon /></div>
-            <p className="crt-empty-title">Your shopping cart is empty</p>
-            <p className="crt-empty-sub">Add tickets from any show or game to get started.</p>
-            <button className="crt-browse-btn" onClick={browseExperiences} type="button">Browse Experiences</button>
+            <p className="crt-empty-title">{t('shoppingCartEmpty')}</p>
+            <p className="crt-empty-sub">{t('addTicketsToStart')}</p>
+            <button className="crt-browse-btn" onClick={browseExperiences} type="button">{t('browseExperiences')}</button>
           </div>
         ) : (
           <div className="crt-workspace">
             {step === 'review' && (
               <main className="crt-main">
                 <div className="crt-review-tools">
-                  <button className="crt-outline" onClick={browseExperiences} type="button">+ Add another experience</button>
+                  <button className="crt-outline" onClick={browseExperiences} type="button">+ {t('addAnotherExperience')}</button>
                 </div>
                 {paymentError && <div className="crt-warning">{paymentError}</div>}
                 <div className="crt-table">
-                  <div className="crt-table-head"><span>Experience</span><span>Date & Time</span><span>Ticket Type</span><span>Qty</span><span>Unit Price</span><span>Subtotal</span><span /></div>
+                  <div className="crt-table-head"><span>{t('experience')}</span><span>{t('dateAndTime')}</span><span>{t('ticketType')}</span><span>{t('qty')}</span><span>{t('unitPrice')}</span><span>{t('subtotal')}</span><span /></div>
                   {items.map((item) => (
                     <article className="crt-cart-row" key={item.id}>
-                      <div className="crt-exp-cell"><ItemImage item={item} className="crt-cart-thumb" /><strong>{itemShowTitle(item)}</strong></div>
+                      <div className="crt-exp-cell"><ItemImage item={item} className="crt-cart-thumb" /><strong>{itemShowTitle(item, langCode)}</strong></div>
                       <div className="crt-date-cell"><span>{item.session_date}</span><span>{item.session_time}</span></div>
                       <div className="crt-ticket-type-field">
-                        <span className="crt-ticket-type-label">Ticket type</span>
-                        <select aria-label={`Ticket type for ${itemShowTitle(item)}`} value={item.ticket_type_id} onChange={(event) => updateTicketTypeWithMinimum(item, event.target.value)}>
+                        <span className="crt-ticket-type-label">{t('ticketType')}</span>
+                        <select aria-label={`${t('ticketType')} ${itemShowTitle(item, langCode)}`} value={item.ticket_type_id} onChange={(event) => updateTicketTypeWithMinimum(item, event.target.value)}>
                           {item.ticket_options?.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
                         </select>
                       </div>
                       <div className="crt-inline-qty">
                         <button onClick={() => updateQtyWithMinimum(item, item.quantity - 1)} disabled={item.quantity <= 0} type="button">-</button>
                         <input
-                          aria-label={`Quantity for ${itemShowTitle(item)}`}
+                          aria-label={`${t('qty')} ${itemShowTitle(item, langCode)}`}
                           inputMode="numeric"
                           min="0"
                           max="999"
@@ -1058,65 +1071,65 @@ export default function Cart({
                       </div>
                       <span>{fmt(item.unit_price)}</span>
                       <strong>{fmt(item.unit_price * item.quantity)}</strong>
-                      <button className="crt-remove" onClick={() => onRemove(item.id)} type="button" aria-label={`Remove ${itemShowTitle(item)} from cart`}>
+                      <button className="crt-remove" onClick={() => onRemove(item.id)} type="button" aria-label={`${t('remove')} ${itemShowTitle(item, langCode)}`}>
                         <span className="crt-remove-icon crt-remove-icon-desktop" aria-hidden="true">⌫</span>
                         <svg className="crt-remove-icon crt-remove-icon-mobile" viewBox="0 0 32 24" aria-hidden="true">
                           <path d="M12 3h15a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H12L3 12l9-9Z" />
                           <path d="m16.5 8.5 7 7M23.5 8.5l-7 7" />
                         </svg>
-                        <span className="crt-remove-text">Remove</span>
+                        <span className="crt-remove-text">{t('remove')}</span>
                       </button>
                       {item.quantity > 0 && item.quantity < minQtyForCartItem(item) && (
                         <div className="crt-row-warning crt-cart-row-warning">
-                          {item.ticket_type_label?.toLowerCase().includes('group') ? 'Group tickets require at least 6 people.' : 'Family tickets require at least 3 people.'}
+                          {item.ticket_type_label?.toLowerCase().includes('group') ? t('groupError') : t('familyError')}
                         </div>
                       )}
                     </article>
                   ))}
                 </div>
-                <div className="crt-info-strip dashed"><span className="crt-info-icon"><TicketIcon /></span>You can add multiple experiences and different showtimes to your cart and pay in one secure checkout.</div>
+                <div className="crt-info-strip dashed"><span className="crt-info-icon"><TicketIcon /></span>{t('secureCheckoutCartCopy')}</div>
               </main>
             )}
 
             {step === 'contact' && (
               <main className="crt-main">
                 <button className="crt-step-back-top" onClick={() => setStep('review')} type="button">
-                  ← Back to cart
+                  ← {t('backToCart')}
                 </button>
                 {!currentUser && (
                   <div className="crt-account-box">
                     <div className="crt-tabs">
-                      <button className={checkoutMode === 'login' ? 'active' : ''} onClick={() => switchAuthMode('login')} type="button">Log in</button>
-                      <button className={checkoutMode === 'signup' ? 'active' : ''} onClick={() => switchAuthMode('signup')} type="button">Create account</button>
-                      <button className={checkoutMode === 'guest' ? 'active' : ''} onClick={() => switchAuthMode('guest')} type="button">Continue as guest</button>
+                      <button className={checkoutMode === 'login' ? 'active' : ''} onClick={() => switchAuthMode('login')} type="button">{t('login')}</button>
+                      <button className={checkoutMode === 'signup' ? 'active' : ''} onClick={() => switchAuthMode('signup')} type="button">{t('createAccount')}</button>
+                      <button className={checkoutMode === 'guest' ? 'active' : ''} onClick={() => switchAuthMode('guest')} type="button">{t('continueAsGuest')}</button>
                     </div>
                     {checkoutMode === 'guest' ? (
                       <div className="crt-guest-note">
-                        <strong>Continue as guest</strong>
-                        <span>No account needed. Enter your contact details below to receive your booking confirmation and e-tickets.</span>
+                        <strong>{t('continueAsGuest')}</strong>
+                        <span>{t('noAccountNeeded')}</span>
                       </div>
                     ) : (
                       <form className="crt-login-form" onSubmit={checkoutMode === 'signup' ? handleSignup : handleLogin}>
-                        {checkoutMode === 'signup' && <label>Full name<input value={authForm.name} onChange={(e) => setAuthForm({ ...authForm, name: e.target.value })} autoComplete="name" /></label>}
-                        <label>Email<input type="email" value={authForm.email} onChange={(e) => setAuthForm({ ...authForm, email: e.target.value })} autoComplete="email" /></label>
-                        <label>Password<input type="password" value={authForm.password} onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })} autoComplete={checkoutMode === 'signup' ? 'new-password' : 'current-password'} /></label>
+                        {checkoutMode === 'signup' && <label>{t('fullName')}<input value={authForm.name} onChange={(e) => setAuthForm({ ...authForm, name: e.target.value })} autoComplete="name" /></label>}
+                        <label>{t('email')}<input type="email" value={authForm.email} onChange={(e) => setAuthForm({ ...authForm, email: e.target.value })} autoComplete="email" /></label>
+                        <label>{t('password')}<input type="password" value={authForm.password} onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })} autoComplete={checkoutMode === 'signup' ? 'new-password' : 'current-password'} /></label>
                         {authMessage && <div className="crt-warning">{authMessage}</div>}
-                        <button className="crt-outline" disabled={!authReady} type="submit">{checkoutMode === 'signup' ? 'Create account' : 'Log in'}</button>
+                        <button className="crt-outline" disabled={!authReady} type="submit">{checkoutMode === 'signup' ? t('createAccount') : t('login')}</button>
                       </form>
                     )}
                   </div>
                 )}
                 <div className={`crt-form-panel crt-contact-panel ${checkoutMode === 'guest' && !currentUser ? 'guest' : ''}`}>
-                  <h3>Contact details</h3>
-                  <p>{checkoutMode === 'guest' && !currentUser ? 'For guest checkout, enter only the details needed for your confirmation and e-tickets.' : "We'll use this information for your booking confirmation and e-tickets."}</p>
+                  <h3>{t('contactDetails')}</h3>
+                  <p>{checkoutMode === 'guest' && !currentUser ? t('noAccountNeeded') : t('ticketsSent')}</p>
                   <div className="crt-form-grid">
-                    <label className={touched.first && contact.first.trim().length <= 1 ? 'crt-field-error' : ''}>First name<input value={contact.first} onBlur={() => setTouched((p) => ({ ...p, first: true }))} onChange={(e) => setContact((p) => ({ ...p, first: e.target.value }))} /></label>
-                    <label className={touched.last && contact.last.trim().length <= 1 ? 'crt-field-error' : ''}>Last name<input value={contact.last} onBlur={() => setTouched((p) => ({ ...p, last: true }))} onChange={(e) => setContact((p) => ({ ...p, last: e.target.value }))} /></label>
-                    <label className={touched.email && !validEmail(contact.email) ? 'crt-field-error' : ''}>Email<input type="email" value={contact.email} onBlur={() => setTouched((p) => ({ ...p, email: true }))} onChange={(e) => setContact((p) => ({ ...p, email: e.target.value }))} /></label>
-                    <label className={touched.phone && contact.phone.trim() && !validPhone(contact.phone) ? 'crt-field-error' : ''}>Phone (optional)<input type="tel" value={contact.phone} onBlur={() => setTouched((p) => ({ ...p, phone: true }))} onChange={(e) => setContact((p) => ({ ...p, phone: formatNorthAmericanPhone(e.target.value) }))} /></label>
-                    {checkoutMode !== 'guest' && <label className="crt-field-wide"><span>Special requests (optional)</span><textarea value={contact.request} onChange={(e) => setContact((p) => ({ ...p, request: e.target.value }))} placeholder="Tell us anything we should know..." /></label>}
+                    <label className={touched.first && contact.first.trim().length <= 1 ? 'crt-field-error' : ''}>{t('firstName')}<input value={contact.first} onBlur={() => setTouched((p) => ({ ...p, first: true }))} onChange={(e) => setContact((p) => ({ ...p, first: e.target.value }))} /></label>
+                    <label className={touched.last && contact.last.trim().length <= 1 ? 'crt-field-error' : ''}>{t('lastName')}<input value={contact.last} onBlur={() => setTouched((p) => ({ ...p, last: true }))} onChange={(e) => setContact((p) => ({ ...p, last: e.target.value }))} /></label>
+                    <label className={touched.email && !validEmail(contact.email) ? 'crt-field-error' : ''}>{t('email')}<input type="email" value={contact.email} onBlur={() => setTouched((p) => ({ ...p, email: true }))} onChange={(e) => setContact((p) => ({ ...p, email: e.target.value }))} /></label>
+                    <label className={touched.phone && contact.phone.trim() && !validPhone(contact.phone) ? 'crt-field-error' : ''}>{t('phoneOptional')}<input type="tel" value={contact.phone} onBlur={() => setTouched((p) => ({ ...p, phone: true }))} onChange={(e) => setContact((p) => ({ ...p, phone: formatNorthAmericanPhone(e.target.value) }))} /></label>
+                    {checkoutMode !== 'guest' && <label className="crt-field-wide"><span>{t('specialRequestsOptional')}</span><textarea value={contact.request} onChange={(e) => setContact((p) => ({ ...p, request: e.target.value }))} placeholder={t('specialRequestsPlaceholder')} /></label>}
                   </div>
-                  <div className="crt-contact-actions"><button className="crt-text-btn" onClick={() => setStep('review')} type="button">← Back to cart</button><button className="crt-primary" onClick={continueToPayment} disabled={!contactReady || reservationLoading} type="button">{reservationLoading ? 'Reserving seats...' : 'Continue to Payment →'}</button></div>
+                  <div className="crt-contact-actions"><button className="crt-text-btn" onClick={() => setStep('review')} type="button">← {t('backToCart')}</button><button className="crt-primary" onClick={continueToPayment} disabled={!contactReady || reservationLoading} type="button">{reservationLoading ? t('reservingSeats') : `${t('continueToPayment')} →`}</button></div>
                 </div>
               </main>
             )}
@@ -1124,25 +1137,25 @@ export default function Cart({
             {step === 'payment' && (
               <main className="crt-main">
                 <div className="crt-info-strip">
-                  Complete payment within <strong>{formatCountdown(timeLeft)}</strong> to keep these seats reserved.
+                  {t('completePaymentWithin')} <strong>{formatCountdown(timeLeft)}</strong> {t('keepSeatsReserved')}
                 </div>
-                <div className="crt-contact-card"><h3>Contact details</h3><button onClick={() => leavePaymentStep('contact')} type="button">Edit</button><strong>{[contact.first, contact.last].filter(Boolean).join(' ')}</strong><span>{contact.email} · {contact.phone}</span></div>
+                <div className="crt-contact-card"><h3>{t('contactDetails')}</h3><button onClick={() => leavePaymentStep('contact')} type="button">{t('edit')}</button><strong>{[contact.first, contact.last].filter(Boolean).join(' ')}</strong><span>{contact.email} · {contact.phone}</span></div>
                 <div className="crt-form-panel">
-                  <h3>Payment method</h3>
+                  <h3>{t('paymentMethod')}</h3>
                   <div className="crt-pay-tabs">
-                    <button className={paymentMethod === 'card' ? 'active' : ''} onClick={() => { setShowAlipayNotice(false); setPaymentMethod('card') }} type="button"><CreditCardLogo />Credit card</button>
+                    <button className={paymentMethod === 'card' ? 'active' : ''} onClick={() => { setShowAlipayNotice(false); setPaymentMethod('card') }} type="button"><CreditCardLogo />{t('creditCard')}</button>
                     <button className={paymentMethod === 'wechat' ? 'active' : ''} onClick={() => startQrPayment('wechat')} type="button"><WeChatLogo />WeChat Pay</button>
                     <button className={paymentMethod === 'alipay' ? 'active' : ''} onClick={() => startQrPayment('alipay')} type="button"><AlipayLogo />Alipay</button>
                   </div>
                   {paymentError && <div className="crt-warning">{paymentError}</div>}
                   {paymentMethod === 'card' && (
-                    reservationLoading ? <div className="crt-loading">Reserving your seats...</div> :
-                    stripeLoading ? <div className="crt-loading">Initializing secure card payment...</div> :
+                    reservationLoading ? <div className="crt-loading">{t('reservingYourSeats')}</div> :
+                    stripeLoading ? <div className="crt-loading">{t('initializingCardPayment')}</div> :
                       <InlineStripePayment clientSecret={stripeClientSecret} amount={grand} email={contact.email} onPaid={(pi) => finishPayment(stripeOrder, pi.id, 'card')} onBusyChange={setPaymentSubmitting} />
                   )}
                   {(paymentMethod === 'wechat' || paymentMethod === 'alipay') && (
                     <div className="crt-qr-pay">
-                      <div className="crt-qr-box">
+                    <div className="crt-qr-box">
                         <img src={qrImage || qrPlaceholder} alt={`${paymentMethod} QR code`} />
                         {(qrLoading || !qrImage) && <span>{qrLoading ? 'Generating QR code...' : 'Waiting for QR code...'}</span>}
                       </div>
@@ -1158,7 +1171,7 @@ export default function Cart({
                     </div>
                   )}
                 </div>
-                <div className="crt-info-strip dashed"><ShieldIcon /> Your payment information is securely encrypted and never stored.</div>
+                <div className="crt-info-strip dashed"><ShieldIcon /> {t('paymentInfoSecure')}</div>
               </main>
             )}
 
@@ -1167,30 +1180,30 @@ export default function Cart({
                 <div className="crt-confirm-hero">
                   <div className="crt-check">✓</div>
                   <div>
-                    <h2>Booking confirmed!</h2>
-                    <p>Thanks for booking with us. We can’t wait to see you.</p>
+                    <h2>{t('bookingConfirmed')}</h2>
+                    <p>{t('bookingConfirmedCopy')}</p>
                     <div className="crt-confirm-meta">
-                      <span><small>Order number</small><strong>{confirmed.orderNumber}</strong></span>
-                      <span><small>Confirmation email</small><strong>{confirmed.contact.email}</strong></span>
-                      <span><small>Payment status</small><strong className="paid">Paid</strong></span>
+                      <span><small>{t('orderNumber')}</small><strong>{confirmed.orderNumber}</strong></span>
+                      <span><small>{t('confirmationEmail')}</small><strong>{confirmed.contact.email}</strong></span>
+                      <span><small>{t('paymentStatus')}</small><strong className="paid">{t('paid')}</strong></span>
                     </div>
                   </div>
                 </div>
                 <div className="crt-booked-list">
-                  <h3>Your booked experiences ({confirmed.items.length} items)</h3>
+                  <h3>{t('yourBookedExperiences', { count: confirmed.items.length })}</h3>
                   {confirmed.items.map((item) => (
                     <article className="crt-booked-row" key={item.id}>
                       <ItemImage item={item} className="crt-side-thumb" />
-                      <div><strong>{itemShowTitle(item)}</strong><span>{item.session_date} · {item.session_time}</span></div>
-                      <span>Qty <b>{item.quantity}</b></span>
-                      <button className="crt-outline" type="button">View ticket →</button>
+                      <div><strong>{itemShowTitle(item, langCode)}</strong><span>{item.session_date} · {item.session_time}</span></div>
+                      <span>{t('qty')} <b>{item.quantity}</b></span>
+                      <button className="crt-outline" type="button">{t('viewTickets')} →</button>
                     </article>
                   ))}
                 </div>
                 <div className="crt-issued-tickets">
                   <div className="crt-issued-head">
-                    <div><strong>Your tickets are ready</strong><span>Each ticket has its own QR code. Show the matching code at check-in.</span></div>
-                    <button className="crt-primary" onClick={downloadReceipt} type="button">Download receipt</button>
+                    <div><strong>{t('ticketsReady')}</strong><span>{t('ticketsReadyCopy')}</span></div>
+                    <button className="crt-primary" onClick={downloadReceipt} type="button">{t('downloadReceipt')}</button>
                   </div>
                   <div className="crt-ticket-rail-wrap">
                     <button className="crt-ticket-arrow prev" onClick={() => scrollTicketRail(-1)} type="button" aria-label="Previous ticket">‹</button>
@@ -1199,7 +1212,7 @@ export default function Cart({
                         <article className="crt-ticket-card" key={ticket.id || `${ticket.code}-${index}`}>
                           <img src={ticketQrDataUri(ticket.code)} alt={`QR code for ticket ${ticket.ticketNumber}`} />
                           <div>
-                            <strong>Ticket {index + 1}</strong>
+                            <strong>{t('tickets')} {index + 1}</strong>
                             <span className="crt-ticket-number">{ticket.ticketNumber}</span>
                             <span>{ticket.showTitle}</span>
                             <small>{ticket.slotDate} {ticket.slotTime}</small>

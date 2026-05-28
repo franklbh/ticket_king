@@ -22,6 +22,23 @@ const ACTION_COLORS = {
 }
 const TARGET_TYPES = ['Order', 'Ticket', 'Ticket Type', 'Slot', 'Event', 'Coupon', 'Admin', 'User']
 const TARGET_ICONS = { Order: 'fa-shopping-cart', Ticket: 'fa-ticket', 'Ticket Type': 'fa-tags', Slot: 'fa-calendar', Event: 'fa-star', Coupon: 'fa-tag', Admin: 'fa-user-shield', User: 'fa-user' }
+const LOG_LABELS = {
+  en: {
+    exportLogs: 'Export Logs',
+    actionTypes: { Login: 'Login', Create: 'Create', Update: 'Update', 'Batch Update': 'Batch Update', 'Check In': 'Check In', Restock: 'Restock', Void: 'Void', Activate: 'Activate', Deactivate: 'Deactivate', Export: 'Export', Other: 'Other' },
+    targetTypes: { Order: 'Order', Ticket: 'Ticket', 'Ticket Type': 'Ticket Type', Slot: 'Slot', Event: 'Event', Coupon: 'Coupon', Admin: 'Admin', User: 'User' },
+  },
+  'zh-Hans': {
+    exportLogs: '导出日志',
+    actionTypes: { Login: '登录', Create: '创建', Update: '更新', 'Batch Update': '批量更新', 'Check In': '核销', Restock: '补库存', Void: '作废', Activate: '启用', Deactivate: '停用', Export: '导出', Other: '其他' },
+    targetTypes: { Order: '订单', Ticket: '门票', 'Ticket Type': '票型', Slot: '场次', Event: '项目', Coupon: '优惠券', Admin: '管理员', User: '用户' },
+  },
+  'zh-Hant': {
+    exportLogs: '匯出日誌',
+    actionTypes: { Login: '登入', Create: '建立', Update: '更新', 'Batch Update': '批量更新', 'Check In': '核銷', Restock: '補庫存', Void: '作廢', Activate: '啟用', Deactivate: '停用', Export: '匯出', Other: '其他' },
+    targetTypes: { Order: '訂單', Ticket: '門票', 'Ticket Type': '票型', Slot: '場次', Event: '項目', Coupon: '優惠券', Admin: '管理員', User: '使用者' },
+  },
+}
 
 const PAGE_SIZE = 10
 
@@ -94,17 +111,19 @@ function summarizeActionDetails(details) {
 }
 
 function IPModal({ ip, onClose }) {
+  const { lang } = useLang()
+  const t = useT(lang)
   return (
     <Dialog open onClose={onClose} maxWidth="xs" fullWidth>
       <DialogTitle sx={{ fontWeight: 800, pr: 6 }}>
-        IP Location Lookup
+        {t.ipLocationLookup}
         <IconButton aria-label="Close" onClick={onClose} sx={{ position: 'absolute', right: 12, top: 10 }}>
           <i className="fa fa-times" />
         </IconButton>
       </DialogTitle>
       <DialogContent>
         <div style={{ fontSize: 13, lineHeight: 1.8 }}>
-          <div><strong>IP Address:</strong> {ip}</div>
+          <div><strong>{t.ipAddress}:</strong> {ip}</div>
         </div>
       </DialogContent>
     </Dialog>
@@ -114,6 +133,7 @@ function IPModal({ ip, onClose }) {
 export default function Logs() {
   const { lang } = useLang()
   const t = useT(lang)
+  const logLabels = LOG_LABELS[lang] || LOG_LABELS.en
 
   const [filters, setFilters] = useState({
     admin: 'all',
@@ -215,7 +235,7 @@ export default function Logs() {
   }
 
   if (loadingLogs) {
-    return <LoadingIndicator label="Loading live activity logs..." />
+    return <LoadingIndicator label={t.loadingLogs} />
   }
 
   return (
@@ -229,7 +249,7 @@ export default function Logs() {
       {detailLog && (
         <Dialog open onClose={() => setDetailLog(null)} maxWidth="sm" fullWidth>
           <DialogTitle sx={{ fontWeight: 800, pr: 6 }}>
-            Log #{detailLog.id} Details
+            Log #{detailLog.id} {t.details}
             <IconButton aria-label="Close" onClick={() => setDetailLog(null)} sx={{ position: 'absolute', right: 12, top: 10 }}>
               <i className="fa fa-times" />
             </IconButton>
@@ -237,7 +257,7 @@ export default function Logs() {
           <DialogContent>
             <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 10, padding: 12, marginBottom: 12 }}>
               <div style={{ fontSize: 11, fontWeight: 800, color: '#2563eb', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 4 }}>
-                Summary
+                {t.summary}
               </div>
               <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a' }}>
                 {summarizeActionDetails(detailLog.actionDetails)}
@@ -253,10 +273,10 @@ export default function Logs() {
       <PageHeader
         icon="fa-history"
         title={t.activityLogs}
-        subtitle="View all administrator operation records"
+        subtitle={t.viewLogs}
         actions={
         <Button variant="outlined" size="small" disabled={exporting} onClick={exportCurrentLogs} startIcon={<i className="fa fa-file-export" />}>
-          Export Logs
+          {logLabels.exportLogs}
         </Button>
         }
       />
@@ -271,31 +291,31 @@ export default function Logs() {
             options={adminNames.map(a => ({ value: a, label: a === 'all' ? t.allAdmins : a }))}
           />
           <TextFilter
-            label="Search Action Details"
-            placeholder="Search action details..."
+            label={t.searchActionDetails}
+            placeholder={t.searchActionDetails}
             value={filters.search}
             onChange={value => setFilters(f => ({ ...f, search: value }))}
           />
           <DateRangeFilter
-            label="Date Range"
+            label={t.dateRange}
             from={filters.dateFrom}
             to={filters.dateTo}
             onFromChange={value => setFilters(f => ({ ...f, dateFrom: value }))}
             onToChange={value => setFilters(f => ({ ...f, dateTo: value }))}
           />
           <div className="logs-filter-actions">
-            <ApplyFiltersButton onClick={applyFilters} />
+            <ApplyFiltersButton label={t.apply} onClick={applyFilters} />
             <ResetFiltersButton label={t.reset} onClick={resetFilters} />
           </div>
         </div>
 
         {/* Action Type filter */}
         <div className="logs-chip-grid">
-          <span className="logs-chip-label">Action Type:</span>
+          <span className="logs-chip-label">{t.actionType}:</span>
           {ACTION_TYPES.map(at => (
             <Chip
               key={at}
-              label={at}
+              label={logLabels.actionTypes[at] || at}
               size="small"
               color={filters.actionTypes.includes(at) ? 'primary' : 'default'}
               variant={filters.actionTypes.includes(at) ? 'filled' : 'outlined'}
@@ -307,11 +327,11 @@ export default function Logs() {
 
         {/* Target Type filter */}
         <div className="logs-chip-grid">
-          <span className="logs-chip-label">Target Type:</span>
+          <span className="logs-chip-label">{t.targetType}:</span>
           {TARGET_TYPES.map(tt => (
             <Chip
               key={tt}
-              label={tt}
+              label={logLabels.targetTypes[tt] || tt}
               size="small"
               icon={<i className={`fa ${TARGET_ICONS[tt] || 'fa-circle'}`} />}
               color={filters.targetTypes.includes(tt) ? 'primary' : 'default'}
@@ -330,13 +350,13 @@ export default function Logs() {
             <thead>
               <tr>
                 <th>ID</th>
-                <th>Admin</th>
-                <th>Action Type</th>
-                <th>Target Type</th>
-                <th>Target ID</th>
-                <th>Action Details</th>
-                <th>Login Info</th>
-                <th>Time</th>
+                <th>{t.admin}</th>
+                <th>{t.actionType}</th>
+                <th>{t.targetType}</th>
+                <th>{t.targetID}</th>
+                <th>{t.actionDetails}</th>
+                <th>{t.loginInfo}</th>
+                <th>{t.time}</th>
               </tr>
             </thead>
             <tbody>
@@ -347,12 +367,12 @@ export default function Logs() {
                   <td style={{ fontWeight: 600, color: '#6366f1', fontFamily: 'monospace', fontSize: 13 }}>#{log.id}</td>
                   <td style={{ fontWeight: 500, fontSize: 14 }}>{log.admin}</td>
                   <td>
-                    <span className={`badge ${ACTION_COLORS[log.actionType] || 'badge-gray'}`}>{log.actionType}</span>
+                    <span className={`badge ${ACTION_COLORS[log.actionType] || 'badge-gray'}`}>{logLabels.actionTypes[log.actionType] || log.actionType}</span>
                   </td>
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13 }}>
                       <i className={`fa ${TARGET_ICONS[log.targetType] || 'fa-circle'}`} style={{ color: '#6b7280' }} />
-                      {log.targetType}
+                      {logLabels.targetTypes[log.targetType] || log.targetType}
                     </div>
                   </td>
                   <td style={{ fontSize: 13, color: '#6b7280' }}>{log.targetId ?? '-'}</td>

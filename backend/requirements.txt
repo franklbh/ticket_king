@@ -9,3 +9,4 @@ PyJWT[crypto]
 httpx
 cryptography
 stripe
+qrcode[pil]

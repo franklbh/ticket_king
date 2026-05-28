@@ -15,6 +15,7 @@ const navItems = [
   { path: '/create-order', icon: 'fa-cash-register', key: 'createOrder', permission: 'orders:write' },
   { path: '/admins', icon: 'fa-users', key: 'admins', permission: 'users:read' },
   { path: '/logs', icon: 'fa-history', key: 'logs', permission: 'logs:read' },
+  { path: '/reports', icon: 'fa-file-alt', key: 'reports', permission: 'reports:read' },
 ]
 
 

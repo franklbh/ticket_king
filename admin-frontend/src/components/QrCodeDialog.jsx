@@ -1,6 +1,10 @@
 import { QRCodeSVG } from 'qrcode.react'
+import { useLang } from '../context/authHooks'
+import { useT } from '../i18n/translations'
 
 export default function QrCodeDialog({ title = 'QR Code', value, subtitle, onClose }) {
+  const { lang } = useLang()
+  const t = useT(lang)
   if (!value) return null
   function copyValue() {
     navigator.clipboard?.writeText(value).catch(() => {})
@@ -21,8 +25,8 @@ export default function QrCodeDialog({ title = 'QR Code', value, subtitle, onClo
           {value}
         </div>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
-          <button className="btn-secondary" onClick={copyValue}>Copy Payload</button>
-          <button className="btn-primary" onClick={onClose}>Close</button>
+          <button className="btn-secondary" onClick={copyValue}>{t.copyPayload}</button>
+          <button className="btn-primary" onClick={onClose}>{t.close}</button>
         </div>
       </div>
     </div>

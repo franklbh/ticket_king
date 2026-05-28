@@ -13,6 +13,7 @@ from app.schemas.checkout import CheckoutOrder
 from app.services.admin.normalizers import db_ticket_status
 from app.services.admin.repository import admin_repository
 from app.utils.datetime import utc_now, utc_now_iso_seconds
+from app.utils.email import send_booking_confirmation
 
 RESERVATION_MINUTES = 5
 PAYMENT_GRACE_SECONDS = 30
@@ -266,6 +267,20 @@ async def fulfill_paid_order(order_id: str) -> dict[str, Any]:
     )
     if existing_tickets:
         await _mark_order_fulfilled(order_id)
+        if str(order.get("email_status") or "").lower() != "sent":
+            sent = await send_booking_confirmation(
+                to_email=order.get("guest_email") or "",
+                to_name=order.get("guest_name") or "",
+                order_number=order.get("order_number") or str(order_id),
+                tickets=existing_tickets,
+            )
+            if sent:
+                await admin_repository.update(
+                    settings.admin_orders_table,
+                    match_column="id",
+                    match_value=uuid.UUID(str(order_id)),
+                    values={"email_status": "sent", "updated_at": utc_now_iso_seconds()},
+                )
         return {
             "orderId": str(order_id),
             "created": False,
@@ -331,6 +346,19 @@ async def fulfill_paid_order(order_id: str) -> dict[str, Any]:
 
     inserted_tickets = await admin_repository.insert(settings.admin_tickets_table, ticket_rows)
     await _mark_order_fulfilled(order_id)
+    sent = await send_booking_confirmation(
+        to_email=order.get("guest_email") or "",
+        to_name=order.get("guest_name") or "",
+        order_number=order.get("order_number") or str(order_id),
+        tickets=inserted_tickets,
+    )
+    if sent:
+        await admin_repository.update(
+            settings.admin_orders_table,
+            match_column="id",
+            match_value=uuid.UUID(str(order_id)),
+            values={"email_status": "sent", "updated_at": utc_now_iso_seconds()},
+        )
     return {
         "orderId": str(order_id),
         "created": True,

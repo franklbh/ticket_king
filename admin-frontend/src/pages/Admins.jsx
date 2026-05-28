@@ -1,16 +1,18 @@
 import { useState, useMemo } from 'react'
 import Button from '@mui/material/Button'
+import IconButton from '@mui/material/IconButton'
+import Tooltip from '@mui/material/Tooltip'
 import { useLang } from '../context/authHooks'
 import { useT } from '../i18n/translations'
-import { createAdminAccount, deactivateUser, getUser, getUserLoginHistory, requestUserPasswordReset, updateStaffProfile, updateUserPassword } from '../api/adminApi'
+import { createAdminAccount, deactivateUser, deleteUser, getUser, getUserLoginHistory, requestUserPasswordReset, updateStaffProfile, updateUserPassword } from '../api/adminApi'
 import { adminQueryKeys, useUsersQuery } from '../hooks/queries'
 import { useAdminMutation } from '../hooks/useAdminApi'
 import LoadingIndicator from '../components/LoadingIndicator'
 import { AdminAlert, EmptyTableRow, FilterCard, PageHeader, TableShell } from '../components/AdminUI'
 import { ResetFiltersButton, SelectFilter } from '../components/FilterControls'
 
-const ROLE_FILTERS = ['owner', 'admin']
-const ROLE_COLORS = { owner: 'badge-red', admin: 'badge-blue' }
+const ROLE_FILTERS = ['owner', 'admin', 'partner']
+const ROLE_COLORS = { owner: 'badge-red', admin: 'badge-blue', partner: 'badge-orange' }
 
 function accountRole(admin) {
   return admin?.role === 'administrator' ? 'admin' : admin?.role || 'admin'
@@ -18,13 +20,13 @@ function accountRole(admin) {
 
 function AdminModal({ admin, onClose, onSave, t }) {
   const [form, setForm] = useState(admin || {
-    username: '', email: '', department: '', position: '', password: '', status: 'active'
+    username: '', email: '', department: '', position: '', password: '', status: 'active', role: 'administrator'
   })
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-box" onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <h3 style={{ margin: 0, fontWeight: 700 }}>{admin ? `${t.edit} Admin` : t.createAdmin}</h3>
+          <h3 style={{ margin: 0, fontWeight: 700 }}>{admin ? `${t.edit} ${t.admin}` : t.createAdmin}</h3>
           <button onClick={onClose} style={{ border: 'none', background: 'transparent', fontSize: 20, cursor: 'pointer', color: '#6b7280' }}>×</button>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -35,23 +37,30 @@ function AdminModal({ admin, onClose, onSave, t }) {
             </div>
             <div>
               <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>{t.email}</label>
-              <input className="form-input" type="email" value={form.email || ''} onChange={e => setForm(f => ({ ...f, email: e.target.value || null }))} placeholder="Optional" />
+              <input className="form-input" type="email" value={form.email || ''} onChange={e => setForm(f => ({ ...f, email: e.target.value || null }))} placeholder={t.optional} />
             </div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div>
               <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>{t.department}</label>
-              <input className="form-input" value={form.department || ''} onChange={e => setForm(f => ({ ...f, department: e.target.value || null }))} placeholder="Optional" />
+              <input className="form-input" value={form.department || ''} onChange={e => setForm(f => ({ ...f, department: e.target.value || null }))} placeholder={t.optional} />
             </div>
             <div>
               <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>{t.position}</label>
-              <input className="form-input" value={form.position || ''} onChange={e => setForm(f => ({ ...f, position: e.target.value || null }))} placeholder="Optional" />
+              <input className="form-input" value={form.position || ''} onChange={e => setForm(f => ({ ...f, position: e.target.value || null }))} placeholder={t.optional} />
             </div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div>
               <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>{t.role}</label>
-              <input className="form-input" value={accountRole(admin)} disabled />
+              {admin ? (
+                <input className="form-input" value={accountRole(admin)} disabled />
+              ) : (
+                <select className="form-input" value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}>
+                  <option value="administrator">administrator</option>
+                  <option value="partner">partner</option>
+                </select>
+              )}
             </div>
             <div>
               <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>{t.password}</label>
@@ -84,7 +93,7 @@ function IPModal({ ip, onClose, t }) {
           <button onClick={onClose} style={{ border: 'none', background: 'transparent', fontSize: 20, cursor: 'pointer', color: '#6b7280' }}>×</button>
         </div>
         <div style={{ fontSize: 13, lineHeight: 1.8 }}>
-          <div><strong>IP Address:</strong> {ip}</div>
+          <div><strong>{t.ipAddress}:</strong> {ip}</div>
         </div>
       </div>
     </div>
@@ -120,6 +129,7 @@ export default function Admins() {
         password: form.password,
         department: form.department || null,
         position: form.position || null,
+        role: form.role || 'administrator',
       })
     },
     { invalidateQueries: adminQueryKeys.users, successMessage: 'Admin saved.' }
@@ -166,6 +176,12 @@ export default function Admins() {
     alert(JSON.stringify(detail, null, 2))
   }
 
+  async function handleDeleteAdmin(admin) {
+    if (!window.confirm(t.confirmDeleteAdmin)) return
+    await userAction.mutate(() => deleteUser(admin.id))
+    reload()
+  }
+
   async function sendPasswordReset(admin) {
     if (!window.confirm(`Send password reset for ${admin.email || admin.username}?`)) return
     await userAction.mutate(() => requestUserPasswordReset(admin.id))
@@ -178,7 +194,7 @@ export default function Admins() {
   }
 
   if (loadingAdmins) {
-    return <LoadingIndicator label="Loading live admin users..." />
+    return <LoadingIndicator label={t.loadingAdmins} />
   }
 
   return (
@@ -216,12 +232,9 @@ export default function Admins() {
           <table>
             <thead>
               <tr>
-                <th>ID</th>
                 <th>{t.username}</th>
-                <th>{t.email}</th>
                 <th>{t.role}</th>
-                <th>{t.department}</th>
-                <th>{t.position}</th>
+                <th>{t.department} / {t.position}</th>
                 <th>{t.lastLogin}</th>
                 <th>{t.status}</th>
                 <th>{t.actions}</th>
@@ -229,17 +242,23 @@ export default function Admins() {
             </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <EmptyTableRow colSpan={9}>{t.noAdminsFound}</EmptyTableRow>
+                <EmptyTableRow colSpan={6}>{t.noAdminsFound}</EmptyTableRow>
               ) : filtered.map(a => (
                 <tr key={a.id}>
-                  <td style={{ fontWeight: 600, color: '#6b7280' }}>{a.id}</td>
-                  <td style={{ fontWeight: 600, fontSize: 14 }}>{a.username || a.name || a.email || '-'}</td>
-                  <td style={{ fontSize: 13, color: '#6b7280' }}>{a.email || '-'}</td>
+                  <td>
+                    <div style={{ fontWeight: 600, fontSize: 14 }}>{a.username || a.name || a.email || '-'}</div>
+                    <div style={{ fontSize: 12, color: '#6b7280', marginTop: 1 }}>{a.email || '-'}</div>
+                    <div style={{ fontSize: 11, color: '#d1d5db', fontFamily: 'monospace', marginTop: 1 }}>
+                      {String(a.id).slice(0, 8)}…
+                    </div>
+                  </td>
                   <td>
                     <span className={`badge ${ROLE_COLORS[accountRole(a)] || 'badge-gray'}`}>{accountRole(a)}</span>
                   </td>
-                  <td style={{ fontSize: 13, color: '#6b7280' }}>{a.department || '-'}</td>
-                  <td style={{ fontSize: 13, color: '#6b7280' }}>{a.position || '-'}</td>
+                  <td>
+                    <div style={{ fontSize: 13 }}>{a.department || '-'}</div>
+                    <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 1 }}>{a.position || '-'}</div>
+                  </td>
                   <td>
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}>
                       <div>
@@ -247,14 +266,11 @@ export default function Admins() {
                         {(a.ip || a.lastLoginIp) && <div style={{ fontSize: 11, color: '#9ca3af', fontFamily: 'monospace' }}>{a.ip || a.lastLoginIp}</div>}
                       </div>
                       {(a.ip || a.lastLoginIp) && (
-                        <Button
-                          onClick={() => setIpModal(a.ip || a.lastLoginIp)}
-                          variant="contained"
-                          size="small"
-                          sx={{ minWidth: 0, px: 0.75, py: 0.25 }}
-                        >
-                          <i className="fa fa-search" />
-                        </Button>
+                        <Tooltip title="IP Lookup">
+                          <IconButton size="small" onClick={() => setIpModal(a.ip || a.lastLoginIp)} sx={{ p: 0.5 }}>
+                            <i className="fa fa-search" style={{ fontSize: 12 }} />
+                          </IconButton>
+                        </Tooltip>
                       )}
                     </div>
                   </td>
@@ -265,10 +281,23 @@ export default function Admins() {
                     </span>
                   </td>
                   <td>
-                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                      <Button variant="outlined" size="small" onClick={() => showAdminDetail(a)}>Detail</Button>
-                      <Button variant="outlined" size="small" onClick={() => showLoginHistory(a)}>Logins</Button>
-                      <Button variant="outlined" size="small" onClick={() => sendPasswordReset(a)}>Reset</Button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'nowrap' }}>
+                      <Tooltip title={t.detail}>
+                        <IconButton size="small" onClick={() => showAdminDetail(a)} sx={{ p: 0.75 }}>
+                          <i className="fa fa-info-circle" style={{ fontSize: 14 }} />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title={t.logins}>
+                        <IconButton size="small" onClick={() => showLoginHistory(a)} sx={{ p: 0.75 }}>
+                          <i className="fa fa-history" style={{ fontSize: 14 }} />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title={t.resetBtn}>
+                        <IconButton size="small" onClick={() => sendPasswordReset(a)} sx={{ p: 0.75 }}>
+                          <i className="fa fa-key" style={{ fontSize: 14 }} />
+                        </IconButton>
+                      </Tooltip>
+                      <div style={{ width: 1, height: 20, background: '#e5e7eb', margin: '0 2px', flexShrink: 0 }} />
                       <Button variant="contained" size="small" onClick={() => setModal(a)} startIcon={<i className="fa fa-edit" />}>{t.edit}</Button>
                       {a.role !== 'owner' && (
                         <Button
@@ -280,6 +309,17 @@ export default function Admins() {
                         >
                           {a.status === 'active' ? t.disable : t.enable}
                         </Button>
+                      )}
+                      {a.role !== 'owner' && (
+                        <Tooltip title={t.deleteAdmin}>
+                          <IconButton
+                            size="small"
+                            onClick={() => handleDeleteAdmin(a)}
+                            sx={{ p: 0.75, color: 'error.main', '&:hover': { bgcolor: 'error.50' } }}
+                          >
+                            <i className="fa fa-trash" style={{ fontSize: 14 }} />
+                          </IconButton>
+                        </Tooltip>
                       )}
                     </div>
                   </td>

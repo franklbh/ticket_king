@@ -1,4 +1,4 @@
-import { getDashboard, getHealth } from '../api/adminApi'
+import { getDashboard, getHealth, getIncomeByEvent } from '../api/adminApi'
 import { useAdminQuery } from './useAdminApi'
 
 export function useHealthQuery(options = {}) {
@@ -14,5 +14,13 @@ export function useDashboardQuery(range, options = {}) {
     () => getDashboard(range),
     [range],
     { queryKey: ['dashboard', range], ...options }
+  )
+}
+
+export function useIncomeByEventQuery(range, options = {}) {
+  return useAdminQuery(
+    () => getIncomeByEvent(range),
+    [range],
+    { queryKey: ['dashboard', 'income-by-event', range], ...options }
   )
 }

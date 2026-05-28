@@ -28,7 +28,7 @@ function CouponModal({ coupon, onClose, onSave, t }) {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-box" onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <h3 style={{ margin: 0, fontWeight: 700 }}>{coupon ? `${t.edit} Coupon` : t.createCoupon}</h3>
+          <h3 style={{ margin: 0, fontWeight: 700 }}>{coupon ? t.editCoupon : t.createCoupon}</h3>
           <button onClick={onClose} style={{ border: 'none', background: 'transparent', fontSize: 20, cursor: 'pointer', color: '#6b7280' }}>×</button>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -38,7 +38,7 @@ function CouponModal({ coupon, onClose, onSave, t }) {
               {t.couponCode} <span style={{ color: '#ef4444' }}>*</span>
             </label>
             <input className="form-input" value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value.toUpperCase() }))} placeholder="e.g. SUMMER2025" />
-            <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 4 }}>Recommended format: SUMMER2025</div>
+            <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 4 }}>{t.couponCodeFormat}</div>
           </div>
 
           {/* Discount Type */}
@@ -68,13 +68,13 @@ function CouponModal({ coupon, onClose, onSave, t }) {
               </span>
             </div>
             <div style={{ fontSize: 12, color: '#6b7280' }}>
-              {form.discountType === 'percent' ? 'Percentage discount' : 'Fixed amount discount'}
+              {form.discountType === 'percent' ? t.percentageDiscount : t.fixedAmountDiscount}
             </div>
           </div>
 
           {/* Usage Limit */}
           <div>
-            <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 8 }}>Usage Limit</label>
+            <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 8 }}>{t.usageLimit}</label>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
               <input
                 type="checkbox"
@@ -82,7 +82,7 @@ function CouponModal({ coupon, onClose, onSave, t }) {
                 onChange={e => setForm(f => ({ ...f, maxUses: e.target.checked ? null : 100 }))}
                 style={{ width: 16, height: 16, accentColor: '#6366f1' }}
               />
-              <span style={{ fontSize: 14, color: '#374151' }}>Unlimited uses</span>
+              <span style={{ fontSize: 14, color: '#374151' }}>{t.unlimitedUses}</span>
             </label>
             {!isUnlimited && (
               <input
@@ -91,7 +91,7 @@ function CouponModal({ coupon, onClose, onSave, t }) {
                 min="1"
                 value={form.maxUses || ''}
                 onChange={e => setForm(f => ({ ...f, maxUses: e.target.value ? Number(e.target.value) : null }))}
-                placeholder="Max number of uses"
+                placeholder={t.maxNumberUses}
                 style={{ marginTop: 8 }}
               />
             )}
@@ -99,7 +99,7 @@ function CouponModal({ coupon, onClose, onSave, t }) {
 
           {/* Minimum Purchase */}
           <div>
-            <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Minimum Purchase (CAD)</label>
+            <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>{t.minimumPurchaseCAD}</label>
             <input
               className="form-input"
               type="number"
@@ -107,33 +107,33 @@ function CouponModal({ coupon, onClose, onSave, t }) {
               value={form.minPurchase}
               onChange={e => setForm(f => ({ ...f, minPurchase: Number(e.target.value) }))}
             />
-            <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 4 }}>Order must meet this amount</div>
+            <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 4 }}>{t.minimumPurchaseHelper}</div>
           </div>
 
           {/* Start / End Date */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div>
-              <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Start Date</label>
+              <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>{t.validFrom}</label>
               <input className="form-input" type="date" value={form.validFrom || ''} onChange={e => setForm(f => ({ ...f, validFrom: e.target.value || null }))} />
             </div>
             <div>
-              <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>End Date</label>
+              <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>{t.validTo}</label>
               <input className="form-input" type="date" value={form.validTo || ''} onChange={e => setForm(f => ({ ...f, validTo: e.target.value || null }))} />
             </div>
           </div>
 
           {/* Remark */}
           <div>
-            <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Remark</label>
+            <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>{t.remarks}</label>
             <textarea
               className="form-input"
               rows={3}
               value={form.remarks || ''}
               onChange={e => setForm(f => ({ ...f, remarks: e.target.value }))}
-              placeholder="Optional: Add coupon related notes"
+              placeholder={t.couponRemarksPlaceholder}
               style={{ resize: 'vertical', fontFamily: 'inherit' }}
             />
-            <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 4 }}>For internal recording of coupon purpose or description</div>
+            <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 4 }}>{t.couponRemarksHelper}</div>
           </div>
 
           {/* Enable Coupon */}
@@ -144,7 +144,7 @@ function CouponModal({ coupon, onClose, onSave, t }) {
               onChange={e => setForm(f => ({ ...f, status: e.target.checked ? 'active' : 'disabled' }))}
               style={{ width: 16, height: 16, accentColor: '#6366f1' }}
             />
-            <span style={{ fontSize: 14, fontWeight: 500, color: '#374151' }}>Enable Coupon</span>
+            <span style={{ fontSize: 14, fontWeight: 500, color: '#374151' }}>{t.enableCoupon}</span>
           </label>
         </div>
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20 }}>
@@ -276,7 +276,7 @@ export default function Coupons() {
   }
 
   if (loading && !coupons.length) {
-    return <LoadingIndicator label="Loading coupons..." />
+    return <LoadingIndicator label={t.loadingCoupons} />
   }
 
   function copyCode(code) {
@@ -310,7 +310,7 @@ export default function Coupons() {
         actions={
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <Button variant="outlined" size="small" onClick={validateCouponCode} startIcon={<i className="fa fa-check-circle" />}>
-            Validate
+            {t.validateCoupon}
           </Button>
           <Button variant="contained" size="small" onClick={() => setModal('create')}>
             {t.createCoupon}
@@ -368,11 +368,11 @@ export default function Coupons() {
                     </div>
                   </td>
                   <td>
-                    <span className="badge badge-gray">{c.source === 'manual' ? 'Manual' : 'Marketing'}</span>
+                    <span className="badge badge-gray">{c.source === 'manual' ? t.manual : t.marketing}</span>
                   </td>
                   <td>
-                    <div style={{ fontSize: 13 }}>Used {c.usedCount} / {c.maxUses ?? '∞'} times</div>
-                    <div style={{ fontSize: 12, color: '#6b7280' }}>Total ${c.totalAmount.toFixed(2)}</div>
+                    <div style={{ fontSize: 13 }}>{t.usedNTimes.replace('{used}', c.usedCount).replace('{limit}', c.maxUses ?? '∞')}</div>
+                    <div style={{ fontSize: 12, color: '#6b7280' }}>{t.total} ${c.totalAmount.toFixed(2)}</div>
                     <Button
                       onClick={() => showCouponOrders(c)}
                       variant="outlined"
@@ -388,9 +388,9 @@ export default function Coupons() {
                   </td>
                   <td style={{ fontSize: 13 }}>${c.minPurchase.toFixed(2)}</td>
                   <td style={{ fontSize: 13, whiteSpace: 'nowrap' }}>
-                    {c.validTo ? `Until ${c.validTo}` : t.validForever}
+                    {c.validTo ? `${t.until} ${c.validTo}` : t.validForever}
                   </td>
-                  <td style={{ fontSize: 13, color: '#6b7280' }}>{c.remarks || 'No remark'}</td>
+                  <td style={{ fontSize: 13, color: '#6b7280' }}>{c.remarks || t.noRemark}</td>
                   <td>
                     <span className={`badge ${c.status === 'active' ? 'badge-green' : c.status === 'expired' ? 'badge-orange' : 'badge-disabled'}`} style={{ gap: 5, whiteSpace: 'nowrap' }}>
                       {c.status === 'disabled' && <i className="fa fa-ban" style={{ fontSize: 10 }} />}
@@ -419,7 +419,7 @@ export default function Coupons() {
                         size="small"
                         startIcon={<i className="fa fa-archive" />}
                       >
-                        Archive
+                        {t.archive}
                       </Button>
                     </div>
                   </td>

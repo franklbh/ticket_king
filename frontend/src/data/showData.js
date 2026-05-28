@@ -1,4 +1,4 @@
-import mapInstructionPdf from '../user_media/MAP--WE ARE VR.pdf'
+import mapInstructionPdf from '../picture/MAP--WE ARE VR.pdf'
 
 export const emailPattern = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/
 

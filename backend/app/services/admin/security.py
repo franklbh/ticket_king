@@ -14,6 +14,7 @@ from app.utils.datetime import format_datetime, utc_now
 OWNER = "owner"
 ADMINISTRATOR = "administrator"
 CUSTOMER = "customer"
+PARTNER = "partner"
 ADMIN_ROLES = {OWNER, ADMINISTRATOR}
 ALL_ROLES = {OWNER, ADMINISTRATOR, CUSTOMER}
 
@@ -37,6 +38,7 @@ ROLE_PERMISSIONS = {
     "users:write": {OWNER},
     "logs:read": {OWNER},
     "health:read": ADMIN_ROLES,
+    "reports:read": {OWNER, ADMINISTRATOR, PARTNER},
 }
 
 
@@ -76,6 +78,7 @@ def normalize_role(value: Any) -> str:
         "superadmin": OWNER,
         "customer": CUSTOMER,
         "owner": OWNER,
+        "partner": PARTNER,
     }
     return aliases.get(role, CUSTOMER)
 

@@ -104,7 +104,23 @@ const DISPLAY_TICKET_LABELS = {
   family: 'Family',
 }
 
-function BookingWidget({ experience, cartItems, onAddToCart }) {
+const TICKET_LABEL_KEYS = {
+  adult: 'ticketTypeRegular',
+  child: 'ticketTypeChild',
+  senior: 'ticketTypeSenior',
+  group: 'ticketTypeGroup',
+  family: 'ticketTypeFamily',
+}
+
+const TICKET_DESC_KEYS = {
+  adult: 'age18Plus',
+  child: 'ages7To15',
+  senior: 'senior65Plus',
+  group: 'guests6Plus',
+  family: 'familyBundle3Plus',
+}
+
+function BookingWidget({ experience, cartItems, onAddToCart, t = (key, params = {}) => Object.entries(params).reduce((text, [name, value]) => text.replaceAll(`{${name}}`, value), key) }) {
   const today = new Date()
   const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
   const MONTH_LABELS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
@@ -150,21 +166,15 @@ function BookingWidget({ experience, cartItems, onAddToCart }) {
     return formatSlotTicketTypes(selTime?.ticketTypes || selTime?.ticket_types || [], { fallback: selectedSlotHasTicketTypes ? [] : fallbackTicketTypes })
     .map((ticket) => {
       const key = ticket.key || ticketKeyFromLabel(ticket.label)
-      const desc = ticket.desc || (
-        key === 'child' ? 'Ages 7-15'
-          : key === 'senior' ? '65+ years'
-            : key === 'group' ? '6+ guests'
-              : key === 'family' ? '3+ family bundle'
-                : 'Ages 18+'
-      )
+      const desc = TICKET_DESC_KEYS[key] ? t(TICKET_DESC_KEYS[key]) : ticket.desc
       const notice = ticket.notice || (
-        key === 'group' ? 'min. 6 people required.'
-          : key === 'family' ? 'Ticket for min. 3 people, max. 2 adults.'
+        key === 'group' ? t('minPeopleRequired', { count: 6 })
+          : key === 'family' ? t('familyMinRequired')
             : undefined
       )
-      return { ...ticket, key, label: DISPLAY_TICKET_LABELS[key] || ticket.label, desc, notice }
+      return { ...ticket, key, label: TICKET_LABEL_KEYS[key] ? t(TICKET_LABEL_KEYS[key]) : (DISPLAY_TICKET_LABELS[key] || ticket.label), desc, notice }
     })
-  }, [fallbackTicketTypes, selTime])
+  }, [fallbackTicketTypes, selTime, t])
   const calendarCells = [
     ...Array.from({ length: monthStartDay }, (_, idx) => ({ key: `blank-${idx}`, blank: true })),
     ...Array.from({ length: new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0).getDate() }, (_, i) => {
@@ -309,7 +319,7 @@ function BookingWidget({ experience, cartItems, onAddToCart }) {
   return (
     <div className="bw-widget">
       <div className="bw-inner">
-        <div className="bw-head">Select date &amp; session</div>
+        <div className="bw-head">{t('selectDateSession')}</div>
 
         <div className="bw-month-row" aria-label="Select month">
           {monthOptions.map((month) => {
@@ -351,15 +361,15 @@ function BookingWidget({ experience, cartItems, onAddToCart }) {
             })}
           </div>
           <div className="bw-calendar-legend">
-            <span><i className="best" />Best price</span>
-            <span><i className="low" />Low availability</span>
+            <span><i className="best" />{t('bestPrice')}</span>
+            <span><i className="low" />{t('lowAvailability')}</span>
           </div>
         </div>
 
         {/* Time slots */}
         <div className="bw-time-grid">
-          {slotsLoading && <div style={{ gridColumn: '1/-1', textAlign: 'center', color: '#888', padding: '8px 0' }}>Loading sessions…</div>}
-          {!slotsLoading && backendSlots.length === 0 && <div style={{ gridColumn: '1/-1', textAlign: 'center', color: '#888', padding: '8px 0' }}>No sessions available for this date.</div>}
+          {slotsLoading && <div style={{ gridColumn: '1/-1', textAlign: 'center', color: '#888', padding: '8px 0' }}>{t('loadingSessions')}</div>}
+          {!slotsLoading && backendSlots.length === 0 && <div style={{ gridColumn: '1/-1', textAlign: 'center', color: '#888', padding: '8px 0' }}>{t('noSessionsForDate')}</div>}
           {visibleBackendSlots.map((slot) => (
             <button
               key={slot.id || slot.label}
@@ -368,12 +378,12 @@ function BookingWidget({ experience, cartItems, onAddToCart }) {
               type="button"
             >
               {slot.label}
-              {slot.availableSeats != null && slot.availableSeats <= 5 && <span style={{ display: 'block', fontSize: 11, opacity: 0.7 }}>Only {slot.availableSeats} left</span>}
+              {slot.availableSeats != null && slot.availableSeats <= 5 && <span style={{ display: 'block', fontSize: 11, opacity: 0.7 }}>{t('onlyLeft', { count: slot.availableSeats })}</span>}
             </button>
           ))}
           {!slotsLoading && backendSlots.length > 8 && (
             <button className="bw-expand-slots" onClick={() => setShowAllTimeSlots((open) => !open)} type="button">
-              {showAllTimeSlots ? 'Show fewer time slots' : `Expand other time slots (${backendSlots.length - 8})`}
+              {showAllTimeSlots ? t('showFewerTimeSlots') : t('expandOtherTimeSlots', { count: backendSlots.length - 8 })}
             </button>
           )}
         </div>
@@ -416,7 +426,7 @@ function BookingWidget({ experience, cartItems, onAddToCart }) {
                 </div>
                 {isInvalid && (
                   <div className="ticket-validation-warning bw-ticket-warning">
-                    {ticket.label} requires at least {ticket.minQty} tickets.
+                    {t('ticketRequiresMin', { label: ticket.label, count: ticket.minQty })}
                   </div>
                 )}
               </div>
@@ -440,16 +450,16 @@ function BookingWidget({ experience, cartItems, onAddToCart }) {
           type="button"
         >
           {totalQty > 0
-            ? `$${totalPrice.toFixed(2)} - Add to Cart`
-            : 'Add to Cart'}
+            ? `$${totalPrice.toFixed(2)} - ${t('addToCart')}`
+            : t('addToCart')}
         </button>
         {showAddedNotice && (
-          <div className="bw-added-notice-overlay" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label="Cart updated">
+          <div className="bw-added-notice-overlay" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('cartUpdated')}>
             <div className="bw-added-notice">
-              <button className="bw-added-notice-close" onClick={() => setShowAddedNotice(false)} type="button" aria-label="Close cart notice">Cancel</button>
+              <button className="bw-added-notice-close" onClick={() => setShowAddedNotice(false)} type="button" aria-label={t('close')}>{t('close')}</button>
               <div className="bw-added-notice-icon"><CartIcon /></div>
-              <h3>Added to shopping cart</h3>
-              <p>Your selected tickets were added successfully.</p>
+              <h3>{t('addedToCart')}</h3>
+              <p>{t('addedToCartCopy')}</p>
             </div>
           </div>
         )}
@@ -459,7 +469,7 @@ function BookingWidget({ experience, cartItems, onAddToCart }) {
 }
 
 /* ── Mini Experience Card (for Similar Experiences) ── */
-function MiniExpCard({ exp, onSelect }) {
+function MiniExpCard({ exp, onSelect, t }) {
   return (
     <div className="exp2-mini-card" onClick={() => onSelect(exp)} role="button" tabIndex={0}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onSelect(exp) }}>
@@ -469,9 +479,9 @@ function MiniExpCard({ exp, onSelect }) {
           : <div className="exp2-mini-img" style={{ background: exp.cardGradient }} />}
       </div>
       <div className="exp2-mini-body">
-        <div className="exp2-mini-meta">⏱ {exp.duration} min · Ages {exp.minAge}+</div>
+        <div className="exp2-mini-meta">⏱ {exp.duration} {t('minuteShort')} · {t('agesMin', { min: exp.minAge })}</div>
         <div className="exp2-mini-title">{exp.title}</div>
-        <div className="exp2-mini-price">From <strong>${getExperiencePriceFrom(exp).toFixed(2)}</strong></div>
+        <div className="exp2-mini-price">{t('from')} <strong>${getExperiencePriceFrom(exp).toFixed(2)}</strong></div>
       </div>
     </div>
   )
@@ -487,12 +497,14 @@ function ExperienceDetailPage({
   cartCount,
   cartItems,
   currentUser,
+  experiences = allExperiences,
   onLogout,
   onOpenAuth,
   onOpenBookings,
   onOpenCart,
   onOpenNav,
   renderLangSelect,
+  selectedLang,
   t,
 }) {
   const [showVideo, setShowVideo] = useState(false)
@@ -500,7 +512,9 @@ function ExperienceDetailPage({
   const [showAllGallery, setShowAllGallery] = useState(false)
   const [bookingBeforeDetails, setBookingBeforeDetails] = useState(false)
 
-  const similar = allExperiences.filter((e) => e.id !== experience.id)
+  const similar = experiences.filter((e) => e.id !== experience.id)
+  const videoLanguage = selectedLang?.code === 'zh-Hans' || selectedLang?.code === 'zh-Hant' ? 'zh' : 'en'
+  const demoVideo = experience.demoVideos?.[videoLanguage] || experience.demoVideo
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' })
@@ -550,15 +564,15 @@ function ExperienceDetailPage({
         {/* Main image */}
         <button
           className="exp2-photo-main"
-          onClick={() => experience.demoVideo ? setShowVideo(true) : setLightboxIdx(0)}
+          onClick={() => demoVideo ? setShowVideo(true) : setLightboxIdx(0)}
           type="button"
-          aria-label="Play demo video"
+          aria-label={t('playDemoVideo')}
         >
           {mainImg
             ? <div className="exp2-photo-fill" style={{ backgroundImage: `url(${mainImg})` }} />
             : <div className="exp2-photo-fill exp2-photo-gradient" style={{ background: experience.cardGradient }} />}
           <div className="exp2-photo-overlay" />
-          {experience.demoVideo && (
+          {demoVideo && (
             <div className="exp2-play-circle">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
             </div>
@@ -573,12 +587,12 @@ function ExperienceDetailPage({
               className="exp2-photo-mini"
               onClick={() => setLightboxIdx(i)}
               type="button"
-              aria-label={`Photo ${i + 1}`}
+              aria-label={t('photoLabel', { count: i + 1 })}
             >
               <div className="exp2-photo-fill" style={{ backgroundImage: `url(${src})` }} />
               {i === 3 && gallery.length > 4 && (
                 <div className="exp2-photo-more-overlay">
-                  +{gallery.length - 4} photos
+                  +{t('photoCount', { count: gallery.length - 4 })}
                 </div>
               )}
             </button>
@@ -588,7 +602,7 @@ function ExperienceDetailPage({
         {/* Gallery button */}
         <button className="exp2-gallery-btn" onClick={() => setLightboxIdx(0)} type="button">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-          Gallery
+          {t('galleryTitle')}
         </button>
       </div>
 
@@ -618,51 +632,51 @@ function ExperienceDetailPage({
 
           {bookingBeforeDetails && (
             <div className="exp2-mobile-booking">
-              <BookingWidget experience={experience} cartItems={cartItems} onAddToCart={onBuyTicket} />
+              <BookingWidget experience={experience} cartItems={cartItems} onAddToCart={onBuyTicket} t={t} />
             </div>
           )}
 
           {/* About */}
           <section className="exp2-section exp2-reveal">
-            <h2 className="exp2-section-h">About this experience</h2>
+            <h2 className="exp2-section-h">{t('aboutExperience')}</h2>
             <p className="exp2-description">{experience.description}</p>
             <p className="exp2-description exp2-desc-long">{experience.longDescription}</p>
           </section>
 
           {/* General Info */}
           <section className="exp2-section exp2-reveal">
-            <h2 className="exp2-section-h">General Info</h2>
+            <h2 className="exp2-section-h">{t('generalInfo')}</h2>
             <ul className="exp2-info-list">
               <li>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                <strong>Duration:</strong> {experience.duration} minutes — {experience.difficulty} intensity
+                <strong>{t('durationLabel')}:</strong> {experience.duration} {t('minuteShort')} — {experience.difficulty === 'Easy' ? t('easyIntensity') : experience.difficulty}
               </li>
               <li>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-                <strong>Minimum age:</strong> {experience.minAge} years old
+                <strong>{t('minimumAge')}:</strong> {experience.minAge}+
               </li>
               <li>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                <strong>Group size:</strong> {experience.groupSize} people per session
+                <strong>{t('groupSizeLabel')}:</strong> {experience.groupSize} {t('people')}
               </li>
               <li>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                <strong>Language:</strong> {experience.languages.join(' · ')}
+                <strong>{t('languageLabel')}:</strong> {experience.languages.join(' · ')}
               </li>
               <li>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>
-                <strong>Venue:</strong> Lansdowne Centre · Unit 210-5300 No.3 Rd, Richmond BC
+                <strong>{t('venueLabel')}:</strong> Lansdowne Centre · Unit 210-5300 No.3 Rd, Richmond BC
               </li>
               <li>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                <strong>Hours:</strong> Sun–Thu 10 AM–7 PM · Fri–Sat 10 AM–8 PM
+                <strong>{t('hoursLabel')}:</strong> Sun–Thu 10 AM–7 PM · Fri–Sat 10 AM–8 PM
               </li>
             </ul>
           </section>
 
           {/* Highlights */}
           <section className="exp2-section exp2-reveal">
-            <h2 className="exp2-section-h">Highlights</h2>
+            <h2 className="exp2-section-h">{t('highlightsTitle')}</h2>
             <div className="exp2-highlights-grid">
               {experience.highlights.map((h) => (
                 <div key={h} className="exp2-highlight-card">
@@ -675,7 +689,7 @@ function ExperienceDetailPage({
 
           {/* What to expect */}
           <section className="exp2-section exp2-reveal">
-            <h2 className="exp2-section-h">What to expect</h2>
+            <h2 className="exp2-section-h">{t('whatToExpectTitle')}</h2>
             <div className="exp2-expect-grid">
               {experience.whatToExpect.map((item) => (
                 <div key={item.label} className="exp2-expect-card">
@@ -691,13 +705,13 @@ function ExperienceDetailPage({
 
           {/* Your journey timeline */}
           <section className="exp2-section exp2-reveal">
-            <h2 className="exp2-section-h">Your journey</h2>
+            <h2 className="exp2-section-h">{t('yourJourney')}</h2>
             <div className="exp2-timeline">
               {[
-                { step: '01', title: 'Arrive & check in', desc: 'Arrive 5–10 minutes early. Our team will greet you and confirm your booking at the front desk.' },
-                { step: '02', title: 'VR headset briefing', desc: 'One of our VR guides walks you through the headset, controls, and safety — no experience needed.' },
-                { step: '03', title: `Dive into ${experience.title}`, desc: `${experience.duration} minutes of pure, uninterrupted immersion. ${experience.tagline}.` },
-                { step: '04', title: 'Debrief & share', desc: 'Relive your favourite moments, grab photos outside, and share your experience with friends.' },
+                { step: '01', title: t('journeyArriveTitle'), desc: t('journeyArriveDesc') },
+                { step: '02', title: t('journeyBriefingTitle'), desc: t('journeyBriefingDesc') },
+                { step: '03', title: t('journeyDiveTitle', { title: experience.title }), desc: t('journeyDiveDesc', { duration: experience.duration, tagline: experience.tagline }) },
+                { step: '04', title: t('journeyDebriefTitle'), desc: t('journeyDebriefDesc') },
               ].map((item) => (
                 <div key={item.step} className="exp2-timeline-row">
                   <div className="exp2-timeline-step" style={{ color: experience.accent, borderColor: `${experience.accent}30` }}>{item.step}</div>
@@ -710,25 +724,12 @@ function ExperienceDetailPage({
             </div>
           </section>
 
-          {/* Practical info */}
-          <section className="exp2-section exp2-reveal">
-            <h2 className="exp2-section-h">Practical info</h2>
-            <div className="exp2-practical-grid">
-              {experience.practicalInfo.map((item) => (
-                <div key={item.label} className="exp2-practical-row">
-                  <span className="exp2-practical-label">{item.label}</span>
-                  <span className="exp2-practical-value">{item.value}</span>
-                </div>
-              ))}
-            </div>
-          </section>
-
           {/* Gallery strip */}
           <section className="exp2-section exp2-reveal">
             <div className="exp2-section-head-row">
-              <h2 className="exp2-section-h">Gallery</h2>
+              <h2 className="exp2-section-h">{t('galleryTitle')}</h2>
               <button className="exp2-see-all-btn" onClick={() => setShowAllGallery((value) => !value)} type="button">
-                {showAllGallery ? 'Show fewer' : 'See all photos'}
+                {showAllGallery ? t('showFewer') : t('seeAllPhotos')}
               </button>
             </div>
             <div className="exp2-gallery-strip">
@@ -742,12 +743,12 @@ function ExperienceDetailPage({
 
           {/* Reviews */}
           <section className="exp2-section exp2-reveal">
-            <h2 className="exp2-section-h">User reviews</h2>
+            <h2 className="exp2-section-h">{t('userReviews')}</h2>
             <div className="exp2-rating-summary">
               <span className="exp2-big-rating">{experience.rating}</span>
               <div>
                 <Stars rating={experience.rating} size={18} />
-                <div className="exp2-rating-based">Based on {experience.reviewCount} reviews</div>
+                <div className="exp2-rating-based">{t('basedOnReviews', { count: experience.reviewCount })}</div>
               </div>
             </div>
             <div className="exp2-review-scroll">
@@ -770,17 +771,17 @@ function ExperienceDetailPage({
           <section className="exp2-section exp2-reveal exp2-help-section">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
             <div>
-              <div className="exp2-help-title">Need help?</div>
-              <div className="exp2-help-desc">Contact our team at <a href="mailto:info@vrvr.show">info@vrvr.show</a> or call <a href="tel:+17788054699">(778) 805-4699</a></div>
+              <div className="exp2-help-title">{t('needHelp')}</div>
+              <div className="exp2-help-desc">{t('contactTeamAt')} <a href="mailto:info@vrvr.show">info@vrvr.show</a> {t('orCall')} <a href="tel:+17788054699">(778) 805-4699</a></div>
             </div>
           </section>
 
           {/* Similar experiences */}
           <section className="exp2-section exp2-reveal">
-            <h2 className="exp2-section-h">Similar experiences</h2>
+            <h2 className="exp2-section-h">{t('similarExperiences')}</h2>
             <div className="exp2-similar-grid">
               {similar.map((exp) => (
-                <MiniExpCard key={exp.id} exp={exp} onSelect={onSelectExperience ?? onBack} />
+                <MiniExpCard key={exp.id} exp={exp} onSelect={onSelectExperience ?? onBack} t={t} />
               ))}
             </div>
           </section>
@@ -790,14 +791,14 @@ function ExperienceDetailPage({
         {!bookingBeforeDetails && (
           <div className="exp2-sidebar-col">
             <div className="exp2-widget-sticky">
-              <BookingWidget experience={experience} cartItems={cartItems} onAddToCart={onBuyTicket} />
+              <BookingWidget experience={experience} cartItems={cartItems} onAddToCart={onBuyTicket} t={t} />
             </div>
           </div>
         )}
       </div>
 
       {/* ── Modals ── */}
-      {showVideo && <VideoModal src={experience.demoVideo} onClose={() => setShowVideo(false)} />}
+      {showVideo && <VideoModal src={demoVideo} onClose={() => setShowVideo(false)} />}
       {lightboxIdx !== null && <Lightbox images={gallery} startIndex={lightboxIdx} onClose={() => setLightboxIdx(null)} />}
     </div>
   )

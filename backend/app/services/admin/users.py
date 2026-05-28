@@ -11,7 +11,7 @@ from app.services.admin.repository import admin_repository
 from app.schemas.admin import AdminAccountCreate, OwnerBootstrapCreate, StaffProfileUpdate, UserPasswordUpdate, UserRoleUpdate
 from app.schemas.admin.responses import ActivityLogPage, ActivityLogRead
 from app.services.admin.audit import audit_change, write_audit_log
-from app.services.admin.security import ADMINISTRATOR, ALL_ROLES, OWNER, normalize_role, now_utc, public_user
+from app.services.admin.security import ADMINISTRATOR, ALL_ROLES, CUSTOMER, OWNER, normalize_role, now_utc, public_user
 
 
 class UserService:
@@ -26,6 +26,8 @@ class UserService:
         normalized_role = normalize_role(role) if role else None
         rows = await admin_repository.list_users(normalized_role)
         users = [public_user(row) for row in rows]
+        if normalized_role is None:
+            users = [u for u in users if u.get("role") != CUSTOMER]
         users.sort(key=lambda row: (row.get("role") or "", row.get("email") or "", row.get("name") or ""))
         return users
 
@@ -39,10 +41,11 @@ class UserService:
         auth_user = await self._get_or_create_auth_user_by_email(payload.email, payload.password, payload.name)
         existing_rows = await admin_repository.select_where(settings.admin_users_table, column="id", value=auth_user["id"], limit=1)
         existing_user = existing_rows[0] if existing_rows else None
+        role = normalize_role(payload.role) if payload.role else ADMINISTRATOR
         values = {
             "name": payload.name,
             "email": payload.email,
-            "role": ADMINISTRATOR,
+            "role": role,
             "staff_role": payload.staff_role,
             "department": payload.department,
             "position": payload.position,
@@ -64,7 +67,7 @@ class UserService:
             user_id=auth_user["id"],
             name=payload.name,
             email=payload.email,
-            role=ADMINISTRATOR,
+            role=role,
             staff_role=payload.staff_role,
             department=payload.department,
             position=payload.position,
@@ -169,6 +172,18 @@ class UserService:
         details = audit_change(before_rows[0] if before_rows else None, updated[0], ["status"])
         await write_audit_log(actor, "Deactivate", "Admin", str(user_id), details, None)
         return public_user(updated[0])
+
+    async def delete_user(self, user_id: str, actor: dict[str, Any]) -> dict[str, Any]:
+        if str(actor.get("id")) == str(user_id):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Admins cannot delete their own account.")
+        rows = await admin_repository.select_where(settings.admin_users_table, column="id", value=user_id, limit=1)
+        if not rows:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+        deleted = await admin_repository.delete_where(settings.admin_users_table, column="id", value=user_id)
+        if not deleted:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+        await write_audit_log(actor, "Delete", "Admin", str(user_id), {"email": rows[0].get("email")}, None)
+        return {"ok": True, "deleted": user_id}
 
     async def request_password_reset(self, user_id: str, actor: dict[str, Any]) -> dict[str, Any]:
         rows = await admin_repository.select_where(settings.admin_users_table, column="id", value=user_id, limit=1)

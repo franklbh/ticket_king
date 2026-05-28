@@ -14,18 +14,19 @@ import { AdminAlert, AdminCard, PageHeader } from '../components/AdminUI'
 import { dedupeBy } from '../utils/collections'
 import { todayIso } from '../utils/date'
 import { formatNorthAmericanPhone } from '../utils/phone'
+import { localizeCatalogName, localizeTicketTypeName } from '../utils/localization'
 
 const PAYMENT_METHODS = [
-  { id: 'Cash', label: 'Cash', icon: 'fa-money-bill-wave' },
-  { id: 'Credit Card', label: 'Credit Card', icon: 'fa-credit-card' },
-  { id: 'WeChat Pay', label: 'WeChat Pay', icon: 'fa-comments' },
-  { id: 'Alipay', label: 'Alipay', icon: 'fa-wallet' },
-  { id: 'Other', label: 'Other', icon: 'fa-ellipsis-h' },
+  { id: 'Cash', labelKey: 'paymentCash', icon: 'fa-money-bill-wave' },
+  { id: 'Credit Card', labelKey: 'paymentCreditCard', icon: 'fa-credit-card' },
+  { id: 'WeChat Pay', labelKey: 'paymentWechatPay', icon: 'fa-comments' },
+  { id: 'Alipay', labelKey: 'paymentAlipay', icon: 'fa-wallet' },
+  { id: 'Other', labelKey: 'other', icon: 'fa-ellipsis-h' },
 ]
 const GST_RATE = 0.05
 const FINAL_STEP_REMINDER_MS = 5 * 60 * 1000
 
-function buildThemeOptions(events, availableSlots) {
+function buildThemeOptions(events, availableSlots, lang = 'en') {
   const slotCountByEvent = availableSlots.reduce((counts, slot) => {
     const eventId = String(slot.event)
     counts.set(eventId, (counts.get(eventId) || 0) + 1)
@@ -41,7 +42,7 @@ function buildThemeOptions(events, availableSlots) {
     return {
       key: `event-${eventId}`,
       eventId,
-      name: event.name,
+      name: localizeCatalogName(event.name, lang),
       count: slotCountByEvent.get(eventId) || 0,
     }
   })
@@ -90,8 +91,14 @@ function shiftMonth(date, delta) {
   return new Date(date.getFullYear(), date.getMonth() + delta, 1)
 }
 
-function monthTitle(date) {
-  return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+function localeForLang(lang) {
+  if (lang === 'zh-Hans') return 'zh-CN'
+  if (lang === 'zh-Hant') return 'zh-TW'
+  return 'en-US'
+}
+
+function monthTitle(date, lang = 'en') {
+  return date.toLocaleDateString(localeForLang(lang), { month: 'long', year: 'numeric' })
 }
 
 function isPastDateKey(dateKey) {
@@ -200,14 +207,14 @@ export default function CreateOrder() {
   })
 
   const availableSlots = selectedDate ? slots.filter(s => s.date === selectedDate && s.status === 'active') : []
-  const themeOptions = buildThemeOptions(events, availableSlots)
+  const themeOptions = buildThemeOptions(events, availableSlots, lang)
   const selectedThemeOption = themeOptions.find(option => option.key === selectedTheme)
   const selectedEventId = selectedThemeOption?.eventId || ''
   const selectedThemeSlots = selectedTheme
     ? availableSlots.filter(slot => String(slot.event) === String(selectedEventId))
     : []
   const themeNameByKey = new Map(themeOptions.map(option => [option.key, option.name]))
-  const eventNameById = new Map(events.map(event => [String(event.id), event.name]))
+  const eventNameById = new Map(events.map(event => [String(event.id), localizeCatalogName(event.name, lang)]))
   const matchingTypeRows = selectedTheme
     ? ticketTypes.filter(tp => String(tp.event) === String(selectedEventId))
     : ticketTypes
@@ -216,6 +223,32 @@ export default function CreateOrder() {
       .sort((a, b) => Number(a.id) - Number(b.id)),
     tp => tp.name
   )
+  const selectedLocale = localeForLang(lang)
+  const localizedPaymentMethod = PAYMENT_METHODS.find(pm => pm.id === payment)
+  const paymentLabel = localizedPaymentMethod ? t[localizedPaymentMethod.labelKey] : payment
+  const dateWeekdays = lang === 'zh-Hant'
+    ? ['日', '一', '二', '三', '四', '五', '六']
+    : lang === 'zh-Hans'
+      ? ['日', '一', '二', '三', '四', '五', '六']
+      : ['S', 'M', 'T', 'W', 'T', 'F', 'S']
+
+  function slotCountText(count) {
+    return lang === 'en'
+      ? `${count} ${count === 1 ? t.timeSlotLabel : t.timeSlotsLabel}`
+      : `${count}${t.timeSlotsLabel}`
+  }
+
+  function ticketCountText(count) {
+    return lang === 'en'
+      ? `${count} ticket${count === 1 ? '' : 's'}`
+      : `${count}张票`
+  }
+
+  function cartLineCountText(count) {
+    return lang === 'en'
+      ? `${count} ${count === 1 ? t.cartLineLabel : t.cartLinesLabel}`
+      : `${count}${t.cartLinesLabel}`
+  }
 
   function slotLabel(slot) {
     if (!slot) return ''
@@ -282,7 +315,8 @@ export default function CreateOrder() {
         slotStartTime: selectedSlot.startTime,
         slotEndTime: selectedSlot.endTime,
         ticketTypeId: type.id,
-        ticketType: type.name,
+        ticketTypeSource: type.name,
+        ticketType: localizeTicketTypeName(type.name, lang),
         quantity: cappedNext,
         unitPrice: Number(unitPrice.toFixed(2)),
       }
@@ -361,7 +395,11 @@ export default function CreateOrder() {
   const customerName = [customer.firstName, customer.lastName].filter(Boolean).join(' ')
   const ticketValidationError = cartItems.reduce((message, item) => {
     if (message) return message
-    if (/group/i.test(item.ticketType) && item.quantity < 6) return `${item.ticketType} requires at least 6 tickets.`
+    if (/group/i.test(item.ticketTypeSource || item.ticketType) && item.quantity < 6) {
+      return lang === 'en'
+        ? `${item.ticketType} requires at least 6 tickets.`
+        : `${item.ticketType}至少需要6张票。`
+    }
     return ''
   }, '')
 
@@ -397,7 +435,7 @@ export default function CreateOrder() {
       slot_start_time: item.slotStartTime,
       slot_end_time: item.slotEndTime,
       ticket_type_id: item.ticketTypeId,
-      ticket_type: item.ticketType,
+      ticket_type: item.ticketTypeSource || item.ticketType,
       quantity: item.quantity,
       unit_price: item.unitPrice,
     }))
@@ -474,7 +512,7 @@ export default function CreateOrder() {
     setManualFees(null)
     setFeeDraft(createFeeDraft(totalAmount))
     setFeeEditorOpen(false)
-    setCouponMessage('Custom fee modification removed.')
+    setCouponMessage(t.customFeeRemoved)
   }
 
   function formatMoneyInput(field) {
@@ -487,31 +525,31 @@ export default function CreateOrder() {
 
   async function applyCoupon() {
     if (manualFees) {
-      setCouponMessage('Use Coupon Discount in Modify Fees while custom fee editing is enabled.')
+      setCouponMessage(t.useCouponDiscountInFees)
       return
     }
     if (appliedCoupon) {
       setAppliedCoupon(null)
-      setCouponMessage('Coupon removed.')
+      setCouponMessage(t.couponRemoved)
       return
     }
-    const code = window.prompt('Coupon code')
+    const code = window.prompt(t.couponCodePrompt)
     if (!code?.trim()) return
     setApplyingCoupon(true)
     setCouponMessage('')
     try {
       const result = await validateCoupon({ code: code.trim(), amount: adjustedTicketAmount })
       if (!result.valid) {
-        setCouponMessage(result.reason || 'Coupon is not valid.')
+        setCouponMessage(result.reason || t.couponInvalid)
         return
       }
       setAppliedCoupon({
         code: result.code,
         discount: Number(result.discount || 0),
       })
-      setCouponMessage(`Coupon ${result.code} applied.`)
+      setCouponMessage(lang === 'en' ? `Coupon ${result.code} applied.` : `优惠券 ${result.code} 已使用。`)
     } catch (err) {
-      setCouponMessage(err.message || 'Unable to validate coupon.')
+      setCouponMessage(err.message || t.unableValidateCoupon)
     } finally {
       setApplyingCoupon(false)
     }
@@ -523,22 +561,22 @@ export default function CreateOrder() {
         <div style={{ width: 80, height: 80, borderRadius: '50%', background: '#d1fae5', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', fontSize: 36 }}>
           <i className="fa fa-check-circle" style={{ color: '#10b981' }} />
         </div>
-        <h2 style={{ fontSize: 24, fontWeight: 700, color: '#111827', marginBottom: 8 }}>Order Created!</h2>
-        <p style={{ color: '#6b7280', marginBottom: 8 }}>Order ID: <strong style={{ color: '#6366f1', fontFamily: 'monospace' }}>#{lastOrderId}</strong></p>
+        <h2 style={{ fontSize: 24, fontWeight: 700, color: '#111827', marginBottom: 8 }}>{t.orderCreated}</h2>
+        <p style={{ color: '#6b7280', marginBottom: 8 }}>{t.orderID}: <strong style={{ color: '#6366f1', fontFamily: 'monospace' }}>#{lastOrderId}</strong></p>
         <p style={{ color: '#6b7280', marginBottom: 24 }}>
-          {totalTickets} ticket(s) · ${totalDue.toFixed(2)} · {payment}
+          {ticketCountText(totalTickets)} · ${totalDue.toFixed(2)} · {paymentLabel}
         </p>
         <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-          <Button variant="outlined" onClick={resetOrder} startIcon={<i className="fa fa-plus" />}>Create Another Order</Button>
-          <Button variant="contained" startIcon={<i className="fa fa-print" />}>Print Tickets</Button>
-          <Button variant="contained" onClick={() => navigate(`/orders?orderId=${encodeURIComponent(lastOrderId)}`)} startIcon={<i className="fa fa-external-link-alt" />}>View in Orders</Button>
+          <Button variant="outlined" onClick={resetOrder} startIcon={<i className="fa fa-plus" />}>{t.createAnotherOrder}</Button>
+          <Button variant="contained" startIcon={<i className="fa fa-print" />}>{t.printTickets}</Button>
+          <Button variant="contained" onClick={() => navigate(`/orders?orderId=${encodeURIComponent(lastOrderId)}`)} startIcon={<i className="fa fa-external-link-alt" />}>{t.viewInOrders}</Button>
         </div>
       </div>
     )
   }
 
   if ((selectedDate && loadingSlots) || loadingTypes || loadingEvents) {
-    return <LoadingIndicator label="Loading live slots and ticket types..." />
+    return <LoadingIndicator label={t.loadingLiveCatalog} />
   }
 
   return (
@@ -550,7 +588,7 @@ export default function CreateOrder() {
       />
       {(slotsError || typesError || eventsError || submitError) && (
         <AdminAlert tone="warning">
-          {submitError || `Backend catalog data could not be fully loaded: ${(slotsError || typesError || eventsError)?.message}`}
+          {submitError || `${t.catalogLoadError}: ${(slotsError || typesError || eventsError)?.message}`}
         </AdminAlert>
       )}
       <StepIndicator step={step} />
@@ -578,26 +616,26 @@ export default function CreateOrder() {
               {datePickerOpen && (
                 <div className="create-order-date-popover" role="dialog" aria-label={t.selectOtherDate}>
                   <div className="create-order-date-popover-head">
-                    <strong>{monthTitle(datePickerMonth)}</strong>
+                    <strong>{monthTitle(datePickerMonth, lang)}</strong>
                     <div>
                       <button
                         type="button"
                         onClick={() => setDatePickerMonth(month => shiftMonth(month, -1))}
-                        aria-label="Previous month"
+                        aria-label={t.back}
                       >
                         <i className="fa fa-chevron-left" />
                       </button>
                       <button
                         type="button"
                         onClick={() => setDatePickerMonth(month => shiftMonth(month, 1))}
-                        aria-label="Next month"
+                        aria-label={t.next}
                       >
                         <i className="fa fa-chevron-right" />
                       </button>
                     </div>
                   </div>
                   <div className="create-order-date-weekdays" aria-hidden="true">
-                    {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => (
+                    {dateWeekdays.map((day, index) => (
                       <span key={`${day}-${index}`}>{day}</span>
                     ))}
                   </div>
@@ -619,7 +657,7 @@ export default function CreateOrder() {
                   </div>
                   <div className="create-order-date-actions">
                     <button type="button" onClick={() => setDatePickerOpen(false)}>
-                      Close
+                      {t.close}
                     </button>
                   </div>
                 </div>
@@ -631,7 +669,7 @@ export default function CreateOrder() {
             <i className="fa fa-calendar-day" style={{ color: '#3b82f6' }} />
             <strong>{t.currentDate}:</strong>
             <span style={{ fontWeight: 600, color: '#6366f1' }}>
-              {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-CA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+              {new Date(selectedDate + 'T00:00:00').toLocaleDateString(selectedLocale, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
             </span>
           </div>
 
@@ -644,7 +682,7 @@ export default function CreateOrder() {
             <>
               <div style={{ marginBottom: 16 }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 8 }}>
-                  Select theme first
+                  {t.selectThemeFirst}
                 </div>
                 <div className="create-order-theme-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10 }}>
                   {themeOptions.map(option => {
@@ -665,7 +703,7 @@ export default function CreateOrder() {
                       >
                         <div style={{ fontWeight: 800, color: '#111827' }}>{option.name}</div>
                         <div style={{ marginTop: 4, fontSize: 12, color: '#64748b' }}>
-                          {option.count} time slot{option.count === 1 ? '' : 's'}
+                          {slotCountText(option.count)}
                         </div>
                       </button>
                     )
@@ -675,18 +713,18 @@ export default function CreateOrder() {
 
               {!selectedTheme ? (
                 <div style={{ textAlign: 'center', padding: 28, color: '#64748b', background: '#f8fafc', borderRadius: 8, border: '1px dashed #cbd5e1' }}>
-                  Select a theme to see its available time slots.
+                  {t.selectThemeEmpty}
                 </div>
               ) : selectedThemeSlots.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: 28, color: '#9ca3af' }}>
-                  No time slots are available for this theme on the selected date.
+                  {t.noThemeSlots}
                 </div>
               ) : (
                 <>
                   <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 8 }}>
-                    Time slots for {themeNameByKey.get(selectedTheme) || 'selected theme'}
+                    {t.timeSlotsFor} {themeNameByKey.get(selectedTheme) || selectedTheme}
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
+                  <div className="create-order-slot-grid">
                     {selectedThemeSlots.map(slot => {
                 const sold = slot.websiteSeats + slot.inStoreSeats
                 const remaining = Math.max(0, slot.totalSeats - sold)
@@ -698,23 +736,24 @@ export default function CreateOrder() {
                     onClick={() => handleSlotSelect(slot)}
                     disabled={pastSlot}
                     aria-disabled={pastSlot}
+                    className="create-order-slot-card"
                     style={{
-                      padding: 14, borderRadius: 8, textAlign: 'left',
+                      borderRadius: 8, textAlign: 'left',
                       border: isSelected ? '2px solid #6366f1' : '1px solid #e5e7eb',
                       background: pastSlot ? '#f3f4f6' : isSelected ? '#fef2f2' : '#fff',
                       cursor: pastSlot ? 'not-allowed' : 'pointer', transition: 'all 0.15s',
                       opacity: pastSlot ? 0.55 : 1,
                     }}
                   >
-                    <div style={{ fontWeight: 700, fontSize: 16, color: pastSlot ? '#9ca3af' : '#111827' }}>
+                    <div className="create-order-slot-time" style={{ color: pastSlot ? '#9ca3af' : '#111827' }}>
                       {slot.startTime} - {slot.endTime}
                     </div>
-                    <div style={{ fontSize: 12, color: pastSlot ? '#9ca3af' : '#6b7280', marginTop: 4 }}>
-                      {pastSlot ? 'Time passed' : `$${slot.price.toFixed(2)} / person`}
+                    <div className="create-order-slot-price" style={{ color: pastSlot ? '#9ca3af' : '#6b7280' }}>
+                      {pastSlot ? t.timePassed : `$${slot.price.toFixed(2)} / ${lang === 'en' ? 'person' : '人'}`}
                     </div>
-                    <div style={{ fontSize: 12, marginTop: 6 }}>
+                    <div className="create-order-slot-seats">
                       <span style={{ color: pastSlot ? '#9ca3af' : remaining > 5 ? '#10b981' : remaining > 0 ? '#f59e0b' : '#ef4444', fontWeight: 500 }}>
-                        {remaining} seats left
+                        {lang === 'en' ? `${remaining} ${t.seatsLeft}` : `${remaining}${t.seatsLeft}`}
                       </span>
                     </div>
                   </button>
@@ -729,14 +768,14 @@ export default function CreateOrder() {
           {(selectedSlot || totalTickets > 0) && (
             <div style={{ marginTop: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
               <div style={{ fontSize: 13, color: '#64748b', fontWeight: 700 }}>
-                Cart: {totalTickets} ticket{totalTickets === 1 ? '' : 's'} · ${totalAmount.toFixed(2)}
+                {t.cartTotal}: {ticketCountText(totalTickets)} · ${totalAmount.toFixed(2)}
               </div>
               <Button
                 variant="contained"
                 onClick={() => selectedSlot ? setStep(2) : setStep(3)}
                 endIcon={<i className="fa fa-arrow-right" />}
               >
-                {selectedSlot ? 'Select Tickets' : 'Checkout'}
+                {selectedSlot ? t.step2.replace(/^Step 2: |^第2步：/, '') : t.checkout}
               </Button>
             </div>
           )}
@@ -752,14 +791,14 @@ export default function CreateOrder() {
               {t.step2}
             </h2>
             <div className="create-order-ticket-selected" style={{ fontSize: 13, color: '#6b7280' }}>
-              Selected: {slotLabel(selectedSlot)}
+              {t.selected}: {slotLabel(selectedSlot)}
             </div>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {enabledTypes.length === 0 && (
               <div style={{ padding: 24, textAlign: 'center', color: '#6b7280', background: '#f9fafb', borderRadius: 8, border: '1px solid #e5e7eb' }}>
-                No ticket types are available for this slot.
+                {t.noTicketTypesForSlot}
               </div>
             )}
             {enabledTypes.map(tp => {
@@ -768,9 +807,9 @@ export default function CreateOrder() {
               return (
                 <div className="create-order-ticket-row" key={tp.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', border: '1px solid #e5e7eb', borderRadius: 8, background: count > 0 ? '#fef2f2' : '#fff' }}>
                   <div className="create-order-ticket-info">
-                    <div style={{ fontWeight: 600, fontSize: 14 }}>{tp.name}</div>
+                    <div style={{ fontWeight: 600, fontSize: 14 }}>{localizeTicketTypeName(tp.name, lang)}</div>
                     <div style={{ fontSize: 13, color: '#6b7280', marginTop: 2 }}>
-                      ${price?.toFixed(2)} · 1 seat{tp.name.includes('Family Bundle') ? ' · Min: 3' : tp.name.includes('Group Ticket') ? ' · Min: 6' : ''}
+                      ${price?.toFixed(2)} · 1 {t.seatUnit}{tp.name.includes('Family Bundle') ? ` · ${t.minLabel}: 3` : tp.name.includes('Group Ticket') ? ` · ${t.minLabel}: 6` : ''}
                     </div>
                   </div>
                   <div className="create-order-ticket-controls" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -793,7 +832,7 @@ export default function CreateOrder() {
           {totalTickets > 0 && (
             <div className="create-order-cart-summary" style={{ marginTop: 16, padding: '12px 16px', background: '#f9fafb', borderRadius: 8, border: '1px solid #e5e7eb' }}>
               <div className="create-order-cart-total" style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 16 }}>
-                <span>Cart Total: {totalTickets} tickets</span>
+                <span>{t.cartTotal}: {ticketCountText(totalTickets)}</span>
                 <span className="create-order-cart-total-amount" style={{ color: '#6366f1' }}>${totalAmount.toFixed(2)}</span>
               </div>
               <div className="create-order-cart-lines" style={{ display: 'grid', gap: 6, marginTop: 10 }}>
@@ -806,8 +845,8 @@ export default function CreateOrder() {
                       className="create-order-cart-remove"
                       type="button"
                       onClick={() => removeCartItem(item.key)}
-                      aria-label={`Remove ${item.ticketType} from cart`}
-                      title="Remove"
+                      aria-label={`${t.removeCoupon} ${item.ticketType}`}
+                      title={t.removeCoupon}
                       style={{ border: '1px solid #fecaca', background: '#fff', color: '#dc2626', fontWeight: 800, cursor: 'pointer', flexShrink: 0, width: 28, height: 28, borderRadius: 999, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
                     >
                       <i className="fa fa-times" />
@@ -825,8 +864,8 @@ export default function CreateOrder() {
           )}
 
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 16 }}>
-            <Button variant="outlined" onClick={() => setStep(1)} startIcon={<i className="fa fa-plus" />}>Add More</Button>
-            <Button variant="contained" onClick={() => setStep(3)} disabled={totalTickets === 0 || Boolean(ticketValidationError)} endIcon={<i className="fa fa-arrow-right" />}>Checkout</Button>
+            <Button variant="outlined" onClick={() => setStep(1)} startIcon={<i className="fa fa-plus" />}>{t.addMore}</Button>
+            <Button variant="contained" onClick={() => setStep(3)} disabled={totalTickets === 0 || Boolean(ticketValidationError)} endIcon={<i className="fa fa-arrow-right" />}>{t.checkout}</Button>
           </div>
         </AdminCard>
       )}
@@ -835,15 +874,15 @@ export default function CreateOrder() {
       {step === 3 && (
         <AdminCard>
           <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 20 }}>
-            <i className="fa fa-user" style={{ color: '#6366f1' }} /> Step 3: Customer Information (Optional)
+            <i className="fa fa-user" style={{ color: '#6366f1' }} /> {t.step3Optional}
           </h2>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 500 }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div>
-                <TextField fullWidth size="small" label="First name" value={customer.firstName} onChange={e => setCustomer(c => ({ ...c, firstName: e.target.value }))} />
+                <TextField fullWidth size="small" label={t.firstName} value={customer.firstName} onChange={e => setCustomer(c => ({ ...c, firstName: e.target.value }))} />
               </div>
               <div>
-                <TextField fullWidth size="small" label="Last name" value={customer.lastName} onChange={e => setCustomer(c => ({ ...c, lastName: e.target.value }))} />
+                <TextField fullWidth size="small" label={t.lastName} value={customer.lastName} onChange={e => setCustomer(c => ({ ...c, lastName: e.target.value }))} />
               </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -855,7 +894,7 @@ export default function CreateOrder() {
               </div>
             </div>
             <div>
-              <TextField fullWidth size="small" label="Remarks (Admin only)" value={customer.remarks} onChange={e => setCustomer(c => ({ ...c, remarks: e.target.value }))} />
+              <TextField fullWidth size="small" label={t.remarksAdminOnly} value={customer.remarks} onChange={e => setCustomer(c => ({ ...c, remarks: e.target.value }))} />
             </div>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 20 }}>
@@ -869,7 +908,7 @@ export default function CreateOrder() {
       {step === 4 && (
         <AdminCard>
           <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 20 }}>
-            <i className="fa fa-credit-card" style={{ color: '#6366f1' }} /> Step 4: Payment Method & Summary
+            <i className="fa fa-credit-card" style={{ color: '#6366f1' }} /> {t.step4PaymentSummary}
           </h2>
 
           <div className="create-order-payment-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(120px, 1fr))', gap: 10, marginBottom: 18 }}>
@@ -897,7 +936,7 @@ export default function CreateOrder() {
                 }}
               >
                 <i className={`fa ${pm.icon}`} style={{ fontSize: 22 }} />
-                {pm.label}
+                {t[pm.labelKey]}
               </Button>
             ))}
           </div>
@@ -905,18 +944,18 @@ export default function CreateOrder() {
           <div style={{ background: '#f9fafb', borderRadius: 10, padding: 16, marginBottom: 18, border: '1px solid #eef2f7' }}>
             <div className="create-order-summary-grid" style={{ display: 'grid', gridTemplateColumns: '1.25fr 1fr', gap: 18 }}>
               <div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 10 }}>Order details</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 10 }}>{t.orderDetails}</div>
                 <div style={{ display: 'grid', gap: 7, fontSize: 13, color: '#4b5563' }}>
-                  <div><strong style={{ color: '#111827' }}>Items:</strong> {cartItems.length} cart line{cartItems.length === 1 ? '' : 's'}</div>
-                  <div><strong style={{ color: '#111827' }}>Customer:</strong> {customerName || 'Walk-in customer'}</div>
-                  <div><strong style={{ color: '#111827' }}>Email:</strong> {customer.email || '-'}</div>
-                  <div><strong style={{ color: '#111827' }}>Phone:</strong> {customer.phone || '-'}</div>
-                  <div><strong style={{ color: '#111827' }}>Remarks:</strong> {customer.remarks || '-'}</div>
+                  <div><strong style={{ color: '#111827' }}>{t.itemsLabel}:</strong> {cartLineCountText(cartItems.length)}</div>
+                  <div><strong style={{ color: '#111827' }}>{t.customerLabel}:</strong> {customerName || t.walkInCustomer}</div>
+                  <div><strong style={{ color: '#111827' }}>{t.email}:</strong> {customer.email || '-'}</div>
+                  <div><strong style={{ color: '#111827' }}>{t.phone}:</strong> {customer.phone || '-'}</div>
+                  <div><strong style={{ color: '#111827' }}>{t.remarks}:</strong> {customer.remarks || '-'}</div>
                 </div>
               </div>
 
               <div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 10 }}>Amount summary</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 10 }}>{t.amountSummary}</div>
                 <div style={{ display: 'grid', gap: 8 }}>
                   {cartItems.map(item => {
                     return (
@@ -931,52 +970,52 @@ export default function CreateOrder() {
                   })}
                   <div style={{ height: 1, background: '#e5e7eb', margin: '2px 0' }} />
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#374151' }}>
-                    <span>Ticket Total</span>
+                    <span>{t.ticketTotalLabel}</span>
                     <span>${adjustedTicketAmount.toFixed(2)}</span>
                   </div>
                   {adminAdjustment !== 0 && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: adminAdjustment < 0 ? '#dc2626' : '#047857' }}>
-                      <span>Price adjustment</span>
+                      <span>{t.priceAdjustment}</span>
                       <span>{adminAdjustment < 0 ? '-' : '+'}${Math.abs(adminAdjustment).toFixed(2)}</span>
                     </div>
                   )}
                   {(manualFees || addonAmount > 0) && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#374151' }}>
-                      <span>Addon Total</span>
+                      <span>{t.addonTotalLabel}</span>
                       <span>${addonAmount.toFixed(2)}</span>
                     </div>
                   )}
                   {(manualFees || platformFee > 0) && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#374151' }}>
-                      <span>Platform Processing Fee</span>
+                      <span>{t.platformProcessingFee}</span>
                       <span>${platformFee.toFixed(2)}</span>
                     </div>
                   )}
                   {(manualFees || paymentFee > 0) && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#374151' }}>
-                      <span>Payment Processing Fee</span>
+                      <span>{t.paymentProcessingFee}</span>
                       <span>${paymentFee.toFixed(2)}</span>
                     </div>
                   )}
                   {(appliedCoupon || manualFees) && couponDiscount > 0 && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#dc2626' }}>
-                      <span>{appliedCoupon ? `Coupon (${appliedCoupon.code})` : 'Coupon Discount'}</span>
+                      <span>{appliedCoupon ? `${t.coupon} (${appliedCoupon.code})` : t.couponDiscountLabel}</span>
                       <span>-${couponDiscount.toFixed(2)}</span>
                     </div>
                   )}
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#374151' }}>
-                    <span>GST (5%)</span>
+                    <span>{t.gstLabel}</span>
                     <span>${gstAmount.toFixed(2)}</span>
                   </div>
                   {(manualFees || pstAmount > 0) && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#374151' }}>
-                      <span>PST Tax</span>
+                      <span>{t.pstTax}</span>
                       <span>${pstAmount.toFixed(2)}</span>
                     </div>
                   )}
                   <div style={{ height: 1, background: '#d1d5db', margin: '2px 0' }} />
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: 18, color: '#111827' }}>
-                    <span>Total</span>
+                    <span>{t.total}</span>
                     <span style={{ color: '#4f46e5' }}>${totalDue.toFixed(2)}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, flexWrap: 'wrap', marginTop: 4 }}>
@@ -987,7 +1026,7 @@ export default function CreateOrder() {
                       startIcon={<i className="fa fa-sliders-h" />}
                       sx={{ bgcolor: '#ef4444', '&:hover': { bgcolor: '#dc2626' } }}
                     >
-                      Change Price
+                      {t.changePrice}
                     </Button>
                     <Button
                       size="small"
@@ -997,7 +1036,7 @@ export default function CreateOrder() {
                       startIcon={<i className={`fa ${appliedCoupon ? 'fa-times' : 'fa-tag'}`} />}
                       sx={{ bgcolor: '#6b7280', '&:hover': { bgcolor: '#4b5563' } }}
                     >
-                      {appliedCoupon ? 'Remove Coupon' : 'Apply Coupon'}
+                      {appliedCoupon ? t.removeCoupon : t.applyCoupon}
                     </Button>
                   </div>
                   {couponMessage && (
@@ -1014,18 +1053,18 @@ export default function CreateOrder() {
             <div className="fee-modifier-panel">
               <div className="fee-modifier-warning">
                 <i className="fa fa-exclamation-triangle" />
-                <span>Warning: Modifying fees will affect order amount calculation, please proceed with caution!</span>
+                <span>{t.feeWarning}</span>
               </div>
 
               <div className="fee-modifier-grid">
                 {[
-                  ['ticketTotal', 'Ticket Total'],
-                  ['addonTotal', 'Addon Total (e.g. VIP)'],
-                  ['couponDiscount', 'Coupon Discount'],
-                  ['platformFee', 'Platform Processing Fee'],
-                  ['paymentFee', 'Payment Processing Fee (e.g. Credit Card)'],
-                  ['gstTax', 'GST Tax'],
-                  ['pstTax', 'PST Tax'],
+                  ['ticketTotal', t.ticketTotalLabel],
+                  ['addonTotal', t.addonTotalVipLabel],
+                  ['couponDiscount', t.couponDiscountLabel],
+                  ['platformFee', t.platformProcessingFee],
+                  ['paymentFee', t.paymentProcessingFeeCardLabel],
+                  ['gstTax', t.gstTax],
+                  ['pstTax', t.pstTax],
                 ].map(([field, label]) => (
                   <label
                     key={field}
@@ -1042,14 +1081,14 @@ export default function CreateOrder() {
                       inputMode="decimal"
                     />
                     {field === 'couponDiscount' && (
-                      <small>Example: Enter 10 for $10 off ticket price. Total and taxes will be reduced accordingly.</small>
+                      <small>{t.feeCouponExample}</small>
                     )}
                   </label>
                 ))}
               </div>
 
               <div className="fee-modifier-total">
-                <span>Total</span>
+                <span>{t.total}</span>
                 <strong>${feeDraftTotal.toFixed(2)}</strong>
               </div>
 
@@ -1060,9 +1099,9 @@ export default function CreateOrder() {
                   startIcon={<i className="fa fa-times" />}
                   sx={{ bgcolor: '#6b7280', '&:hover': { bgcolor: '#4b5563' } }}
                 >
-                  Cancel
+                  {t.cancel}
                 </Button>
-                <p>Modified prices apply automatically when creating order, no save needed. Click Cancel to restore.</p>
+                <p>{t.modifiedPricesNote}</p>
               </div>
             </div>
           )}
@@ -1070,18 +1109,18 @@ export default function CreateOrder() {
           <FormControlLabel
             sx={{ display: 'flex', justifyContent: 'center', mb: 1.5, mx: 0 }}
             control={<Checkbox checked={markUsed} onChange={e => setMarkUsed(e.target.checked)} />}
-            label="Mark order as used immediately"
+            label={t.markOrderUsedImmediately}
           />
 
           <div style={{ maxWidth: 780, margin: '0 auto 22px', background: '#f3f4f6', borderLeft: '3px solid #3b82f6', borderRadius: 6, padding: '10px 12px', color: '#6b7280', fontSize: 12, lineHeight: 1.4 }}>
-            <strong>If unchecked,</strong> order status will be marked as <strong>Paid</strong>, and tickets will be <strong>Not used</strong>. Email is required, and tickets will be sent to the customer automatically.<br />
-            <strong>If checked,</strong> order status will be marked as <strong>Completed</strong>, and tickets will be <strong>Used</strong>. Ticket email will <strong>NOT</strong> be sent, but if marketing is enabled and email is filled, marketing email will be triggered.
+            {t.uncheckedOrderNotice}<br />
+            {t.checkedOrderNotice}
           </div>
 
           <div className="create-order-footer-actions" style={{ display: 'flex', justifyContent: 'space-between', marginTop: 20 }}>
             <Button variant="outlined" onClick={() => setStep(3)} startIcon={<i className="fa fa-arrow-left" />}>{t.back}</Button>
             <Button variant="contained" onClick={handleConfirm} disabled={!payment || creatingOrder} size="large" startIcon={<i className="fa fa-check-circle" />}>
-              Create Order & Complete Payment
+              {t.createOrderCompletePayment}
             </Button>
           </div>
         </AdminCard>
@@ -1093,7 +1132,7 @@ export default function CreateOrder() {
             <div className="fee-confirm-header">
               <h2 id="fee-confirm-title">
                 <i className="fa fa-exclamation-triangle" />
-                Confirm Modify Fees
+                {t.confirmModifyFees}
               </h2>
               <button type="button" onClick={() => setFeeConfirmOpen(false)} aria-label="Close">
                 <i className="fa fa-times" />
@@ -1103,7 +1142,7 @@ export default function CreateOrder() {
               <div className="fee-confirm-warning">
                 <i className="fa fa-exclamation-circle" />
                 <span>
-                  This feature is only for special cases. Modifying fees will change the order amount structure. Are you sure you want to continue?
+                  {t.feeConfirmText}
                 </span>
               </div>
             </div>
@@ -1114,7 +1153,7 @@ export default function CreateOrder() {
                 startIcon={<i className="fa fa-times" />}
                 sx={{ bgcolor: '#6b7280', '&:hover': { bgcolor: '#4b5563' } }}
               >
-                Cancel
+                {t.cancel}
               </Button>
               <Button
                 variant="contained"
@@ -1122,7 +1161,7 @@ export default function CreateOrder() {
                 startIcon={<i className="fa fa-check" />}
                 sx={{ bgcolor: '#ef4444', '&:hover': { bgcolor: '#dc2626' } }}
               >
-                Yes, Modify Fees
+                {t.yesModifyFees}
               </Button>
             </div>
           </div>
@@ -1135,9 +1174,9 @@ export default function CreateOrder() {
             <div className="create-order-reminder-header">
               <h2 id="create-order-reminder-title">
                 <i className="fa fa-bell" />
-                Complete this order
+                {t.completeThisOrder}
               </h2>
-              <button type="button" onClick={() => setCompletionReminderOpen(false)} aria-label="Close reminder">
+              <button type="button" onClick={() => setCompletionReminderOpen(false)} aria-label={t.closeReminder}>
                 <i className="fa fa-times" />
               </button>
             </div>
@@ -1145,7 +1184,7 @@ export default function CreateOrder() {
               <div className="create-order-reminder-warning">
                 <i className="fa fa-exclamation-circle" />
                 <span>
-                  This order has been on Step 4: Payment Method & Summary for more than 5 minutes. If payment is complete, press <strong>Create Order & Complete Payment</strong> so the order is not left hanging.
+                  {t.completionReminderText}
                 </span>
               </div>
             </div>
@@ -1155,7 +1194,7 @@ export default function CreateOrder() {
                 onClick={() => setCompletionReminderOpen(false)}
                 startIcon={<i className="fa fa-check" />}
               >
-                Got it
+                {t.gotIt}
               </Button>
             </div>
           </div>

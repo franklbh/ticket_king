@@ -9,6 +9,7 @@ import { ResetFiltersButton, SelectFilter, TextFilter } from '../components/Filt
 import { adminQueryKeys } from '../hooks/queries'
 import { useEventsQuery, useTicketTypesQuery } from '../hooks/catalog'
 import { useAdminMutation } from '../hooks/useAdminApi'
+import { localizeCatalogName, localizeTicketTypeName } from '../utils/localization'
 
 function ticketTypePayload(form) {
   const name = typeof form.name === 'string' ? form.name : form.name?.en || ''
@@ -86,11 +87,11 @@ function eventStyle(index = 0) {
   return EVENT_STYLE_PALETTE[index % EVENT_STYLE_PALETTE.length]
 }
 
-function eventToGroup(event, index = 0) {
+function eventToGroup(event, index = 0, lang = 'en') {
   const style = eventStyle(index)
   return {
     key: `event-${event.id}`,
-    label: event.name,
+    label: localizeCatalogName(event.name, lang),
     icon: style.icon,
     accent: style.accent,
     tint: style.tint,
@@ -101,7 +102,8 @@ function eventToGroup(event, index = 0) {
   }
 }
 
-function TypeModal({ type, events, eventGroups, onClose, onSave, onCreateEvent }) {
+function TypeModal({ type, events, eventGroups, onClose, onSave, onCreateEvent, lang = 'en' }) {
+  const t = useT(lang)
   const [extraEventGroups, setExtraEventGroups] = useState([])
   const availableEventGroups = [...eventGroups, ...extraEventGroups.filter(extra => !eventGroups.some(group => group.key === extra.key))]
   const eventOptions = events
@@ -109,7 +111,7 @@ function TypeModal({ type, events, eventGroups, onClose, onSave, onCreateEvent }
       ...event,
       id: String(event.id),
       rawId: event.id,
-      displayName: event.name,
+      displayName: localizeCatalogName(event.name, lang),
       groupKey: availableEventGroups.find(group => group.eventIds.includes(String(event.id)))?.key || `event-${event.id}`,
     }))
   const initName = typeof type?.name === 'object' ? type.name : { en: type?.name || '', zhHans: '', zhHant: '' }
@@ -150,7 +152,7 @@ function TypeModal({ type, events, eventGroups, onClose, onSave, onCreateEvent }
   const selectedPeriod = firstPeriod(selectedGroup, form.priceTier)
 
   function periodSummary(period) {
-    return period ? period.label : 'Custom schedule'
+    return period ? period.label : t.customSchedule
   }
 
   function setEvent(eventId) {
@@ -210,7 +212,7 @@ function TypeModal({ type, events, eventGroups, onClose, onSave, onCreateEvent }
         slug: newEvent.slug.trim() || slugify(name),
         status: 'active',
       })
-      const group = eventToGroup(event)
+      const group = eventToGroup(event, 0, lang)
       setExtraEventGroups(groups => [...groups.filter(item => item.key !== group.key), group])
       setForm(f => ({
         ...f,
@@ -231,7 +233,7 @@ function TypeModal({ type, events, eventGroups, onClose, onSave, onCreateEvent }
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-box ticket-type-modal-box" style={{ maxWidth: 600, maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <h3 style={{ margin: 0, fontWeight: 700 }}>{type ? 'Edit Ticket Type Rule' : 'Create Ticket Type Rule'}</h3>
+          <h3 style={{ margin: 0, fontWeight: 700 }}>{type ? t.editTicketTypeRule : t.createTicketTypeRule}</h3>
           <button onClick={onClose} style={{ border: 'none', background: 'transparent', fontSize: 20, cursor: 'pointer', color: '#6b7280' }}>×</button>
         </div>
 
@@ -247,7 +249,7 @@ function TypeModal({ type, events, eventGroups, onClose, onSave, onCreateEvent }
                 onClick={() => setShowNewEvent(value => !value)}
                 style={{ border: 'none', background: 'transparent', color: '#2563eb', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}
               >
-                {showNewEvent ? 'Cancel New Event' : '+ New Event'}
+                {showNewEvent ? t.cancelNewEvent : t.addNewEvent}
               </button>
             </div>
             <select className="form-select" value={String(form.event)} onChange={e => setEvent(e.target.value)}>
@@ -261,7 +263,7 @@ function TypeModal({ type, events, eventGroups, onClose, onSave, onCreateEvent }
               <div style={{ marginTop: 10, border: '1px solid #bfdbfe', background: '#eff6ff', borderRadius: 8, padding: 12 }}>
                 <div className="ticket-type-modal-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                   <div>
-                    <label style={{ fontSize: 12, fontWeight: 700, display: 'block', marginBottom: 4 }}>Event Name</label>
+                    <label style={{ fontSize: 12, fontWeight: 700, display: 'block', marginBottom: 4 }}>{t.eventName}</label>
                     <input
                       className="form-input"
                       value={newEvent.name}
@@ -280,9 +282,9 @@ function TypeModal({ type, events, eventGroups, onClose, onSave, onCreateEvent }
                   </div>
                 </div>
                 <div className="ticket-type-new-event-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 10 }}>
-                  <button type="button" className="btn-secondary" onClick={() => setShowNewEvent(false)}>Cancel</button>
+                  <button type="button" className="btn-secondary" onClick={() => setShowNewEvent(false)}>{t.cancel}</button>
                   <button type="button" className="btn-primary" onClick={handleCreateEvent} disabled={creatingEvent || !newEvent.name.trim()}>
-                    {creatingEvent ? 'Creating...' : 'Create Event'}
+                    {creatingEvent ? t.creatingEvent : t.createEvent}
                   </button>
                 </div>
               </div>
@@ -292,7 +294,7 @@ function TypeModal({ type, events, eventGroups, onClose, onSave, onCreateEvent }
           {/* Ticket Name */}
           <div>
             <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 6 }}>
-              Ticket Name <span style={{ color: '#ef4444' }}>*</span>
+              {t.ticketName} <span style={{ color: '#ef4444' }}>*</span>
             </label>
             <LangTabs active={nameLang} onSelect={setNameLang} />
             <input className="form-input" value={form.name[nameLang]} onChange={e => setForm(f => ({ ...f, name: { ...f.name, [nameLang]: e.target.value } }))} placeholder="Enter ticket name..." />
@@ -300,7 +302,7 @@ function TypeModal({ type, events, eventGroups, onClose, onSave, onCreateEvent }
 
           {/* Notice / Hint */}
           <div>
-            <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 6 }}>Notice / Hint</label>
+            <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 6 }}>{t.noticeHint}</label>
             <LangTabs active={noticeLang} onSelect={setNoticeLang} />
             <input className="form-input" value={form.notice[noticeLang]} onChange={e => setForm(f => ({ ...f, notice: { ...f.notice, [noticeLang]: e.target.value } }))} placeholder="Optional notice shown to customers..." />
           </div>
@@ -308,7 +310,7 @@ function TypeModal({ type, events, eventGroups, onClose, onSave, onCreateEvent }
           {/* Pricing Period */}
           <div>
             <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 8 }}>
-              Pricing Period <span style={{ color: '#ef4444' }}>*</span>
+              {t.pricingPeriod} <span style={{ color: '#ef4444' }}>*</span>
             </label>
             <div className="ticket-type-modal-tier-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               <button
@@ -326,7 +328,7 @@ function TypeModal({ type, events, eventGroups, onClose, onSave, onCreateEvent }
                   textAlign: 'left',
                 }}
               >
-                <div>Lower Price</div>
+                <div>{t.lowerPrice}</div>
                 <div style={{ marginTop: 4, fontSize: 12, fontWeight: 600, color: '#065f46' }}>
                   {periodSummary(firstPeriod(selectedGroup, 'lower'))}
                 </div>
@@ -346,22 +348,22 @@ function TypeModal({ type, events, eventGroups, onClose, onSave, onCreateEvent }
                   textAlign: 'left',
                 }}
               >
-                <div>Higher Price</div>
+                <div>{t.higherPrice}</div>
                 <div style={{ marginTop: 4, fontSize: 12, fontWeight: 600, color: '#92400e' }}>
                   {periodSummary(firstPeriod(selectedGroup, 'higher'))}
                 </div>
               </button>
             </div>
             <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 5 }}>
-              Choose one of the available time windows for this event. This also decides which price column the rule appears in.
+              {t.pricingPeriodHint}
             </div>
           </div>
 
           {/* Remarks */}
           <div>
             <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>
-              Internal Notes
-              <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 400, marginLeft: 6 }}>Internal use only — not shown to customers</span>
+              {t.internalNotes}
+              <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 400, marginLeft: 6 }}>{t.internalOnly}</span>
             </label>
             <textarea className="form-input" rows={2} value={form.remarks} onChange={e => setForm(f => ({ ...f, remarks: e.target.value }))} placeholder="Optional admin notes..." style={{ resize: 'vertical' }} />
           </div>
@@ -369,50 +371,50 @@ function TypeModal({ type, events, eventGroups, onClose, onSave, onCreateEvent }
           {/* Price */}
           <div className="ticket-type-modal-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div>
-              <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Fixed Price ($)</label>
+              <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>{t.fixedPriceLabel}</label>
               <input className="form-input" type="number" step="0.01" value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))} />
-              <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 3 }}>Base ticket price</div>
+              <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 3 }}>{t.baseTicketPrice}</div>
             </div>
             <div>
-              <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Float Price (±)</label>
+              <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>{t.floatPrice}</label>
               <input className="form-input" type="number" step="0.01" value={form.priceAdj} onChange={e => setForm(f => ({ ...f, priceAdj: e.target.value }))} placeholder="0.00" />
-              <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 3 }}>Dynamic adjustment amount</div>
+              <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 3 }}>{t.dynamicAdjAmount}</div>
             </div>
           </div>
 
           {/* Valid From / Until */}
           <div className="ticket-type-modal-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div>
-              <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Valid From</label>
+              <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>{t.validFrom}</label>
               <input className="form-input" type="date" value={form.validFrom} onChange={e => setForm(f => ({ ...f, validFrom: e.target.value || '2000-01-01' }))} />
             </div>
             <div>
-              <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Valid Until</label>
+              <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>{t.validTo}</label>
               <input className="form-input" type="date" value={form.validTo} onChange={e => setForm(f => ({ ...f, validTo: e.target.value || '2099-12-31' }))} />
             </div>
           </div>
 
           {selectedGroup && selectedPeriod ? (
             <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: 14, background: '#f8fafc' }}>
-              <div style={{ fontSize: 12, fontWeight: 800, color: '#475569', marginBottom: 6 }}>Selected Time Window</div>
+              <div style={{ fontSize: 12, fontWeight: 800, color: '#475569', marginBottom: 6 }}>{t.selectedTimeWindow}</div>
               <div style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>{periodSummary(selectedPeriod)}</div>
               <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
-                Saved as {form.weekdays.join(', ')} · {form.timeStart}–{form.timeEnd}
+                {t.savedAs} {form.weekdays.join(', ')} · {form.timeStart}–{form.timeEnd}
               </div>
             </div>
           ) : (
             <div>
               <div className="ticket-type-modal-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
-                  <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Start Time</label>
+                  <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>{t.startTime}</label>
                   <input className="form-input" type="time" value={form.timeStart} onChange={e => setForm(f => ({ ...f, timeStart: e.target.value || '00:00' }))} />
                 </div>
                 <div>
-                  <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>End Time</label>
+                  <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>{t.endTime}</label>
                   <input className="form-input" type="time" value={form.timeEnd} onChange={e => setForm(f => ({ ...f, timeEnd: e.target.value || '23:59' }))} />
                 </div>
               </div>
-              <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>Available time range (inclusive start, exclusive end)</div>
+              <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>{t.timeRangeHint}</div>
             </div>
           )}
 
@@ -420,32 +422,32 @@ function TypeModal({ type, events, eventGroups, onClose, onSave, onCreateEvent }
           <div className="ticket-type-discount-card" style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14 }}>
               <i className="fa fa-tag" style={{ color: '#d97706' }} />
-              <span style={{ fontSize: 13, fontWeight: 700, color: '#d97706' }}>Discount Settings</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#d97706' }}>{t.discountSettings}</span>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
-                <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Discount Percentage</label>
+                <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>{t.discountPercentage}</label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <input className="form-input" type="number" min="0" max="100" step="1" value={form.discount.percent} onChange={e => setForm(f => ({ ...f, discount: { ...f.discount, percent: Number(e.target.value) } }))} style={{ maxWidth: 100 }} />
                   <span style={{ fontSize: 14, fontWeight: 600, color: '#d97706' }}>%</span>
                 </div>
-                <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 3 }}>e.g. enter 25 for 25% off</div>
+                <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 3 }}>{t.discountPercentHint}</div>
               </div>
               <div className="ticket-type-modal-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
-                  <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Discount Start</label>
+                  <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>{t.discountStart}</label>
                   <input className="form-input" type="datetime-local" value={form.discount.start} onChange={e => setForm(f => ({ ...f, discount: { ...f.discount, start: e.target.value } }))} />
                 </div>
                 <div>
-                  <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Discount End</label>
+                  <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>{t.discountEnd}</label>
                   <input className="form-input" type="datetime-local" value={form.discount.end} onChange={e => setForm(f => ({ ...f, discount: { ...f.discount, end: e.target.value } }))} />
                 </div>
               </div>
               <div>
-                <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 6 }}>Discount Message</label>
+                <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 6 }}>{t.discountMessage}</label>
                 <LangTabs active={discMsgLang} onSelect={setDiscMsgLang} />
                 <input className="form-input" value={form.discount.message[discMsgLang]} onChange={e => setForm(f => ({ ...f, discount: { ...f.discount, message: { ...f.discount.message, [discMsgLang]: e.target.value } } }))} placeholder="e.g. Summer Sale" />
-                <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 3 }}>Leave empty to not display</div>
+                <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 3 }}>{t.leaveEmptyNotDisplay}</div>
               </div>
             </div>
           </div>
@@ -453,7 +455,7 @@ function TypeModal({ type, events, eventGroups, onClose, onSave, onCreateEvent }
           {(!selectedGroup || !selectedPeriod) && (
             <div>
               <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 8 }}>
-                Available Weekdays <span style={{ color: '#ef4444' }}>*</span>
+                {t.availableWeekdays} <span style={{ color: '#ef4444' }}>*</span>
               </label>
               <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
                 {ALL_DAYS.map(d => (
@@ -469,13 +471,13 @@ function TypeModal({ type, events, eventGroups, onClose, onSave, onCreateEvent }
           {/* Enable */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#f5f3ff', borderRadius: 8, border: '1px solid #e0e7ff' }}>
             <input type="checkbox" id="enabled-check" checked={form.enabled} onChange={e => setForm(f => ({ ...f, enabled: e.target.checked }))} style={{ accentColor: '#6366f1', width: 16, height: 16 }} />
-            <label htmlFor="enabled-check" style={{ fontSize: 13, fontWeight: 600, color: '#4338ca', cursor: 'pointer', margin: 0 }}>Enable this ticket type</label>
+            <label htmlFor="enabled-check" style={{ fontSize: 13, fontWeight: 600, color: '#4338ca', cursor: 'pointer', margin: 0 }}>{t.enableThisTicketType}</label>
           </div>
         </div>
 
         <div className="ticket-type-modal-footer" style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 24 }}>
-          <button className="btn-secondary" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" onClick={handleSave}>Save</button>
+          <button className="btn-secondary" onClick={onClose}>{t.cancel}</button>
+          <button className="btn-primary" onClick={handleSave}>{t.save}</button>
         </div>
       </div>
     </div>
@@ -609,7 +611,7 @@ function ruleForTier(rows, tier) {
   return rows.find(row => rowTier(row) === tier)
 }
 
-function buildEventGroups(events, ticketTypes) {
+function buildEventGroups(events, ticketTypes, lang = 'en') {
   const groups = new Map()
   events.filter(isActiveEvent).forEach((event, index) => {
     const style = eventStyle(index)
@@ -617,7 +619,7 @@ function buildEventGroups(events, ticketTypes) {
     if (!groups.has(key)) {
       groups.set(key, {
         key,
-        label: event.name,
+        label: localizeCatalogName(event.name, lang),
         icon: style.icon,
         accent: style.accent,
         tint: style.tint,
@@ -645,7 +647,8 @@ function buildEventGroups(events, ticketTypes) {
       const higherRule = ruleForTier(liveRows, 'higher')
       const anyEnabled = liveRows.some(row => row.status === 'enabled')
       return {
-        name,
+        name: localizeTicketTypeName(name, lang),
+        sourceName: name,
         key: `${group.key}-${name}`,
         event: { id: lowerRule?.event || higherRule?.event || group.primaryEventId },
         group,
@@ -670,7 +673,7 @@ function buildEventGroups(events, ticketTypes) {
 function ticketRulePayloadFromPeriod(group, ticket, tier, eventId, period, price) {
   return {
     event: eventId,
-    name: ticket.name,
+    name: ticket.sourceName || ticket.name,
     priceType: 'fixed',
     price,
     priceAdj: 0,
@@ -711,7 +714,7 @@ export default function TicketTypes() {
   const [editingCell, setEditingCell] = useState(null) // { name, tier }
   const [editValue, setEditValue] = useState('')
 
-  const eventGroups = useMemo(() => buildEventGroups(events, types), [events, types])
+  const eventGroups = useMemo(() => buildEventGroups(events, types, lang), [events, types, lang])
 
   const groups = useMemo(() => {
     const search = filters.search.trim().toLowerCase()
@@ -803,7 +806,7 @@ export default function TicketTypes() {
   }
 
   if (loadingTypes) {
-    return <LoadingIndicator label="Loading live ticket types..." />
+    return <LoadingIndicator label={t.loadingTicketTypes} />
   }
 
   return (
@@ -816,6 +819,7 @@ export default function TicketTypes() {
           onClose={() => setModal(null)}
           onSave={handleSave}
           onCreateEvent={handleCreateEvent}
+          lang={lang}
         />
       )}
       {loadError && (
@@ -826,10 +830,10 @@ export default function TicketTypes() {
       <PageHeader
         icon="fa-tags"
         title={t.ticketTypesManagement}
-        subtitle="Manage ticket rules, prices, and schedules for each experience."
+        subtitle={t.manageTicketTypesDesc}
         actions={
           <Button variant="contained" onClick={openCreateModal} startIcon={<i className="fa fa-plus" />}>
-            Create Ticket Type
+            {t.createTicketTypeBtn}
           </Button>
         }
       />
@@ -842,14 +846,14 @@ export default function TicketTypes() {
           return (
           <div key={tier} style={{ flex: 1, background: style.bg, border: `1px solid ${style.border}`, borderRadius: 8, padding: '10px 16px' }}>
             <div style={{ fontSize: 11, fontWeight: 800, color: style.color, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>
-              <i className="fa fa-clock" style={{ marginRight: 5 }} />{style.label} Schedule
+              <i className="fa fa-clock" style={{ marginRight: 5 }} />{tier === 'lower' ? t.lowerPriceSchedule : t.higherPriceSchedule}
             </div>
             {rules.length ? rules.map(rule => (
               <div key={rule} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#374151', marginBottom: 2 }}>
                 <i className="fa fa-circle" style={{ fontSize: 4, color: style.color }} />
                 {rule}
               </div>
-            )) : <div style={{ fontSize: 12, color: '#94a3b8' }}>No configured periods</div>}
+            )) : <div style={{ fontSize: 12, color: '#94a3b8' }}>{t.noConfiguredPeriods}</div>}
           </div>
           )
         })}
@@ -859,8 +863,8 @@ export default function TicketTypes() {
       <FilterCard className="mb-3">
         <div className="ticket-type-filter-grid">
           <TextFilter
-            label="Search"
-            placeholder="Search ticket type..."
+            label={t.search}
+            placeholder={t.searchTicketTypePlaceholder}
             value={filters.search}
             onChange={value => setFilters(f => ({ ...f, search: value }))}
           />
@@ -872,14 +876,14 @@ export default function TicketTypes() {
               { value: 'all', label: t.allStatus },
               { value: 'enabled', label: t.enabled },
               { value: 'disabled', label: t.disabled },
-              { value: 'missing', label: 'Missing' },
+              { value: 'missing', label: t.missing },
             ]}
           />
           <ResetFiltersButton label={t.reset} onClick={() => setFilters({ search: '', status: 'all' })} />
         </div>
       </FilterCard>
       <div style={{ margin: '0 0 12px', fontSize: 13, color: '#64748b' }}>
-        {visibleCount} ticket types found
+        {t.ticketTypesCount.replace('{count}', visibleCount)}
       </div>
 
       {/* Price Matrix Table */}
@@ -896,26 +900,26 @@ export default function TicketTypes() {
           <thead>
             <tr>
               <th style={{ padding: '12px 18px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: '#6b7280', background: '#f8fafc', borderBottom: '2px solid #e5e7eb' }}>
-                Ticket Type
+                {t.ticketType}
               </th>
               <th style={{ padding: '12px 18px', textAlign: 'center', background: '#f0fdf4', borderBottom: '2px solid #86efac', borderLeft: '1px solid #d1fae5' }}>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: '#059669' }}>
-                  <i className="fa fa-arrow-down" />Lower Price
+                  <i className="fa fa-arrow-down" />{t.lowerPrice}
                 </span>
               </th>
               <th style={{ padding: '12px 18px', textAlign: 'center', background: '#fffbeb', borderBottom: '2px solid #fbbf24', borderLeft: '1px solid #fde68a' }}>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: '#d97706' }}>
-                  <i className="fa fa-arrow-up" />Higher Price
+                  <i className="fa fa-arrow-up" />{t.higherPrice}
                 </span>
               </th>
               <th style={{ padding: '12px 18px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: '#6b7280', background: '#f8fafc', borderBottom: '2px solid #e5e7eb', borderLeft: '1px solid #e5e7eb' }}>
-                Schedule / Time Window
+                {t.scheduleTimeWindow}
               </th>
               <th style={{ padding: '12px 18px', textAlign: 'center', fontSize: 12, fontWeight: 600, color: '#6b7280', background: '#f8fafc', borderBottom: '2px solid #e5e7eb', borderLeft: '1px solid #e5e7eb' }}>
-                Status
+                {t.status}
               </th>
               <th style={{ padding: '12px 18px', textAlign: 'center', fontSize: 12, fontWeight: 600, color: '#6b7280', background: '#f8fafc', borderBottom: '2px solid #e5e7eb', borderLeft: '1px solid #e5e7eb' }}>
-                Actions
+                {t.actions}
               </th>
             </tr>
           </thead>
@@ -931,14 +935,14 @@ export default function TicketTypes() {
                         <i className={`fa ${group.icon}`} style={{ color: group.accent, fontSize: 13 }} />
                       </span>
                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{group.fullName || group.label}</span>
-                      <span className="badge badge-green" style={{ marginLeft: 4, flexShrink: 0 }}>Active</span>
+                      <span className="badge badge-green" style={{ marginLeft: 4, flexShrink: 0 }}>{t.active}</span>
                     </div>
                   </td>
                 </tr>
                 {group.rows.length === 0 ? (
                   <tr>
                     <td colSpan={6} style={{ padding: '18px', borderBottom: '1px solid #f3f4f6', color: '#64748b', fontSize: 13 }}>
-                      No ticket types configured for {group.label} yet. Use Create Ticket Type to add rules for this event.
+                      {t.noTypesForEvent.replace('{name}', group.label)}
                     </td>
                   </tr>
                 ) : group.rows.map(row => (
@@ -965,7 +969,7 @@ export default function TicketTypes() {
                         onChange={setEditValue}
                         onCommit={commitEdit}
                         onCancel={() => setEditingCell(null)}
-                        missingLabel="Create Lower"
+                        missingLabel={t.createLower}
                         onCreateMissing={row.event ? () => createMissingRule.mutate(row, 'lower') : null}
                         creatingMissing={createMissingRule.loading}
                       />
@@ -981,18 +985,18 @@ export default function TicketTypes() {
                         onChange={setEditValue}
                         onCommit={commitEdit}
                         onCancel={() => setEditingCell(null)}
-                        missingLabel="Create Higher"
+                        missingLabel={t.createHigher}
                         onCreateMissing={row.event ? () => createMissingRule.mutate(row, 'higher') : null}
                         creatingMissing={createMissingRule.loading}
                       />
                     </td>
                     <td style={{ padding: '12px 18px', borderLeft: '1px solid #e5e7eb', fontSize: 12, lineHeight: 1.5, color: '#334155' }}>
-                      <div>{row.lowerPeriod?.label || 'No lower-price period'}</div>
-                      <div>{row.higherPeriod?.label || 'No higher-price period'}</div>
+                      <div>{row.lowerPeriod?.label || t.noLowerPeriod}</div>
+                      <div>{row.higherPeriod?.label || t.noHigherPeriod}</div>
                     </td>
                     <td style={{ padding: '12px 18px', textAlign: 'center', borderLeft: '1px solid #e5e7eb' }}>
                       <span className={`badge ${row.status === 'enabled' ? 'badge-green' : 'badge-disabled'}`}>
-                        {row.status === 'missing' ? 'Missing' : row.status === 'enabled' ? t.enabled : t.disabled}
+                        {row.status === 'missing' ? t.missing : row.status === 'enabled' ? t.enabled : t.disabled}
                       </span>
                     </td>
                     <td style={{ padding: '12px 18px', textAlign: 'center', borderLeft: '1px solid #e5e7eb' }}>

@@ -79,6 +79,7 @@ export function firstAllowedPath(admin) {
     ['/create-order', 'orders:write'],
     ['/admins', 'users:read'],
     ['/logs', 'logs:read'],
+    ['/reports', 'reports:read'],
   ]
   return ordered.find(([, permission]) => can(admin, permission))?.[0] || '/login'
 }

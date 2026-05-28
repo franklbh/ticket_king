@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { loadStripe } from '@stripe/stripe-js'
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js'
-import logoWhite from '../user_media/logo_white.png'
+import logoWhite from '../picture/logo_white.png'
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '')
 const BACKEND = import.meta.env.VITE_BACKEND_BASE || 'http://localhost:8000'

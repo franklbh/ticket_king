@@ -80,6 +80,14 @@ export function getDashboard(range) {
   return apiRequest(withQuery('/dashboard', { range }))
 }
 
+export function getIncomeByEvent(range) {
+  return apiRequest(withQuery('/dashboard/income-by-event', { range }))
+}
+
+export function getReport(filters = {}) {
+  return apiRequest(withQuery('/reports/comprehensive', filters))
+}
+
 export function getHealth() {
   return apiRequest('/health')
 }
@@ -339,6 +347,10 @@ export function updateUserRole(userId, role) {
 
 export function deactivateUser(userId) {
   return apiRequest(`/users/${encodeURIComponent(userId)}`, { method: 'DELETE' })
+}
+
+export function deleteUser(userId) {
+  return apiRequest(`/users/${encodeURIComponent(userId)}/permanent`, { method: 'DELETE' })
 }
 
 export function requestUserPasswordReset(userId) {

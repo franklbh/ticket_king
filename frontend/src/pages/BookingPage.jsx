@@ -36,6 +36,7 @@ function BookingPage({
   selectedTime,
   setSelectedDate,
   setSelectedTime,
+  t = (key, params = {}) => Object.entries(params).reduce((text, [name, value]) => text.replaceAll(`{${name}}`, value), key),
   visibleDateGrid,
   weekdayLabels,
 }) {
@@ -128,10 +129,10 @@ function BookingPage({
     const unitPrice = Number(ticket?.price || 0)
     return {
       key: line.key,
-      title: bookingExperience?.title || 'Experience',
-      date: selectedDate ? fullDateDisplay(selectedDate.date) : 'Select date',
-      time: selectedTime?.time || selectedTime?.label || 'Select time',
-      ticketLabel: ticket?.label || 'Ticket',
+      title: bookingExperience?.title || t('experience'),
+      date: selectedDate ? fullDateDisplay(selectedDate.date) : t('selectDate'),
+      time: selectedTime?.time || selectedTime?.label || t('selectTime'),
+      ticketLabel: ticket?.label || t('ticketType'),
       quantity,
       total: unitPrice * quantity,
     }
@@ -141,10 +142,10 @@ function BookingPage({
     const unitPrice = Number(item.unit_price || 0)
     return {
       key: item.id,
-      title: item.show_title || 'Experience',
-      date: item.session_date || item.session_date_key || 'Select date',
-      time: item.session_time || 'Select time',
-      ticketLabel: item.ticket_type_label || 'Ticket',
+      title: item.show_title || t('experience'),
+      date: item.session_date || item.session_date_key || t('selectDate'),
+      time: item.session_time || t('selectTime'),
+      ticketLabel: item.ticket_type_label || t('ticketType'),
       quantity,
       total: unitPrice * quantity,
     }
@@ -363,32 +364,32 @@ function BookingPage({
     <div className="btk-page" ref={bookingRef} id="booking">
       <div className="btk-shell">
         <header className="btk-header">
-          <div className="btk-title"><CartIcon /><h1>Buy Tickets</h1><span>Step 1 of 4</span></div>
-          <button className="btk-close" onClick={onClose} type="button" aria-label="Close">×</button>
+          <div className="btk-title"><CartIcon /><h1>{t('buyTickets')}</h1><span>{t('stepOfTotal', { current: 1, total: 4 })}</span></div>
+          <button className="btk-close" onClick={onClose} type="button" aria-label={t('close')}>×</button>
         </header>
 
         <div className="btk-layout">
           <main className="btk-main">
-            <button className="btk-back" onClick={onClose} type="button">← Back to experiences</button>
+            <button className="btk-back" onClick={onClose} type="button">← {t('backToExperiences')}</button>
 
             <section className="btk-product">
               {bookingExperiences.length > 1 && (
-                <button className="btk-product-arrow prev" onClick={() => switchExperienceByStep(-1)} type="button" aria-label="Previous experience">
+                <button className="btk-product-arrow prev" onClick={() => switchExperienceByStep(-1)} type="button" aria-label={t('seeOtherExperiences')}>
                   <span aria-hidden="true">‹</span>
-                  <strong>See other experiences</strong>
+                  <strong>{t('seeOtherExperiences')}</strong>
                 </button>
               )}
               <div className="btk-product-image" style={selectedImage ? { backgroundImage: `url(${selectedImage})` } : { background: bookingExperience?.cardGradient }}>
-                <span>{bookingExperience?.category === 'arcade' ? 'VR Game' : 'VR Show'}</span>
+                <span>{bookingExperience?.category === 'arcade' ? t('vrGame') : t('vrShow')}</span>
               </div>
               <div>
                 <h2>{bookingExperience?.title}</h2>
-                <p>{bookingExperience?.subtitle || bookingExperience?.description || 'Step into an immersive VR journey brought to life.'}</p>
-                <div className="btk-meta"><span>◷ Duration: {bookingExperience?.duration} min</span><span>♙ Ages: {bookingExperience?.minAge}+</span></div>
+                <p>{bookingExperience?.subtitle || bookingExperience?.description || t('stepIntoVrJourney')}</p>
+                <div className="btk-meta"><span>◷ {t('durationLabel')}: {bookingExperience?.duration} {t('minuteShort')}</span><span>♙ {t('agesMin', { min: bookingExperience?.minAge })}</span></div>
               </div>
               {bookingExperiences.length > 1 && (
-                <button className="btk-product-arrow next" onClick={() => switchExperienceByStep(1)} type="button" aria-label="Next experience">
-                  <strong>See other experiences</strong>
+                <button className="btk-product-arrow next" onClick={() => switchExperienceByStep(1)} type="button" aria-label={t('seeOtherExperiences')}>
+                  <strong>{t('seeOtherExperiences')}</strong>
                   <span aria-hidden="true">›</span>
                 </button>
               )}
@@ -396,7 +397,7 @@ function BookingPage({
 
             <section className="btk-picker">
               <div className="btk-date-panel">
-                <StepLabel number="1" label="Select date" />
+                <StepLabel number="1" label={t('selectDate')} />
                 <div className="btk-month-row">
                   <button onClick={() => changeCalendarMonth(-1)} type="button" aria-label="Previous month">‹</button>
                   <strong>{monthDisplay(calendarMonth)}</strong>
@@ -417,15 +418,15 @@ function BookingPage({
                     </button>
                   ))}
                 </div>
-                <div className="btk-legend"><span className="best" />Best price <span className="low" />Low availability</div>
+                <div className="btk-legend"><span className="best" />{t('bestPrice')} <span className="low" />{t('lowAvailability')}</div>
               </div>
 
               <div className="btk-time-panel">
-                <StepLabel number="2" label="Select time" />
+                <StepLabel number="2" label={t('selectTime')} />
                 <div className="btk-time-grid">
-                  {availableSlotsLoading && <div className="btk-slot-note">Loading live time slots...</div>}
-                  {!availableSlotsLoading && selectedDate && liveSlots.length === 0 && <div className="btk-slot-note">No sessions available for this date.</div>}
-                  {!selectedDate && <div className="btk-slot-note">Choose a date to load live sessions.</div>}
+                  {availableSlotsLoading && <div className="btk-slot-note">{t('loadingLiveTimeSlots')}</div>}
+                  {!availableSlotsLoading && selectedDate && liveSlots.length === 0 && <div className="btk-slot-note">{t('noSessionsForDate')}</div>}
+                  {!selectedDate && <div className="btk-slot-note">{t('chooseDateToLoadSessions')}</div>}
                   {!availableSlotsLoading && visibleSlots.map((slot) => (
                     <button
                       key={slot.id}
@@ -434,13 +435,13 @@ function BookingPage({
                       type="button"
                     >
                       <strong>{slot.time}</strong>
-                      {slot.availableSeats != null && slot.availableSeats <= 5 && <small>Only {slot.availableSeats} left</small>}
+                      {slot.availableSeats != null && slot.availableSeats <= 5 && <small>{t('onlyLeft', { count: slot.availableSeats })}</small>}
                       {selectedTime?.id === slot.id && <span>✓</span>}
                     </button>
                   ))}
                   {!availableSlotsLoading && liveSlots.length > 8 && (
                     <button className="btk-expand-slots" onClick={() => setShowAllSlots((open) => !open)} type="button">
-                      {showAllSlots ? 'Show fewer times' : `Expand more (${liveSlots.length - 8})`}
+                      {showAllSlots ? t('showFewerTimes') : t('expandMoreSlots', { count: liveSlots.length - 8 })}
                     </button>
                   )}
                 </div>
@@ -449,8 +450,8 @@ function BookingPage({
 
             <section className="btk-ticket-card">
               <div className="btk-ticket-head">
-                <StepLabel number="3" label="Choose tickets" />
-                <p className="btk-auto-cart-note">Your selected tickets are added to the shopping cart automatically.</p>
+                <StepLabel number="3" label={t('chooseTickets')} />
+                <p className="btk-auto-cart-note">{t('autoCartNote')}</p>
               </div>
               <div className="btk-ticket-lines">
                 {ticketLines.map((line) => {
@@ -460,11 +461,11 @@ function BookingPage({
                       <select value={line.ticketTypeId} onChange={(event) => updateTicketType(line.key, event.target.value)}>
                         {localizedTicketTypes.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
                       </select>
-                      <span>{selectedTicket?.info || `General Admission for ${selectedTicket?.label || 'ticket'}`}</span>
+                      <span>{selectedTicket?.info || t('generalAdmissionFor', { label: selectedTicket?.label || t('ticketType') })}</span>
                       <div className="btk-qty">
                         <button onClick={() => updateTicketQty(line.key, -1)} disabled={line.quantity <= 0} type="button">-</button>
                         <input
-                          aria-label={`${selectedTicket?.label || 'Ticket'} quantity`}
+                          aria-label={`${selectedTicket?.label || t('ticketType')} ${t('qty')}`}
                           inputMode="numeric"
                           min="0"
                           onBlur={() => commitTicketQty(line)}
@@ -475,21 +476,21 @@ function BookingPage({
                         <button onClick={() => updateTicketQty(line.key, 1)} type="button">+</button>
                       </div>
                       <strong>{currency(lineSubtotal(line))}</strong>
-                      <button className="btk-remove-ticket" onClick={() => removeTicketLine(line.key)} disabled={ticketLines.length === 1} type="button" aria-label="Remove ticket type">×</button>
+                      <button className="btk-remove-ticket" onClick={() => removeTicketLine(line.key)} disabled={ticketLines.length === 1} type="button" aria-label={t('remove')}>×</button>
                     </div>
                   )
                 })}
               </div>
               <div className="btk-ticket-actions">
-                <button className="btk-add-type" onClick={addTicketLine} type="button">+ Add another ticket type</button>
+                <button className="btk-add-type" onClick={addTicketLine} type="button">+ {t('addAnotherTicketType')}</button>
               </div>
             </section>
 
             {relatedExperiences.length > 0 && (
               <section className="btk-more-experiences">
                 <div className="btk-more-head">
-                  <StepLabel number="4" label="Add multiple experiences and pay in one checkout." />
-                  <button type="button">View all experiences →</button>
+                  <StepLabel number="4" label={t('addMultipleCheckout')} />
+                  <button type="button">{t('viewAllExperiences')} →</button>
                 </div>
                 <div className="btk-exp-row">
                   {relatedExperiences.map((experience) => {
@@ -497,12 +498,12 @@ function BookingPage({
                     return (
                       <article className="btk-exp-card" key={experience.id}>
                         <div className="btk-exp-img" style={image ? { backgroundImage: `url(${image})` } : { background: experience.cardGradient }}>
-                          <span>{experience.category === 'arcade' ? 'VR Game' : 'VR Show'}</span>
+                          <span>{experience.category === 'arcade' ? t('vrGame') : t('vrShow')}</span>
                         </div>
                         <div className="btk-exp-body">
                           <strong>{experience.title}</strong>
                           <small>{experience.subtitle || experience.tagline}</small>
-                          <div><span>from {currency(getExperiencePriceFrom(experience) || 37.95)}</span><button onClick={() => chooseRelatedExperience(experience.id)} type="button">Add</button></div>
+                          <div><span>{t('from')} {currency(getExperiencePriceFrom(experience) || 37.95)}</span><button onClick={() => chooseRelatedExperience(experience.id)} type="button">{t('add')}</button></div>
                         </div>
                       </article>
                     )
@@ -515,13 +516,13 @@ function BookingPage({
           <aside className="btk-summary">
             <div className="btk-summary-head">
               <div>
-                <h3>{cartSummaryItems.length ? 'Booking Summary' : 'Current Choice'}</h3>
-                <p>{cartSummaryItems.length ? 'Your cart is saved and updated automatically.' : 'Your selection is added to your cart automatically.'}</p>
+                <h3>{cartSummaryItems.length ? t('bookingSummary') : t('currentChoice')}</h3>
+                <p>{cartSummaryItems.length ? t('cartSavedAuto') : t('selectionAddedAuto')}</p>
               </div>
             </div>
             <div className="btk-summary-product">
               <div className="btk-summary-thumb" style={selectedImage ? { backgroundImage: `url(${selectedImage})` } : { background: bookingExperience?.cardGradient }} />
-              <div><strong>{bookingExperience?.title}</strong><span>{selectedDate ? fullDateDisplay(selectedDate.date) : 'Select date'}</span><span>{selectedTime?.time || 'Select time'}</span></div>
+              <div><strong>{bookingExperience?.title}</strong><span>{selectedDate ? fullDateDisplay(selectedDate.date) : t('selectDate')}</span><span>{selectedTime?.time || t('selectTime')}</span></div>
             </div>
             {summaryItems.map((item) => (
               <SummaryLine
@@ -531,17 +532,17 @@ function BookingPage({
               />
             ))}
             <div className="btk-divider" />
-            <SummaryLine label="Subtotal" value={currency(subtotal)} muted />
-            <SummaryLine label={<ProcessingFeeLabel />} value={currency(processingFee)} muted />
+            <SummaryLine label={t('subtotal')} value={currency(subtotal)} muted />
+            <SummaryLine label={<ProcessingFeeLabel t={t} />} value={currency(processingFee)} muted />
             <SummaryLine label="GST (5%)" value={currency(tax)} muted />
             <div className="btk-divider" />
-            <div className="btk-total"><span>Total</span><strong>{currency(grand)} <small>CAD</small></strong></div>
+            <div className="btk-total"><span>{t('totalDue')}</span><strong>{currency(grand)} <small>CAD</small></strong></div>
             <div className="btk-cart-callout">
-              <div><CartIcon /><strong>{displayCartCount} item{displayCartCount !== 1 ? 's' : ''} in your cart</strong><span>Add more experiences and pay in one checkout.</span></div>
-              <button onClick={onOpenCart} disabled={!displayCartCount} type="button">View cart ({displayCartCount}) →</button>
+              <div><CartIcon /><strong>{t('itemsInCart', { count: displayCartCount, plural: displayCartCount !== 1 ? 's' : '' })}</strong><span>{t('addMoreCheckout')}</span></div>
+              <button onClick={onOpenCart} disabled={!displayCartCount} type="button">{t('viewCart')} ({displayCartCount}) →</button>
             </div>
-            <div className="btk-bundle-callout"><span>♙</span><div><strong>Add multiple experiences</strong><small>Bundle your favorite VR experiences and enjoy a seamless checkout.</small></div></div>
-            <TrustBox />
+            <div className="btk-bundle-callout"><span>♙</span><div><strong>{t('addMultipleExperiences')}</strong><small>{t('bundleExperiencesCopy')}</small></div></div>
+            <TrustBox t={t} />
           </aside>
         </div>
       </div>
@@ -577,7 +578,7 @@ function SummaryLine({ label, value, muted }) {
   return <div className={`btk-summary-line ${muted ? 'muted' : ''}`}><span>{label}</span><strong>{value}</strong></div>
 }
 
-function ProcessingFeeLabel() {
+function ProcessingFeeLabel({ t }) {
   const [open, setOpen] = useState(false)
   const tooltipId = 'booking-processing-fee-tooltip'
 
@@ -590,12 +591,12 @@ function ProcessingFeeLabel() {
 
   return (
     <span className="processing-fee-label">
-      Processing fee
+      {t('processingFee')}
       <span className={`processing-fee-help ${open ? 'is-open' : ''}`}>
         <button
           className="processing-fee-icon"
           type="button"
-          aria-label="Processing fee details"
+          aria-label={t('processingFeeDetails')}
           aria-expanded={open}
           aria-describedby={tooltipId}
           onClick={(event) => {
@@ -606,19 +607,19 @@ function ProcessingFeeLabel() {
           !
         </button>
         <span className="processing-fee-tooltip" id={tooltipId} role="tooltip">
-          Includes a $1.80 platform fee per ticket plus a 2.5% payment processing fee.
+          {t('processingFeeTooltip')}
         </span>
       </span>
     </span>
   )
 }
 
-function TrustBox() {
+function TrustBox({ t }) {
   return (
     <div className="btk-trust">
-      <div><span>♢</span><strong>Secure & encrypted</strong><small>Your data is protected with industry-standard encryption.</small></div>
-      <div><span>▣</span><strong>Flexible booking</strong><small>Easy to manage your bookings after purchase.</small></div>
-      <div><span>☏</span><strong>Need help?</strong><small>Contact our support team anytime.</small></div>
+      <div><span>♢</span><strong>{t('secureEncrypted')}</strong><small>{t('secureEncryptedCopy')}</small></div>
+      <div><span>▣</span><strong>{t('flexibleBooking')}</strong><small>{t('flexibleBookingCopy')}</small></div>
+      <div><span>☏</span><strong>{t('needHelp')}</strong><small>{t('supportAnytime')}</small></div>
     </div>
   )
 }
