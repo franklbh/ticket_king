@@ -1,20 +1,23 @@
-import terracottaVideo from '../video/terracotta_EN.mp4'
-import pandaVideoEn from '../video/panda_EN.mp4'
-import pandaVideoZh from '../video/panda_CH.mp4'
-import dinoVideoEn from '../video/dino_EN.mp4'
-import dinoVideoZh from '../video/dino_CH.mp4'
-import heroVideoEn from '../video/hero_EN.mp4'
-import heroVideoZh from '../video/hero_CH.mp4'
-import beatVideoEn from '../video/beat_EN.mp4'
-import beatVideoZh from '../video/beat_CH.mp4'
-import guluVideoEn from '../video/gulu_EN.mp4'
-import guluVideoZh from '../video/gulu_CH.mp4'
 import terracottaImg from '../picture/cover_terracotta.jpg'
 import pandaImg from '../picture/panda.jpg'
 import dinoImg from '../picture/dino.jpg'
 import heroGameImg from '../picture/zombies.jpg'
 import guluGuluImg from '../picture/gulugulu.jpg'
 import hyperBeatSlashImg from '../picture/HyperBeatSlash.jpg'
+
+const videoBaseUrl = (import.meta.env.VITE_VIDEO_BASE_URL || '').replace(/\/$/, '')
+const videoUrl = (filename) => videoBaseUrl ? `${videoBaseUrl}/${filename}` : ''
+const terracottaVideo = videoUrl('terracotta_EN.mp4')
+const pandaVideoEn = videoUrl('panda_EN.mp4')
+const pandaVideoZh = videoUrl('panda_CH.mp4')
+const dinoVideoEn = videoUrl('dino_EN.mp4')
+const dinoVideoZh = videoUrl('dino_CH.mp4')
+const heroVideoEn = videoUrl('hero_EN.mp4')
+const heroVideoZh = videoUrl('hero_CH.mp4')
+const beatVideoEn = videoUrl('beat_EN.mp4')
+const beatVideoZh = videoUrl('beat_CH.mp4')
+const guluVideoEn = videoUrl('gulu_EN.mp4')
+const guluVideoZh = videoUrl('gulu_CH.mp4')
 
 const galleryImg1 = '/picture/gallery1.png'
 const galleryImg2 = '/picture/gallery2.png'
