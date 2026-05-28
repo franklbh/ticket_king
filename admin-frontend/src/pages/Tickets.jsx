@@ -203,7 +203,7 @@ export default function Tickets() {
       ...prev,
       items: (prev?.items || []).map(item => item.id === ticket.id ? updated : item),
     }))
-    setQrTicket(updated.qrCode || updated.code)
+    setQrTicket(updated.code)
   }
 
   const paged = tickets
@@ -431,7 +431,7 @@ export default function Tickets() {
                       </span>
                       <button
                         title={t.qrCode}
-                        onClick={() => setQrTicket(tk.qrCode || tk.code)}
+                        onClick={() => setQrTicket(tk.code)}
                         style={{ ...actionButton, background: THEME.utilityBg, color: THEME.utilityText, border: `1px solid ${THEME.utilityBorder}` }}
                       >
                         <i className="fa fa-qrcode" />

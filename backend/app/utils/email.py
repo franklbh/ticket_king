@@ -26,7 +26,7 @@ def _qr_png_bytes(payload: str) -> bytes:
 def _build_html(name: str, order_number: str, tickets: list[dict[str, Any]]) -> str:
     ticket_cards = ""
     for i, t in enumerate(tickets):
-        qr_payload = t.get("qr_payload") or t.get("verification_code") or ""
+        qr_payload = t.get("verification_code") or t.get("qr_payload") or ""
         qr_img = (
             f'<img src="cid:qr_{i}" width="200" height="200" alt="QR Code" style="display:block;margin:0 auto">'
             if qr_payload
@@ -82,7 +82,7 @@ async def send_booking_confirmation(
     related.attach(MIMEText(_build_html(to_name, order_number, tickets), "html"))
 
     for i, t in enumerate(tickets):
-        qr_payload = t.get("qr_payload") or t.get("verification_code") or ""
+        qr_payload = t.get("verification_code") or t.get("qr_payload") or ""
         if not qr_payload:
             continue
         png = _qr_png_bytes(qr_payload)

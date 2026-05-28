@@ -144,6 +144,7 @@ export default function Scanner() {
   const { data: recentScans = [] } = useRecentScansQuery(20, { initialData: [] })
   const { mutate: checkInMutation } = useAdminMutation(checkInTicket, {
     successMessage: 'Scan processed.',
+    invalidateQueries: ['tickets'],
   })
   const { mutate: overrideMutation } = useAdminMutation(overrideCheckInTicket, {
     successMessage: 'Check-in overridden.',
