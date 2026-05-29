@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Button from '@mui/material/Button'
 import Checkbox from '@mui/material/Checkbox'
 import FormControlLabel from '@mui/material/FormControlLabel'
@@ -24,6 +24,8 @@ const PAYMENT_METHODS = [
   { id: 'Other', labelKey: 'other', icon: 'fa-ellipsis-h' },
 ]
 const GST_RATE = 0.05
+const PLATFORM_FEE_PER_TICKET = 1.8
+const PAYMENT_PROCESSING_RATE = 0.025
 const FINAL_STEP_REMINDER_MS = 5 * 60 * 1000
 
 function buildThemeOptions(events, availableSlots, lang = 'en') {
@@ -122,28 +124,44 @@ function moneyFromInput(value) {
   return money(amount)
 }
 
-function createFeeDraft(totalAmount, fees = null) {
+function calculateFeeValues(draft, ticketCount = 0) {
+  const ticketTotal = moneyFromInput(draft.ticketTotal)
+  const addonTotal = moneyFromInput(draft.addonTotal)
+  const discountBase = Math.max(0, ticketTotal + addonTotal)
+  const couponDiscount = Math.min(moneyFromInput(draft.couponDiscount), discountBase)
+  const taxableBase = Math.max(0, ticketTotal + addonTotal - couponDiscount)
   return {
-    ticketTotal: (fees?.ticketTotal ?? totalAmount).toFixed(2),
-    addonTotal: (fees?.addonTotal ?? 0).toFixed(2),
-    couponDiscount: (fees?.couponDiscount ?? 0).toFixed(2),
-    platformFee: (fees?.platformFee ?? 0).toFixed(2),
-    paymentFee: (fees?.paymentFee ?? 0).toFixed(2),
-    gstTax: (fees?.gstTax ?? money(totalAmount * GST_RATE)).toFixed(2),
-    pstTax: (fees?.pstTax ?? 0).toFixed(2),
+    ticketTotal,
+    addonTotal,
+    couponDiscount,
+    platformFee: money(PLATFORM_FEE_PER_TICKET * ticketCount),
+    paymentFee: money(taxableBase * PAYMENT_PROCESSING_RATE),
+    gstTax: money(taxableBase * GST_RATE),
+    pstTax: 0,
   }
 }
 
-function normalizeFeeDraft(draft) {
+function feeDraftFromValues(values) {
   return {
-    ticketTotal: moneyFromInput(draft.ticketTotal),
-    addonTotal: moneyFromInput(draft.addonTotal),
-    couponDiscount: moneyFromInput(draft.couponDiscount),
-    platformFee: moneyFromInput(draft.platformFee),
-    paymentFee: moneyFromInput(draft.paymentFee),
-    gstTax: moneyFromInput(draft.gstTax),
-    pstTax: moneyFromInput(draft.pstTax),
+    ticketTotal: values.ticketTotal.toFixed(2),
+    addonTotal: values.addonTotal.toFixed(2),
+    couponDiscount: values.couponDiscount.toFixed(2),
+    platformFee: values.platformFee.toFixed(2),
+    paymentFee: values.paymentFee.toFixed(2),
+    gstTax: values.gstTax.toFixed(2),
   }
+}
+
+function createFeeDraft(totalAmount, fees = null, ticketCount = 0) {
+  return feeDraftFromValues(calculateFeeValues({
+    ticketTotal: fees?.ticketTotal ?? totalAmount,
+    addonTotal: fees?.addonTotal ?? 0,
+    couponDiscount: fees?.couponDiscount ?? 0,
+  }, ticketCount))
+}
+
+function normalizeFeeDraft(draft, ticketCount = 0) {
+  return calculateFeeValues(draft, ticketCount)
 }
 
 function StepIndicator({ step }) {
@@ -193,6 +211,10 @@ export default function CreateOrder() {
   const [submitError, setSubmitError] = useState(null)
   const [completionReminderOpen, setCompletionReminderOpen] = useState(false)
   const [completionReminderDismissed, setCompletionReminderDismissed] = useState(false)
+  const timeSlotsRef = useRef(null)
+  const scrollToTimeSlotsRef = useRef(false)
+  const stepOneActionRef = useRef(null)
+  const scrollToStepOneActionRef = useRef(false)
   const { data: slots = [], error: slotsError, loading: loadingSlots } = useSlotsQuery(
     selectedDate ? { dateFrom: selectedDate, dateTo: selectedDate } : {},
     { initialData: [], enabled: Boolean(selectedDate) }
@@ -278,12 +300,14 @@ export default function CreateOrder() {
 
   function handleThemeSelect(themeKey) {
     if (String(themeKey) === String(selectedTheme)) return
+    scrollToTimeSlotsRef.current = window.matchMedia?.('(max-width: 760px)').matches || window.innerWidth <= 760
     setSelectedTheme(String(themeKey))
     setSelectedSlot(null)
   }
 
   function handleSlotSelect(slot) {
     if (isPastSlot(slot)) return
+    scrollToStepOneActionRef.current = window.matchMedia?.('(max-width: 760px)').matches || window.innerWidth <= 760
     setSelectedSlot(slot)
     const themeForSlot = themeOptions.find(option => option.eventId === String(slot.event))
     setSelectedTheme(themeForSlot?.key || selectedTheme)
@@ -378,23 +402,25 @@ export default function CreateOrder() {
   const platformFee = manualFees ? manualFees.platformFee : 0
   const paymentFee = manualFees ? manualFees.paymentFee : 0
   const adminAdjustment = money(adjustedTicketAmount - totalAmount)
-  const feeSubtotal = Math.max(0, adjustedTicketAmount + addonAmount + platformFee + paymentFee)
-  const couponDiscount = Math.min(manualFees ? manualFees.couponDiscount : (appliedCoupon?.discount || 0), feeSubtotal)
-  const taxableAmount = Math.max(0, feeSubtotal - couponDiscount)
+  const discountBase = Math.max(0, adjustedTicketAmount + addonAmount)
+  const couponDiscount = Math.min(manualFees ? manualFees.couponDiscount : (appliedCoupon?.discount || 0), discountBase)
+  const taxableAmount = Math.max(0, adjustedTicketAmount + addonAmount - couponDiscount)
   const gstAmount = manualFees ? manualFees.gstTax : taxableAmount * GST_RATE
   const pstAmount = manualFees ? manualFees.pstTax : 0
-  const totalDue = taxableAmount + gstAmount + pstAmount
+  const totalDue = taxableAmount + platformFee + paymentFee + gstAmount + pstAmount
   const feeDraftTotal = (() => {
-    const values = normalizeFeeDraft(feeDraft)
+    const values = normalizeFeeDraft(feeDraft, totalTickets)
     return money(
       Math.max(0, values.ticketTotal + values.addonTotal + values.platformFee + values.paymentFee - values.couponDiscount) +
-      values.gstTax +
-      values.pstTax
+      values.gstTax
     )
   })()
   const customerName = [customer.firstName, customer.lastName].filter(Boolean).join(' ')
   const ticketValidationError = cartItems.reduce((message, item) => {
     if (message) return message
+    if (!item.slotId || !item.slotDate || !item.slotStartTime || !item.ticketTypeId) {
+      return 'Each ticket line must have a date, time slot, and ticket type.'
+    }
     if (/group/i.test(item.ticketTypeSource || item.ticketType) && item.quantity < 6) {
       return lang === 'en'
         ? `${item.ticketType} requires at least 6 tickets.`
@@ -423,10 +449,36 @@ export default function CreateOrder() {
     }
   }, [step])
 
+  useEffect(() => {
+    if (!selectedSlot || !scrollToStepOneActionRef.current) return
+    scrollToStepOneActionRef.current = false
+    window.requestAnimationFrame(() => {
+      stepOneActionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+    })
+  }, [selectedSlot])
+
+  useEffect(() => {
+    if (!selectedTheme || !selectedThemeSlots.length || !scrollToTimeSlotsRef.current) return
+    scrollToTimeSlotsRef.current = false
+    window.requestAnimationFrame(() => {
+      timeSlotsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }, [selectedTheme, selectedThemeSlots.length])
+
   async function handleConfirm() {
     setSubmitError(null)
     setCompletionReminderOpen(false)
     setCompletionReminderDismissed(true)
+    if (totalTickets === 0) {
+      setSubmitError('Select a date, time slot, and ticket type before creating an order.')
+      setStep(1)
+      return
+    }
+    if (ticketValidationError) {
+      setSubmitError(ticketValidationError)
+      setStep(1)
+      return
+    }
     const tickets = cartItems.map(item => ({
       event_id: item.eventId,
       event_name: item.eventName,
@@ -488,7 +540,7 @@ export default function CreateOrder() {
   }
 
   function changePrice() {
-    setFeeDraft(createFeeDraft(totalAmount, manualFees))
+    setFeeDraft(createFeeDraft(totalAmount, manualFees, totalTickets))
     setFeeConfirmOpen(true)
   }
 
@@ -497,20 +549,21 @@ export default function CreateOrder() {
     setCouponMessage('')
     setFeeConfirmOpen(false)
     setFeeEditorOpen(true)
-    setManualFees(normalizeFeeDraft(feeDraft))
+    setManualFees(normalizeFeeDraft(feeDraft, totalTickets))
   }
 
   function updateFeeDraft(field, value) {
     setFeeDraft(prev => {
       const next = { ...prev, [field]: value }
-      setManualFees(normalizeFeeDraft(next))
-      return next
+      const calculated = feeDraftFromValues(normalizeFeeDraft(next, totalTickets))
+      setManualFees(normalizeFeeDraft(calculated, totalTickets))
+      return { ...calculated, [field]: value }
     })
   }
 
   function cancelFeeModification() {
     setManualFees(null)
-    setFeeDraft(createFeeDraft(totalAmount))
+    setFeeDraft(createFeeDraft(totalAmount, null, totalTickets))
     setFeeEditorOpen(false)
     setCouponMessage(t.customFeeRemoved)
   }
@@ -518,8 +571,9 @@ export default function CreateOrder() {
   function formatMoneyInput(field) {
     setFeeDraft(prev => {
       const next = { ...prev, [field]: moneyFromInput(prev[field]).toFixed(2) }
-      setManualFees(normalizeFeeDraft(next))
-      return next
+      const calculated = feeDraftFromValues(normalizeFeeDraft(next, totalTickets))
+      setManualFees(normalizeFeeDraft(calculated, totalTickets))
+      return calculated
     })
   }
 
@@ -721,7 +775,7 @@ export default function CreateOrder() {
                 </div>
               ) : (
                 <>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 8 }}>
+                  <div ref={timeSlotsRef} style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 8 }}>
                     {t.timeSlotsFor} {themeNameByKey.get(selectedTheme) || selectedTheme}
                   </div>
                   <div className="create-order-slot-grid">
@@ -766,7 +820,7 @@ export default function CreateOrder() {
           )}
 
           {(selectedSlot || totalTickets > 0) && (
-            <div style={{ marginTop: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <div ref={stepOneActionRef} style={{ marginTop: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
               <div style={{ fontSize: 13, color: '#64748b', fontWeight: 700 }}>
                 {t.cartTotal}: {ticketCountText(totalTickets)} · ${totalAmount.toFixed(2)}
               </div>
@@ -1007,7 +1061,7 @@ export default function CreateOrder() {
                     <span>{t.gstLabel}</span>
                     <span>${gstAmount.toFixed(2)}</span>
                   </div>
-                  {(manualFees || pstAmount > 0) && (
+                  {pstAmount > 0 && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#374151' }}>
                       <span>{t.pstTax}</span>
                       <span>${pstAmount.toFixed(2)}</span>
@@ -1058,17 +1112,16 @@ export default function CreateOrder() {
 
               <div className="fee-modifier-grid">
                 {[
-                  ['ticketTotal', t.ticketTotalLabel],
-                  ['addonTotal', t.addonTotalVipLabel],
-                  ['couponDiscount', t.couponDiscountLabel],
-                  ['platformFee', t.platformProcessingFee],
-                  ['paymentFee', t.paymentProcessingFeeCardLabel],
-                  ['gstTax', t.gstTax],
-                  ['pstTax', t.pstTax],
-                ].map(([field, label]) => (
+                  ['ticketTotal', t.ticketTotalLabel, false],
+                  ['addonTotal', t.addonTotalVipLabel, false],
+                  ['couponDiscount', t.couponDiscountLabel, false],
+                  ['platformFee', t.platformProcessingFee, true],
+                  ['paymentFee', t.paymentProcessingFeeCardLabel, true],
+                  ['gstTax', t.gstTax, true],
+                ].map(([field, label, calculated]) => (
                   <label
                     key={field}
-                    className={field === 'couponDiscount' ? 'fee-modifier-field wide' : 'fee-modifier-field'}
+                    className={`${field === 'couponDiscount' ? 'fee-modifier-field wide' : 'fee-modifier-field'} ${calculated ? 'calculated' : ''}`.trim()}
                   >
                     <span>{label}</span>
                     <input
@@ -1076,9 +1129,10 @@ export default function CreateOrder() {
                       min="0"
                       step="0.01"
                       value={feeDraft[field]}
-                      onChange={e => updateFeeDraft(field, e.target.value)}
-                      onBlur={() => formatMoneyInput(field)}
+                      onChange={calculated ? undefined : e => updateFeeDraft(field, e.target.value)}
+                      onBlur={calculated ? undefined : () => formatMoneyInput(field)}
                       inputMode="decimal"
+                      readOnly={calculated}
                     />
                     {field === 'couponDiscount' && (
                       <small>{t.feeCouponExample}</small>
@@ -1119,7 +1173,7 @@ export default function CreateOrder() {
 
           <div className="create-order-footer-actions" style={{ display: 'flex', justifyContent: 'space-between', marginTop: 20 }}>
             <Button variant="outlined" onClick={() => setStep(3)} startIcon={<i className="fa fa-arrow-left" />}>{t.back}</Button>
-            <Button variant="contained" onClick={handleConfirm} disabled={!payment || creatingOrder} size="large" startIcon={<i className="fa fa-check-circle" />}>
+            <Button variant="contained" onClick={handleConfirm} disabled={!payment || creatingOrder || totalTickets === 0 || Boolean(ticketValidationError)} size="large" startIcon={<i className="fa fa-check-circle" />}>
               {t.createOrderCompletePayment}
             </Button>
           </div>

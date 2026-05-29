@@ -13,7 +13,7 @@ import LoadingIndicator from '../components/LoadingIndicator'
 import QrCodeDialog from '../components/QrCodeDialog'
 import { AdminAlert, EmptyTableRow, FilterCard, PageHeader, TableShell } from '../components/AdminUI'
 import { ApplyFiltersButton, DateRangeFilter, ResetFiltersButton, SelectFilter, TextFilter } from '../components/FilterControls'
-import { localizeTicketTypeName } from '../utils/localization'
+import { localizeCatalogName, localizeTicketTypeName } from '../utils/localization'
 
 const PAGE_SIZE = 10
 const TODAY = new Date().toISOString().slice(0, 10)
@@ -203,7 +203,7 @@ export default function Tickets() {
       ...prev,
       items: (prev?.items || []).map(item => item.id === ticket.id ? updated : item),
     }))
-    setQrTicket(updated.qrCode || updated.code)
+    setQrTicket(updated.code)
   }
 
   const paged = tickets
@@ -427,11 +427,11 @@ export default function Tickets() {
                   <td>
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
                       <span style={{ fontFamily: 'monospace', fontSize: 13, color: THEME.primaryText, fontWeight: 800, background: THEME.primarySoft, borderRadius: 6, padding: '5px 8px' }}>
-                        {tk.code.slice(0, 6)}...{tk.code.slice(-6)}
+                        {tk.code}
                       </span>
                       <button
                         title={t.qrCode}
-                        onClick={() => setQrTicket(tk.qrCode || tk.code)}
+                        onClick={() => setQrTicket(tk.code)}
                         style={{ ...actionButton, background: THEME.utilityBg, color: THEME.utilityText, border: `1px solid ${THEME.utilityBorder}` }}
                       >
                         <i className="fa fa-qrcode" />
@@ -474,6 +474,7 @@ export default function Tickets() {
                       <div style={{ lineHeight: 1.2 }}>
                         <div style={{ fontWeight: 800, color: '#374151' }}>{shortDate(tk.slotDate)}</div>
                         <div style={{ color: '#6b7280', fontSize: 12 }}>{tk.slotStart}-{tk.slotEnd}</div>
+                        {tk.eventName && <div style={{ color: '#6366f1', fontSize: 11 }}>{localizeCatalogName(tk.eventName, lang)}</div>}
                       </div>
                       <button
                         title={t.viewSlot}

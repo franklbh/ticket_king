@@ -41,8 +41,50 @@ class OrderService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found.")
         return row
 
+    def _validate_walk_in_ticket_selection(
+        self,
+        payload: WalkInOrderCreate,
+        slot_map: dict[str, dict[str, Any]],
+    ) -> None:
+        if not payload.tickets:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Select a date, time slot, and ticket type before creating an order.",
+            )
+
+        for item in payload.tickets:
+            slot_id = str(item.slot_id or payload.slot_id or "").strip()
+            ticket_type_id = str(item.ticket_type_id or "").strip()
+            if not slot_id or not ticket_type_id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Each ticket line must have a date, time slot, and ticket type.",
+                )
+            if slot_id not in slot_map:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Selected time slot was not found.",
+                )
+
+    async def _enrich_add_on(self, rows: list[dict]) -> None:
+        tt_rows = await admin_repository.select(settings.admin_ticket_types_table)
+        add_on_map = {str(r["id"]): r.get("add_on") for r in tt_rows}
+        ev_rows = await admin_repository.select(settings.admin_events_table)
+        event_name_map = {str(r["id"]): r.get("name") for r in ev_rows}
+        for row in rows:
+            details = row.get("ticket_details") or []
+            if isinstance(details, list):
+                for item in details:
+                    tid = str(item.get("ticket_type_id") or "")
+                    if tid and tid in add_on_map:
+                        item["add_on"] = add_on_map[tid]
+                    eid = str(item.get("event_id") or "")
+                    if eid and eid in event_name_map:
+                        item["event_name"] = event_name_map[eid]
+
     async def list_orders(self, filters: dict[str, Any]) -> OrderPage:
         rows, total = await admin_repository.list_orders(filters)
+        await self._enrich_add_on(rows)
         orders = [normalize_order(row) for row in rows]
         return paginate(
             OrderRead,
@@ -55,6 +97,7 @@ class OrderService:
 
     async def get_order(self, order_id: str) -> OrderRead:
         row = await self._resolve_order_row(order_id)
+        await self._enrich_add_on([row])
         return to_model(OrderRead, normalize_order(row))
 
     async def update_order_status(
@@ -187,6 +230,13 @@ class OrderService:
             order_number=row.get("order_number") or order_id,
             tickets=tickets,
         )
+        if sent:
+            await admin_repository.update(
+                settings.admin_orders_table,
+                match_column="id",
+                match_value=row["id"],
+                values={"email_status": "sent", "updated_at": utc_now_iso_seconds()},
+            )
         await write_audit_log(
             actor,
             "Resend Email",
@@ -255,6 +305,7 @@ class OrderService:
         order_id = str(uuid.uuid4())
         order_number = self._order_number()
         slot_map = await slots_by_id()
+        self._validate_walk_in_ticket_selection(payload, slot_map)
         total_amount = round(sum(item.quantity * item.unit_price for item in payload.tickets), 2)
         adjusted_ticket_amount = max(0, round(total_amount + payload.admin_adjustment, 2))
         admin_adjustment = round(adjusted_ticket_amount - total_amount, 2)

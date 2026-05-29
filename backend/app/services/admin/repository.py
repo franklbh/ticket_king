@@ -560,6 +560,7 @@ class AdminRepository:
                 orders.c.guest_name.label("guest_name"),
                 orders.c.guest_email.label("guest_email"),
                 orders.c.guest_phone.label("guest_phone"),
+                orders.c.ticket_details.label("order_ticket_details"),
                 users.c.name.label("customer_name"),
                 users.c.email.label("customer_email"),
                 slots.c.business_date.label("slot_date"),

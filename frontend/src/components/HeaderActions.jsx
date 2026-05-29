@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { getDisplayName } from '../api/auth'
+import { ENABLE_MY_BOOKINGS } from '../constants/features'
 
 function HeaderActions({
   authReady,
@@ -44,7 +45,7 @@ function HeaderActions({
         <div className="account-menu-wrap" ref={menuRef}>
           <button className="account-trigger" onClick={() => setAccountOpen((open) => !open)} type="button" aria-expanded={accountOpen}>
             <span>{t('hi')} {displayName}</span>
-            <small>{t('myBookingsShort')}</small>
+            <small>{ENABLE_MY_BOOKINGS ? t('myBookingsShort') : currentUser.email || displayName}</small>
             <ChevronDownIcon />
           </button>
           <button className="ghost-btn" onClick={onLogout} type="button">{t('logout')}</button>
@@ -54,11 +55,15 @@ function HeaderActions({
                 <span>{displayName.slice(0, 1).toUpperCase()}</span>
                 <div>
                   <strong>{displayName}</strong>
-                  <small>{t('viewProfile')}</small>
+                  {ENABLE_MY_BOOKINGS && <small>{t('viewProfile')}</small>}
                 </div>
               </div>
-              <button className="active" onClick={openBookings} type="button"><CalendarIcon /> {t('myBookingsTitle')} <ArrowIcon /></button>
-              <button onClick={openAccountDetails} type="button"><UserIcon /> {t('accountDetails')} <ArrowIcon /></button>
+              {ENABLE_MY_BOOKINGS && (
+                <>
+                  <button className="active" onClick={openBookings} type="button"><CalendarIcon /> {t('myBookingsTitle')} <ArrowIcon /></button>
+                  <button onClick={openAccountDetails} type="button"><UserIcon /> {t('accountDetails')} <ArrowIcon /></button>
+                </>
+              )}
               <div className="account-menu-rule" />
               <button className="danger" onClick={onLogout} type="button"><LogoutIcon /> {t('logout')}</button>
             </div>

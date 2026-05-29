@@ -469,6 +469,9 @@ export default function Cart({
   const [openSummaryTooltip, setOpenSummaryTooltip] = useState(null)
   const releasedReservationRef = useRef(null)
   const reservationCreatingRef = useRef(null)
+  const overlayRef = useRef(null)
+  const panelRef = useRef(null)
+  const workspaceRef = useRef(null)
   const ticketRailRef = useRef(null)
   const comboTooltipCopy = selectedLang?.code === 'zh-Hans'
     ? '预订熊猫的世界和/或重返侏罗纪，再搭配任意游戏，即可享受组合优惠。'
@@ -487,6 +490,12 @@ export default function Cart({
     document.addEventListener('click', closeTooltip)
     return () => document.removeEventListener('click', closeTooltip)
   }, [openSummaryTooltip])
+
+  useEffect(() => {
+    overlayRef.current?.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+    panelRef.current?.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+    workspaceRef.current?.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+  }, [step])
 
   const subtotal = items.reduce((s, i) => s + i.unit_price * i.quantity, 0)
   const numTickets = items.reduce((s, i) => s + i.quantity, 0)
@@ -1018,8 +1027,8 @@ export default function Cart({
   }
 
   return (
-    <div className="crt-overlay" role="dialog" aria-modal="true" aria-label={t('shoppingCart')}>
-      <div className="crt-panel">
+    <div className="crt-overlay" ref={overlayRef} role="dialog" aria-modal="true" aria-label={t('shoppingCart')}>
+      <div className="crt-panel" ref={panelRef}>
         <div className="crt-shell-top">
           <div className="crt-title-row"><CartIcon /><h2>{t('shoppingCart')}</h2><span>{t('ticketCount', { count: numTickets || confirmed?.items?.reduce((s, item) => s + item.quantity, 0) })}</span></div>
           <button className="crt-close" onClick={closeCart} aria-label={t('close')} type="button">×</button>
@@ -1035,7 +1044,7 @@ export default function Cart({
             <button className="crt-browse-btn" onClick={browseExperiences} type="button">{t('browseExperiences')}</button>
           </div>
         ) : (
-          <div className="crt-workspace">
+          <div className="crt-workspace" ref={workspaceRef}>
             {step === 'review' && (
               <main className="crt-main">
                 <div className="crt-review-tools">
