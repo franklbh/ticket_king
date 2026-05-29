@@ -60,6 +60,9 @@ ENV/
 tmp/
 temp/
 
+# Videos — served from Supabase via VITE_VIDEO_BASE_URL
+frontend/src/video/
+
 # RSA keys
 *.pem
 
