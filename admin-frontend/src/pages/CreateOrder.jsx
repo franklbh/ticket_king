@@ -134,8 +134,8 @@ function calculateFeeValues(draft, ticketCount = 0) {
     ticketTotal,
     addonTotal,
     couponDiscount,
-    platformFee: money(PLATFORM_FEE_PER_TICKET * ticketCount),
-    paymentFee: money(taxableBase * PAYMENT_PROCESSING_RATE),
+    platformFee: draft.platformFee == null ? money(PLATFORM_FEE_PER_TICKET * ticketCount) : moneyFromInput(draft.platformFee),
+    paymentFee: draft.paymentFee == null ? money(taxableBase * PAYMENT_PROCESSING_RATE) : moneyFromInput(draft.paymentFee),
     gstTax: money(taxableBase * GST_RATE),
     pstTax: 0,
   }
@@ -157,6 +157,8 @@ function createFeeDraft(totalAmount, fees = null, ticketCount = 0) {
     ticketTotal: fees?.ticketTotal ?? totalAmount,
     addonTotal: fees?.addonTotal ?? 0,
     couponDiscount: fees?.couponDiscount ?? 0,
+    platformFee: fees?.platformFee,
+    paymentFee: fees?.paymentFee,
   }, ticketCount))
 }
 
@@ -1115,8 +1117,8 @@ export default function CreateOrder() {
                   ['ticketTotal', t.ticketTotalLabel, false],
                   ['addonTotal', t.addonTotalVipLabel, false],
                   ['couponDiscount', t.couponDiscountLabel, false],
-                  ['platformFee', t.platformProcessingFee, true],
-                  ['paymentFee', t.paymentProcessingFeeCardLabel, true],
+                  ['platformFee', t.platformProcessingFee, false],
+                  ['paymentFee', t.paymentProcessingFeeCardLabel, false],
                   ['gstTax', t.gstTax, true],
                 ].map(([field, label, calculated]) => (
                   <label
