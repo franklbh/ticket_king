@@ -500,7 +500,6 @@ function ExperienceDetailPage({
   experiences = allExperiences,
   onLogout,
   onOpenAuth,
-  onOpenBookings,
   onOpenCart,
   onOpenNav,
   renderLangSelect,
@@ -551,7 +550,6 @@ function ExperienceDetailPage({
           currentUser={currentUser}
           onLogout={onLogout}
           onOpenAuth={onOpenAuth}
-          onOpenBookings={onOpenBookings}
           onOpenCart={onOpenCart}
           onOpenNav={onOpenNav}
           renderLangSelect={renderLangSelect}

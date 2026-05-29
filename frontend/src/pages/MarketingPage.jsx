@@ -93,7 +93,6 @@ function MarketingPage({
   onGoHome,
   onLogout,
   onOpenAuth,
-  onOpenBookings,
   onOpenCart,
   onOpenMap,
   onOpenNav,
@@ -158,7 +157,6 @@ function MarketingPage({
             currentUser={currentUser}
             onLogout={onLogout}
             onOpenAuth={onOpenAuth}
-            onOpenBookings={onOpenBookings}
             onOpenCart={onOpenCart}
             onOpenNav={onOpenNav}
             renderLangSelect={renderLangSelect}

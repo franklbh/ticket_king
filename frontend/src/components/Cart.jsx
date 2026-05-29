@@ -1002,7 +1002,9 @@ export default function Cart({
           {step === 'confirm' && (
             <div className="crt-confirm-actions">
               <button className="crt-outline" onClick={downloadReceipt} type="button">{t('downloadReceipt')}</button>
-              <button className="crt-primary" onClick={() => onManageBooking?.(confirmed)} type="button">{t('manageBooking')}</button>
+              {onManageBooking && (
+                <button className="crt-primary" onClick={() => onManageBooking(confirmed)} type="button">{t('manageBooking')}</button>
+              )}
             </div>
           )}
         </div>

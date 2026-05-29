@@ -18,7 +18,6 @@ import AuthPage from './pages/AuthPage'
 import BookingPage from './pages/BookingPage'
 import ExperienceDetailPage from './pages/ExperienceDetailPage'
 import MarketingPage from './pages/MarketingPage'
-import MyBookingsPage from './pages/MyBookingsPage'
 import { getDisplayName } from './api/auth'
 import { useCustomerAuth } from './hooks/useCustomerAuth'
 import { currency } from './utils/format'
@@ -119,7 +118,6 @@ function App() {
     } catch { return [] }
   })
   const [showCart, setShowCart] = useState(false)
-  const [bookingsInitialSection, setBookingsInitialSection] = useState('bookings')
   const [couponCode, setCouponCode] = useState('')
   const [couponMessage, setCouponMessage] = useState('')
   const [appliedCoupon, setAppliedCoupon] = useState(null)
@@ -416,18 +414,6 @@ function App() {
 
   const startBookingWithAuth = (experience = null) => {
     revealBooking(experience)
-  }
-
-  const openBookingsPage = (section = 'bookings') => {
-    if (!currentUser) {
-      openAuthScreen('login')
-      return
-    }
-    setBookingsInitialSection(section)
-    setShowBooking(false)
-    setSelectedExperience(null)
-    setView('bookings')
-    window.scrollTo({ top: 0, behavior: 'instant' })
   }
 
   const backToMain = () => {
@@ -853,7 +839,6 @@ function App() {
             currentUser={currentUser}
             onLogout={handleLogout}
             onOpenAuth={() => openAuthScreen('login')}
-            onOpenBookings={openBookingsPage}
             onOpenCart={() => setShowCart(true)}
             onOpenNav={() => setShowNavMenu(true)}
             renderLangSelect={renderLangSelect}
@@ -895,7 +880,6 @@ function App() {
           onBuyTicket={addExperienceTicketsToCart}
           onLogout={handleLogout}
           onOpenAuth={() => openAuthScreen('login')}
-          onOpenBookings={openBookingsPage}
           onOpenCart={() => setShowCart(true)}
           onOpenNav={() => setShowNavMenu(true)}
           onSelectExperience={openExperience}
@@ -905,27 +889,8 @@ function App() {
         />
       )}
 
-      {view === 'bookings' && (
-        <MyBookingsPage
-          authReady={authReady}
-          cartCount={cartCount}
-          currentUser={currentUser}
-          experiences={localizedExperiences}
-          initialSection={bookingsInitialSection}
-          onGoHome={() => { setView('main'); setShowBooking(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
-          onLogout={handleLogout}
-          onOpenAuth={() => openAuthScreen('login')}
-          onOpenCart={() => setShowCart(true)}
-          onOpenNav={() => setShowNavMenu(true)}
-          onVisitContact={() => navigateToMainSection('contact')}
-          onVisitFaq={() => navigateToMainSection('faq')}
-          renderLangSelect={renderLangSelect}
-          t={t}
-        />
-      )}
-
       {/* ── Main ── */}
-      {view !== 'auth' && view !== 'experience' && view !== 'bookings' && (
+      {view !== 'auth' && view !== 'experience' && (
         <>
           {!showBooking && (
             <MarketingPage
@@ -942,7 +907,6 @@ function App() {
               onGoHome={() => { setView('main'); setShowBooking(false) }}
               onLogout={handleLogout}
               onOpenAuth={() => openAuthScreen('login')}
-              onOpenBookings={openBookingsPage}
               onOpenCart={() => setShowCart(true)}
               onOpenMap={() => setShowMapModal(true)}
               onOpenNav={() => setShowNavMenu(true)}
@@ -1121,10 +1085,6 @@ function App() {
           onPaymentSuccess={() => {
             setCartItems([])
             localStorage.removeItem('wearevr_cart')
-          }}
-          onManageBooking={() => {
-            setShowCart(false)
-            openBookingsPage()
           }}
           resetAuthForm={resetAuthForm}
           selectedLang={selectedLang}
