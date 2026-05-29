@@ -25,6 +25,7 @@ export const isReasonableName = (value) => {
 export const isReasonablePhone = (value) => {
   if (!value.trim()) return true
   const digits = normalizePhone(value)
+  if (digits === '1') return true
   return digits.length >= 10 && digits.length <= 15 && !/^(\d)\1+$/.test(digits)
 }
 

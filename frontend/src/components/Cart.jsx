@@ -699,10 +699,17 @@ export default function Cart({
       .then((r) => r.json())
       .then(async (data) => {
         if (cancelled || !data.eligible) return
+        const eligibleEventIds = new Set((data.eligible_event_ids || []).map((id) => Number(id)))
+        const comboSubtotal = items.reduce((sum, item) => (
+          eligibleEventIds.has(Number(item.event_id))
+            ? sum + item.unit_price * item.quantity
+            : sum
+        ), 0)
+        if (comboSubtotal <= 0) return
         const res = await fetch(`${BACKEND}/api/v1/coupons/validate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code: data.coupon_code, subtotal: sub }),
+          body: JSON.stringify({ code: data.coupon_code, subtotal: comboSubtotal }),
         })
         const coupon = await res.json().catch(() => ({}))
         if (!cancelled && coupon.valid) {

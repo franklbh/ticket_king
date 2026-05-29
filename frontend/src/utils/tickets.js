@@ -24,11 +24,16 @@ const _tKeyMap = { adult: 'ticketTypeRegular', child: 'ticketTypeChild', senior:
 export function formatSlotTicketTypes(ticketTypes = [], { fallback = [], currency, perEach = '/each', t } = {}) {
   const liveTypes = Array.isArray(ticketTypes) ? ticketTypes : []
   const source = liveTypes.length ? liveTypes : fallback
+  const keyCounts = source.reduce((counts, ticket) => {
+    const key = ticketKeyFromLabel(ticket.label || ticket.name || 'Ticket')
+    counts[key] = (counts[key] || 0) + 1
+    return counts
+  }, {})
   return source
     .map((ticket) => {
       const rawLabel = ticket.label || ticket.name || 'Ticket'
       const key = ticketKeyFromLabel(rawLabel)
-      const label = t ? (t(_tKeyMap[key]) || rawLabel) : rawLabel
+      const label = t && keyCounts[key] === 1 ? (t(_tKeyMap[key]) || rawLabel) : rawLabel
       const price = Number(ticket.price ?? ticket.basePrice ?? ticket.base_price ?? 0)
       const minQty = minQtyForTicket(ticket)
       const infoKey = key === 'child' ? 'childInfo' : key === 'family' ? 'familyInfo' : key === 'group' ? 'groupInfo' : null
