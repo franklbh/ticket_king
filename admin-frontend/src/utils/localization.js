@@ -65,8 +65,17 @@ export function catalogKeyFromName(value) {
 
 export function localizeCatalogName(value, lang = 'en') {
   const key = catalogKeyFromName(value)
-  if (!key) return value
-  return (CATALOG_NAMES[lang] || CATALOG_NAMES.en)[key] || CATALOG_NAMES.en[key] || value
+  if (key) return (CATALOG_NAMES[lang] || CATALOG_NAMES.en)[key] || CATALOG_NAMES.en[key] || value
+  // Reverse lookup: input may already be a localized name (e.g. "兵马俑" from DB)
+  const norm = normalizeCatalogName(value)
+  for (const names of Object.values(CATALOG_NAMES)) {
+    for (const [k, v] of Object.entries(names)) {
+      if (normalizeCatalogName(v) === norm) {
+        return (CATALOG_NAMES[lang] || CATALOG_NAMES.en)[k] || CATALOG_NAMES.en[k] || value
+      }
+    }
+  }
+  return value
 }
 
 export function localizeEvent(event, lang = 'en') {
@@ -114,5 +123,16 @@ export function localizeTicketTypeName(value, lang = 'en') {
       'family(2adults+1child)': '家庭票（2大1小）',
     },
   }
-  return (maps[lang] || maps.en)[normalized] || value
+  const direct = (maps[lang] || maps.en)[normalized]
+  if (direct) return direct
+  // Reverse lookup: input may be a localized name from another language (e.g. "成人票" in English mode)
+  const targetMap = maps[lang] || maps.en
+  for (const map of Object.values(maps)) {
+    for (const [key, val] of Object.entries(map)) {
+      if (normalizeCatalogName(val).replace(/\s+/g, '') === normalized) {
+        return targetMap[key] || value
+      }
+    }
+  }
+  return value
 }

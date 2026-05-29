@@ -230,6 +230,13 @@ class OrderService:
             order_number=row.get("order_number") or order_id,
             tickets=tickets,
         )
+        if sent:
+            await admin_repository.update(
+                settings.admin_orders_table,
+                match_column="id",
+                match_value=row["id"],
+                values={"email_status": "sent", "updated_at": utc_now_iso_seconds()},
+            )
         await write_audit_log(
             actor,
             "Resend Email",

@@ -427,7 +427,7 @@ export default function Tickets() {
                   <td>
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
                       <span style={{ fontFamily: 'monospace', fontSize: 13, color: THEME.primaryText, fontWeight: 800, background: THEME.primarySoft, borderRadius: 6, padding: '5px 8px' }}>
-                        {tk.code.slice(0, 6)}...{tk.code.slice(-6)}
+                        {tk.code}
                       </span>
                       <button
                         title={t.qrCode}
