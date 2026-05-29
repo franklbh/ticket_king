@@ -55,7 +55,7 @@ function HeaderActions({
                 <span>{displayName.slice(0, 1).toUpperCase()}</span>
                 <div>
                   <strong>{displayName}</strong>
-                  <small>{t('viewProfile')}</small>
+                  {ENABLE_MY_BOOKINGS && <small>{t('viewProfile')}</small>}
                 </div>
               </div>
               {ENABLE_MY_BOOKINGS && (
