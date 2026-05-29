@@ -20,6 +20,7 @@ import ExperienceDetailPage from './pages/ExperienceDetailPage'
 import MarketingPage from './pages/MarketingPage'
 import MyBookingsPage from './pages/MyBookingsPage'
 import { getDisplayName } from './api/auth'
+import { ENABLE_MY_BOOKINGS } from './constants/features'
 import { useCustomerAuth } from './hooks/useCustomerAuth'
 import { currency } from './utils/format'
 import { getPricesForSlot, hasSeniorTicket } from './utils/pricing'
@@ -419,6 +420,7 @@ function App() {
   }
 
   const openBookingsPage = (section = 'bookings') => {
+    if (!ENABLE_MY_BOOKINGS) return
     if (!currentUser) {
       openAuthScreen('login')
       return
@@ -905,7 +907,7 @@ function App() {
         />
       )}
 
-      {view === 'bookings' && (
+      {ENABLE_MY_BOOKINGS && view === 'bookings' && (
         <MyBookingsPage
           authReady={authReady}
           cartCount={cartCount}
@@ -925,7 +927,7 @@ function App() {
       )}
 
       {/* ── Main ── */}
-      {view !== 'auth' && view !== 'experience' && view !== 'bookings' && (
+      {view !== 'auth' && view !== 'experience' && (!ENABLE_MY_BOOKINGS || view !== 'bookings') && (
         <>
           {!showBooking && (
             <MarketingPage
@@ -1122,10 +1124,10 @@ function App() {
             setCartItems([])
             localStorage.removeItem('wearevr_cart')
           }}
-          onManageBooking={() => {
+          onManageBooking={ENABLE_MY_BOOKINGS ? () => {
             setShowCart(false)
             openBookingsPage()
-          }}
+          } : undefined}
           resetAuthForm={resetAuthForm}
           selectedLang={selectedLang}
           setAuthForm={setAuthForm}
