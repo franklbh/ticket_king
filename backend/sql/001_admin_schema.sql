@@ -10,6 +10,8 @@ alter table public.users
   add column if not exists staff_role text,
   add column if not exists department text,
   add column if not exists position text,
+  add column if not exists permissions jsonb not null default '[]'::jsonb,
+  add column if not exists denied_permissions jsonb not null default '[]'::jsonb,
   add column if not exists status text,
   add column if not exists last_login_at timestamptz,
   add column if not exists last_login_ip text;

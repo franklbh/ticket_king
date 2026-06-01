@@ -30,6 +30,7 @@ from app.services.admin.normalizers import (
     normalize_ticket,
 )
 from app.services.admin.repository import admin_repository
+from app.services.admin.security import effective_permissions
 from app.utils.datetime import utc_now, utc_now_iso_seconds
 from app.utils.email import send_booking_confirmation
 
@@ -312,6 +313,12 @@ class OrderService:
         addon_amount = max(0, round(payload.addon_amount, 2))
         platform_fee = max(0, round(payload.platform_fee, 2))
         payment_fee = max(0, round(payload.payment_fee, 2))
+        can_modify_fees = "orders:modify_fees" in effective_permissions(actor)
+        if not can_modify_fees and (admin_adjustment or addon_amount or platform_fee or payment_fee or payload.pst):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="This account does not have permission to modify fees.",
+            )
         coupon_code = payload.coupon_code.strip().upper() if payload.coupon_code else None
         coupon_discount = 0
         if coupon_code:
@@ -330,6 +337,11 @@ class OrderService:
         coupon_discount = round(min(max(0, coupon_discount), fee_subtotal), 2)
         taxable_amount = round(fee_subtotal - coupon_discount, 2)
         gst = round(payload.gst if payload.gst is not None else taxable_amount * 0.05, 2)
+        if not can_modify_fees and abs(gst - round(taxable_amount * 0.05, 2)) > 0.01:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="This account does not have permission to modify fees.",
+            )
         pst = max(0, round(payload.pst, 2))
         total_due = round(taxable_amount + gst + pst, 2)
         order_status = "completed" if payload.mark_used_immediately else "paid"

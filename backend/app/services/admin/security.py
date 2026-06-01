@@ -23,6 +23,7 @@ ROLE_PERMISSIONS = {
     "dashboard:read": ADMIN_ROLES,
     "orders:read": ADMIN_ROLES,
     "orders:write": ADMIN_ROLES,
+    "orders:modify_fees": ADMIN_ROLES,
     "orders:export": ADMIN_ROLES,
     "tickets:read": ADMIN_ROLES,
     "tickets:write": ADMIN_ROLES,

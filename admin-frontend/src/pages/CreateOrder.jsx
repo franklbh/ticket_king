@@ -4,8 +4,9 @@ import Checkbox from '@mui/material/Checkbox'
 import FormControlLabel from '@mui/material/FormControlLabel'
 import TextField from '@mui/material/TextField'
 import { useNavigate } from 'react-router-dom'
-import { useLang } from '../context/authHooks'
+import { useAuth, useLang } from '../context/authHooks'
 import { useT } from '../i18n/translations'
+import { can } from '../auth/permissions'
 import { createWalkInOrder, validateCoupon } from '../api/adminApi'
 import { useAdminMutation } from '../hooks/useAdminApi'
 import { useEventsQuery, useSlotsQuery, useTicketTypesQuery } from '../hooks/catalog'
@@ -189,8 +190,10 @@ function StepIndicator({ step }) {
 
 export default function CreateOrder() {
   const navigate = useNavigate()
+  const { admin } = useAuth()
   const { lang } = useLang()
   const t = useT(lang)
+  const canModifyFees = can(admin, 'orders:modify_fees')
   const [step, setStep] = useState(1)
   const [selectedDate, setSelectedDate] = useState(() => todayIso())
   const [datePickerOpen, setDatePickerOpen] = useState(false)
@@ -542,6 +545,7 @@ export default function CreateOrder() {
   }
 
   function changePrice() {
+    if (!canModifyFees) return
     setFeeDraft(createFeeDraft(totalAmount, manualFees, totalTickets))
     setFeeConfirmOpen(true)
   }
@@ -1075,15 +1079,17 @@ export default function CreateOrder() {
                     <span style={{ color: '#4f46e5' }}>${totalDue.toFixed(2)}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, flexWrap: 'wrap', marginTop: 4 }}>
-                    <Button
-                      size="small"
-                      variant="contained"
-                      onClick={changePrice}
-                      startIcon={<i className="fa fa-sliders-h" />}
-                      sx={{ bgcolor: '#ef4444', '&:hover': { bgcolor: '#dc2626' } }}
-                    >
-                      {t.changePrice}
-                    </Button>
+                    {canModifyFees && (
+                      <Button
+                        size="small"
+                        variant="contained"
+                        onClick={changePrice}
+                        startIcon={<i className="fa fa-sliders-h" />}
+                        sx={{ bgcolor: '#ef4444', '&:hover': { bgcolor: '#dc2626' } }}
+                      >
+                        {t.changePrice}
+                      </Button>
+                    )}
                     <Button
                       size="small"
                       variant="contained"
