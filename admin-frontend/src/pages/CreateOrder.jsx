@@ -402,15 +402,20 @@ export default function CreateOrder() {
 
   const totalTickets = cartItems.reduce((s, item) => s + item.quantity, 0)
   const totalAmount = cartItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0)
-  const adjustedTicketAmount = manualFees ? manualFees.ticketTotal : totalAmount
-  const addonAmount = manualFees ? manualFees.addonTotal : 0
-  const platformFee = manualFees ? manualFees.platformFee : 0
-  const paymentFee = manualFees ? manualFees.paymentFee : 0
+  const defaultFees = calculateFeeValues({
+    ticketTotal: totalAmount,
+    addonTotal: 0,
+    couponDiscount: appliedCoupon?.discount || 0,
+  }, totalTickets)
+  const adjustedTicketAmount = manualFees ? manualFees.ticketTotal : defaultFees.ticketTotal
+  const addonAmount = manualFees ? manualFees.addonTotal : defaultFees.addonTotal
+  const platformFee = manualFees ? manualFees.platformFee : defaultFees.platformFee
+  const paymentFee = manualFees ? manualFees.paymentFee : defaultFees.paymentFee
   const adminAdjustment = money(adjustedTicketAmount - totalAmount)
   const discountBase = Math.max(0, adjustedTicketAmount + addonAmount)
-  const couponDiscount = Math.min(manualFees ? manualFees.couponDiscount : (appliedCoupon?.discount || 0), discountBase)
+  const couponDiscount = Math.min(manualFees ? manualFees.couponDiscount : defaultFees.couponDiscount, discountBase)
   const taxableAmount = Math.max(0, adjustedTicketAmount + addonAmount - couponDiscount)
-  const gstAmount = manualFees ? manualFees.gstTax : taxableAmount * GST_RATE
+  const gstAmount = manualFees ? manualFees.gstTax : defaultFees.gstTax
   const pstAmount = manualFees ? manualFees.pstTax : 0
   const totalDue = taxableAmount + platformFee + paymentFee + gstAmount + pstAmount
   const feeDraftTotal = (() => {

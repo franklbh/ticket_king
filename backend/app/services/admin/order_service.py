@@ -35,6 +35,12 @@ from app.utils.datetime import utc_now, utc_now_iso_seconds
 from app.utils.email import send_booking_confirmation
 
 
+GST_RATE = 0.05
+PLATFORM_FEE_PER_TICKET = 1.8
+PAYMENT_PROCESSING_RATE = 0.025
+FEE_TOLERANCE = 0.01
+
+
 class OrderService:
     async def _resolve_order_row(self, order_ref: str) -> dict[str, Any]:
         row = await admin_repository.get_order(order_ref)
@@ -307,6 +313,7 @@ class OrderService:
         order_number = self._order_number()
         slot_map = await slots_by_id()
         self._validate_walk_in_ticket_selection(payload, slot_map)
+        ticket_quantity = sum(item.quantity for item in payload.tickets)
         total_amount = round(sum(item.quantity * item.unit_price for item in payload.tickets), 2)
         adjusted_ticket_amount = max(0, round(total_amount + payload.admin_adjustment, 2))
         admin_adjustment = round(adjusted_ticket_amount - total_amount, 2)
@@ -314,16 +321,11 @@ class OrderService:
         platform_fee = max(0, round(payload.platform_fee, 2))
         payment_fee = max(0, round(payload.payment_fee, 2))
         can_modify_fees = "orders:modify_fees" in effective_permissions(actor)
-        if not can_modify_fees and (admin_adjustment or addon_amount or platform_fee or payment_fee or payload.pst):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="This account does not have permission to modify fees.",
-            )
         coupon_code = payload.coupon_code.strip().upper() if payload.coupon_code else None
         coupon_discount = 0
         if coupon_code:
             coupon_result = await coupons_service.validate_coupon(
-                CouponValidationRequest(code=coupon_code, amount=adjusted_ticket_amount + addon_amount + platform_fee + payment_fee)
+                CouponValidationRequest(code=coupon_code, amount=adjusted_ticket_amount + addon_amount)
             )
             if not coupon_result.get("valid"):
                 raise HTTPException(
@@ -336,16 +338,28 @@ class OrderService:
         fee_subtotal = round(adjusted_ticket_amount + addon_amount + platform_fee + payment_fee, 2)
         coupon_discount = round(min(max(0, coupon_discount), fee_subtotal), 2)
         taxable_amount = round(fee_subtotal - coupon_discount, 2)
-        gst = round(payload.gst if payload.gst is not None else taxable_amount * 0.05, 2)
-        if not can_modify_fees and abs(gst - round(taxable_amount * 0.05, 2)) > 0.01:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="This account does not have permission to modify fees.",
-            )
+        tax_base = round(max(0, adjusted_ticket_amount + addon_amount - coupon_discount), 2)
+        gst = round(payload.gst if payload.gst is not None else tax_base * GST_RATE, 2)
         pst = max(0, round(payload.pst, 2))
+        if not can_modify_fees:
+            expected_platform_fee = round(PLATFORM_FEE_PER_TICKET * ticket_quantity, 2)
+            expected_payment_fee = round(max(0, total_amount - coupon_discount) * PAYMENT_PROCESSING_RATE, 2)
+            expected_gst = round(max(0, total_amount - coupon_discount) * GST_RATE, 2)
+            has_fee_modification = (
+                abs(admin_adjustment) > FEE_TOLERANCE
+                or abs(addon_amount) > FEE_TOLERANCE
+                or abs(platform_fee - expected_platform_fee) > FEE_TOLERANCE
+                or abs(payment_fee - expected_payment_fee) > FEE_TOLERANCE
+                or abs(gst - expected_gst) > FEE_TOLERANCE
+                or abs(pst) > FEE_TOLERANCE
+            )
+            if has_fee_modification:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="This account does not have permission to modify fees.",
+                )
         total_due = round(taxable_amount + gst + pst, 2)
         order_status = "completed" if payload.mark_used_immediately else "paid"
-        ticket_quantity = sum(item.quantity for item in payload.tickets)
         item_contexts: list[dict[str, Any]] = []
         for item in payload.tickets:
             item_slot_id = str(item.slot_id or payload.slot_id or "")
