@@ -28,6 +28,7 @@ from app.services.admin.normalizers import (
     db_ticket_status,
     normalize_order,
     normalize_ticket,
+    payment_method_label,
 )
 from app.services.admin.repository import admin_repository
 from app.services.admin.security import effective_permissions
@@ -288,7 +289,7 @@ class OrderService:
                 order.coupon_code,
                 order.remarks,
                 order.status,
-                order.payment_method,
+                payment_method_label(order.payment_method),
                 order.created_at,
                 order.created_by,
                 order.ip,

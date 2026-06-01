@@ -17,6 +17,7 @@ from app.services.admin.normalizers import (
     db_ticket_status,
     normalize_ticket,
     normalize_ticket_status,
+    payment_method_label,
 )
 from app.services.admin.repository import admin_repository
 from app.utils.datetime import utc_now, utc_now_iso_seconds
@@ -58,7 +59,7 @@ class TicketService:
         for index, ticket in enumerate(data.items, start=1):
             writer.writerow([
                 index, ticket.code, ticket.order_id, ticket.order_user, ticket.order_email,
-                ticket.order_payment, ticket.remarks, ticket.ticket_type, ticket.slot_date,
+                payment_method_label(ticket.order_payment), ticket.remarks, ticket.ticket_type, ticket.slot_date,
                 f"{ticket.slot_start or ''}-{ticket.slot_end or ''}".strip("-"),
                 ticket.status, ticket.verified_at, ticket.created_at,
             ])

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Query
 
 from app.schemas.admin.responses import ReportRow
-from app.services.admin.normalizers import as_float
+from app.services.admin.normalizers import as_float, payment_method_label
 from app.services.admin.repository import admin_repository
 from app.services.admin.security import PARTNER, require_permission
 
@@ -44,7 +44,7 @@ async def get_comprehensive_report(
             "slotTime": row.get("slot_time"),
             "orderId": str(row.get("order_id") or ""),
             "ticketAmount": round(as_float(row.get("ticket_amount")), 2),
-            "paymentMethod": row.get("payment_method"),
+            "paymentMethod": payment_method_label(row.get("payment_method")),
             "remarks": row.get("remarks"),
         }
         for row in rows

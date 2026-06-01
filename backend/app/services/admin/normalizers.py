@@ -1,9 +1,11 @@
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from app.core.config import settings
 from app.utils.records import pick
 
 
@@ -33,13 +35,35 @@ def to_date_string(value: Any) -> str | None:
     return str(value)[:10]
 
 
+def _admin_timezone():
+    try:
+        return ZoneInfo(settings.admin_default_timezone)
+    except ZoneInfoNotFoundError:
+        return timezone.utc
+
+
 def to_datetime_string(value: Any) -> str | None:
     if value in (None, ""):
         return None
+    target_tz = _admin_timezone()
     if isinstance(value, datetime):
-        return value.strftime("%Y-%m-%d %H:%M:%S")
-    text = str(value).replace("T", " ")
-    return text[:19]
+        dt = value
+    else:
+        text = str(value).replace("Z", "+00:00").replace("T", " ")
+        try:
+            dt = datetime.fromisoformat(text)
+        except ValueError:
+            return str(value).replace("T", " ")[:19]
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(target_tz).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def payment_method_label(value: Any) -> Any:
+    text = str(value or "").strip()
+    if text.lower() == "card":
+        return "Stripe"
+    return value
 
 
 def split_slot_time(value: Any) -> tuple[str | None, str | None]:
@@ -205,7 +229,7 @@ def normalize_order(
         "couponDiscount": -abs(coupon_discount) if coupon_discount else 0,
         "remarks": pick(row, "remarks", "memo"),
         "status": normalize_order_status(pick(row, "status", "order_status")),
-        "paymentMethod": pick(row, "payment_method"),
+        "paymentMethod": payment_method_label(pick(row, "payment_method")),
         "createdAt": to_datetime_string(pick(row, "created_at", "created")),
         "createdBy": pick(row, "created_by", "admin_name", default="Admin"),
         "ip": pick(row, "ip", "created_ip", "ip_address"),
@@ -252,7 +276,7 @@ def normalize_ticket(
         "orderId": order_id,
         "orderUser": customer_info.get("name"),
         "orderEmail": customer_info.get("email"),
-        "orderPayment": pick(row, "payment_method", "order_payment"),
+        "orderPayment": payment_method_label(pick(row, "payment_method", "order_payment")),
         "remarks": pick(row, "memo", "remarks"),
         "ticketType": pick(row, "ticket_type", "ticket_type_name", default="Regular"),
         "slotDate": slot_date,
