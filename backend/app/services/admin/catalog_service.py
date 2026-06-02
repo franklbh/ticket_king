@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import date, time
 from typing import Any
 
 from fastapi import HTTPException, status
@@ -81,6 +82,7 @@ class CatalogService:
         return to_models(SlotRead, slots)
 
     async def create_slot(self, payload: SlotUpsert, actor: dict[str, Any]) -> SlotRead:
+        self._validate_active_slot_business_hours(payload.business_date, payload.start_time, payload.end_time, payload.status)
         row = self._slot_row_from_payload(payload, actor)
         inserted = await admin_repository.insert(settings.admin_slots_table, row)
         await write_audit_log(actor, "Create", "Slot", str(row["id"]), {"slot_code": row.get("slot_code")}, None)
@@ -88,6 +90,7 @@ class CatalogService:
 
     async def update_slot(self, slot_id: str, payload: SlotUpsert, actor: dict[str, Any]) -> SlotRead:
         before_rows = await admin_repository.select_where(settings.admin_slots_table, column="id", value=uuid.UUID(str(slot_id)), limit=1)
+        self._validate_active_slot_business_hours(payload.business_date, payload.start_time, payload.end_time, payload.status)
         values = self._slot_row_from_payload(payload, actor, include_id=False)
         values["updated_at"] = utc_now_iso_seconds()
         rows = await admin_repository.update(
@@ -118,6 +121,16 @@ class CatalogService:
 
     async def update_slot_status(self, slot_id: str, payload: SlotStatusUpdate, actor: dict[str, Any]) -> SlotRead:
         before_rows = await admin_repository.select_where(settings.admin_slots_table, column="id", value=uuid.UUID(str(slot_id)), limit=1)
+        if not before_rows:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Slot not found.")
+        if str(payload.status or "").lower() == "active":
+            slot = before_rows[0]
+            self._validate_active_slot_business_hours(
+                slot.get("business_date"),
+                slot.get("start_time"),
+                slot.get("end_time"),
+                payload.status,
+            )
         rows = await admin_repository.update(
             settings.admin_slots_table,
             match_column="id",
@@ -237,6 +250,60 @@ class CatalogService:
         start = (start or "")[:5]
         end = (end or "")[:5] if end else None
         return f"{start}-{end}" if end else start
+
+    @staticmethod
+    def _parse_slot_date(value: Any) -> date:
+        if isinstance(value, date):
+            return value
+        try:
+            return date.fromisoformat(str(value)[:10])
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Slot date must be YYYY-MM-DD.") from exc
+
+    @staticmethod
+    def _parse_slot_time(value: Any, field_name: str) -> time:
+        if isinstance(value, time):
+            return value.replace(tzinfo=None)
+        text = str(value or "").strip()
+        if not text:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"{field_name} is required for active slots.")
+        try:
+            return time.fromisoformat(text)
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"{field_name} must be HH:mm.") from exc
+
+    @staticmethod
+    def _closing_time_for_slot_date(slot_date: date) -> time:
+        if slot_date.weekday() in (4, 5):
+            return time(20, 0)
+        return time(19, 0)
+
+    def _validate_active_slot_business_hours(
+        self,
+        business_date: Any,
+        start_time: Any,
+        end_time: Any,
+        slot_status: str,
+    ) -> None:
+        if str(slot_status or "").lower() != "active":
+            return
+
+        slot_date = self._parse_slot_date(business_date)
+        start = self._parse_slot_time(start_time, "Start time")
+        end = self._parse_slot_time(end_time, "End time")
+        opening = time(10, 0)
+        closing = self._closing_time_for_slot_date(slot_date)
+
+        if end <= start:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Slot end time must be after start time.")
+        if start < opening or end > closing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "Active slots must start at or after 10:00 and end by "
+                    f"{closing.strftime('%H:%M')} for this day."
+                ),
+            )
 
     def _slot_row_from_payload(
         self,
