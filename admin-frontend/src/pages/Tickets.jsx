@@ -16,7 +16,17 @@ import { ApplyFiltersButton, DateRangeFilter, ResetFiltersButton, SelectFilter, 
 import { localizeCatalogName, localizeTicketTypeName } from '../utils/localization'
 
 const PAGE_SIZE = 10
-const TODAY = new Date().toISOString().slice(0, 10)
+const ADMIN_TIME_ZONE = 'America/Vancouver'
+function adminTodayDateKey() {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: ADMIN_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date())
+  const values = Object.fromEntries(parts.map(part => [part.type, part.value]))
+  return `${values.year}-${values.month}-${values.day}`
+}
 const THEME = {
   primary: '#6366f1',
   primaryDark: '#4f46e5',
@@ -221,14 +231,23 @@ export default function Tickets() {
   }
 
   function setTodaySlotFilter() {
-    const next = { ...filters, slotDateFrom: TODAY, slotDateTo: TODAY }
+    const today = adminTodayDateKey()
+    const next = { ...filters, slotDateFrom: today, slotDateTo: today }
     setFilters(next)
     setAppliedFilters(next)
     setPage(1)
   }
 
   function setTodayVerifiedFilter() {
-    const next = { ...filters, status: 'used', verifiedFrom: TODAY, verifiedTo: TODAY }
+    const today = adminTodayDateKey()
+    const next = {
+      ...filters,
+      status: 'used',
+      slotDateFrom: '',
+      slotDateTo: '',
+      verifiedFrom: today,
+      verifiedTo: today,
+    }
     setFilters(next)
     setAppliedFilters(next)
     setPage(1)

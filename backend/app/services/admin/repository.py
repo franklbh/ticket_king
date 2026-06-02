@@ -518,7 +518,7 @@ class AdminRepository:
             ticket_code = cast(tickets.c.verification_code, String)
             ticket_status = func.lower(cast(tickets.c[settings.admin_ticket_status_column], String))
             slot_date = slots.c.business_date
-            checked_date = func.date(tickets.c.checked_in_at)
+            checked_date = func.date(func.timezone(settings.admin_default_timezone, tickets.c.checked_in_at))
 
             conditions = []
             if filters.get("ticket_id_exact"):
