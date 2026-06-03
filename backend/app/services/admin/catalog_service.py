@@ -273,7 +273,7 @@ class CatalogService:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"{field_name} must be HH:mm.") from exc
 
     @staticmethod
-    def _closing_time_for_slot_date(slot_date: date) -> time:
+    def _latest_start_time_for_slot_date(slot_date: date) -> time:
         if slot_date.weekday() in (4, 5):
             return time(20, 0)
         return time(19, 0)
@@ -292,16 +292,16 @@ class CatalogService:
         start = self._parse_slot_time(start_time, "Start time")
         end = self._parse_slot_time(end_time, "End time")
         opening = time(10, 0)
-        closing = self._closing_time_for_slot_date(slot_date)
+        latest_start = self._latest_start_time_for_slot_date(slot_date)
 
         if end <= start:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Slot end time must be after start time.")
-        if start < opening or end > closing:
+        if start < opening or start > latest_start:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=(
-                    "Active slots must start at or after 10:00 and end by "
-                    f"{closing.strftime('%H:%M')} for this day."
+                    "Active slots must start at or after 10:00 and no later than "
+                    f"{latest_start.strftime('%H:%M')} for this day."
                 ),
             )
 

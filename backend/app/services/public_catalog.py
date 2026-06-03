@@ -66,7 +66,7 @@ class PublicCatalogService:
             if availability <= 0:
                 continue
             capacity = self._effective_capacity(slot, event_requirements, catalog["resources"])
-            slot_ticket_types = self._ticket_types_for_slot(ticket_types, event, slot)
+            slot_ticket_types = self._ticket_types_for_slot(ticket_types, slot)
             available.append(self._slot_response(slot, event["id"], availability, capacity, slot_ticket_types))
 
         available.sort(key=lambda item: (item.date, item.start_time))
@@ -375,7 +375,6 @@ class PublicCatalogService:
     def _ticket_types_for_slot(
         self,
         ticket_types: list[dict[str, Any]],
-        event: dict[str, Any],
         slot: dict[str, Any],
     ) -> list[SlotTicketTypeRead]:
         weekday = self._weekday_name(self._parse_date(slot.get("business_date")))
@@ -393,8 +392,8 @@ class PublicCatalogService:
             if start is None or end is None:
                 continue
             window_start = self._parse_time(start)
-            window_end = self._ticket_window_end(event, ticket_type)
-            if not (window_start <= slot_start < window_end):
+            window_end = self._ticket_window_end(ticket_type)
+            if not (window_start <= slot_start <= window_end):
                 continue
             label = str(ticket_type.get("name") or "Ticket")
             dedupe_key = label.lower()
@@ -411,11 +410,8 @@ class PublicCatalogService:
             )
         return matched
 
-    def _ticket_window_end(self, event: dict[str, Any], ticket_type: dict[str, Any]) -> time:
-        end = self._parse_time(ticket_type.get("time_end"))
-        if str(event.get("slug") or "") == "terracotta-warriors" and end == time(14, 30):
-            return time(15, 0)
-        return end
+    def _ticket_window_end(self, ticket_type: dict[str, Any]) -> time:
+        return self._parse_time(ticket_type.get("time_end"))
 
     @staticmethod
     def _weekday_name(value: date) -> str:
