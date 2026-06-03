@@ -583,7 +583,7 @@ export default function Orders() {
       {/* Table */}
       <TableShell>
         <div className="orders-table-container" style={{ overflowX: 'auto' }}>
-          <table className="orders-table" style={{ tableLayout: 'auto', minWidth: 1420, whiteSpace: 'nowrap' }}>
+          <table className="orders-table" style={{ tableLayout: 'auto', minWidth: 1585, whiteSpace: 'nowrap' }}>
             <colgroup>
               <col style={{ width: 130 }} />
               <col style={{ width: 170 }} />
@@ -592,7 +592,7 @@ export default function Orders() {
               <col style={{ width: 160 }} />
               <col style={{ width: 100 }} />
               <col style={{ width: 85 }} />
-              <col style={{ width: 95 }} />
+              <col style={{ width: 260 }} />
               <col style={{ width: 125 }} />
               <col style={{ width: 120 }} />
               <col style={{ width: 160 }} />
@@ -704,7 +704,11 @@ export default function Orders() {
                   </td>
 
                   {/* Remarks */}
-                  <td style={{ fontSize: 12, color: '#6b7280', whiteSpace: 'normal', maxWidth: 120 }}>{o.remarks || '-'}</td>
+                  <td className="orders-remarks-cell">
+                    <div className="orders-remarks-text" title={o.remarks || '-'}>
+                      {o.remarks || '-'}
+                    </div>
+                  </td>
 
                   {/* Status */}
                   <td style={{ whiteSpace: 'nowrap' }}>

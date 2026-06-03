@@ -1380,6 +1380,32 @@ table td {
   overflow-wrap: anywhere;
 }
 
+.orders-table .orders-remarks-cell {
+  min-width: 260px;
+  max-width: 260px;
+  color: #6b7280;
+  font-size: 12px;
+  vertical-align: middle;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.orders-table .orders-remarks-text {
+  display: -webkit-box;
+  min-width: 244px;
+  max-width: 244px;
+  max-height: 3.9em;
+  line-height: 1.3;
+  text-align: left;
+  white-space: normal;
+  overflow: hidden;
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: none;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
 table tr:last-child td {
   border-bottom: none;
 }
