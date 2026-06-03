@@ -19,7 +19,7 @@ import LoadingIndicator from '../components/LoadingIndicator'
 import { adminQueryKeys } from '../hooks/queries'
 import { useEventsQuery, useSlotsQuery } from '../hooks/catalog'
 import { useAdminMutation } from '../hooks/useAdminApi'
-import { formatDateWithDay, todayIso } from '../utils/date'
+import { formatDateWithDay, isSlotStartWithinBusinessPolicy, latestSlotStartForDate, todayIso } from '../utils/date'
 import { ApplyFiltersButton, DateRangeFilter, ResetFiltersButton, SelectFilter } from '../components/FilterControls'
 import { localizeCatalogName } from '../utils/localization'
 
@@ -161,6 +161,10 @@ export default function Slots() {
 
   async function handleSave(form) {
     const existing = modal === 'create' ? null : modal
+    if (String(form.status || '').toLowerCase() === 'active' && !isSlotStartWithinBusinessPolicy(form.date, form.startTime)) {
+      window.alert(`Active slots must start at or after 10:00 and no later than ${latestSlotStartForDate(form.date)} for this day.`)
+      return
+    }
     await saveSlot.mutate(form, existing)
     setModal(null)
     reload()
@@ -192,6 +196,11 @@ export default function Slots() {
     const totalSeats = Number(window.prompt('Total seats per slot', '20') || 20)
     const price = Number(window.prompt('Price per slot', '37.95') || 37.95)
     if (!Number.isFinite(duration) || !Number.isFinite(totalSeats) || !Number.isFinite(price)) return
+    const invalidStarts = starts.filter(startTime => !isSlotStartWithinBusinessPolicy(date, startTime))
+    if (invalidStarts.length) {
+      window.alert(`These active slot starts are outside business policy for ${date}: ${invalidStarts.join(', ')}. Latest allowed start is ${latestSlotStartForDate(date)}.`)
+      return
+    }
     const slots = starts.map(startTime => {
       const [hour, minute] = startTime.split(':').map(Number)
       const end = new Date(2000, 0, 1, hour || 0, minute || 0)

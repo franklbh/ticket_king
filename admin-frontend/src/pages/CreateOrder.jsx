@@ -110,7 +110,7 @@ function isPastDateKey(dateKey) {
 
 function isPastSlot(slot) {
   if (!slot || slot.date !== todayIso()) return false
-  return minutesFromTime(slot.startTime) <= currentAdminMinutes()
+  return minutesFromTime(slot.startTime) < currentAdminMinutes()
 }
 
 function money(value) {
