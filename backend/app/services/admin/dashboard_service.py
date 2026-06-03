@@ -27,11 +27,12 @@ class DashboardService:
         data = await admin_repository.dashboard(start_date=start, days=days)
         order_summary = data["order_summary"]
         ticket_summary = data["ticket_summary"]
+        verified_summary = data.get("verified_summary") or {}
         return DashboardResponse.model_validate({
             "stats": {
-                "todayRevenue": round(as_float(order_summary.get("today_revenue")), 2),
-                "todayOrders": int(order_summary.get("today_orders") or 0),
-                "todayTickets": int(ticket_summary.get("today_tickets") or 0),
+                "todayRevenue": round(as_float(verified_summary.get("today_verified_revenue")), 2),
+                "todayOrders": int(verified_summary.get("today_verified_orders") or 0),
+                "todayTickets": int(verified_summary.get("today_verified_tickets") or 0),
                 "pendingOrders": int(data.get("pending_orders") or 0),
                 "activeSlots": int(data.get("active_slots") or 0),
             },

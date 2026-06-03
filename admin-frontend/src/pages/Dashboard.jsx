@@ -119,7 +119,7 @@ export default function Dashboard() {
         }}
       >
         {[
-          { icon: <i className="fa fa-dollar-sign" style={{ color: '#f59e0b' }} />, bg: '#fef3c7', title: t.todayRevenue, value: `$${stats.todayRevenue.toFixed(2)}`, sub: `${stats.todayOrders} ${t.orders4}` },
+          { icon: <i className="fa fa-dollar-sign" style={{ color: '#f59e0b' }} />, bg: '#fef3c7', title: t.todayRevenue, value: `$${stats.todayRevenue.toFixed(2)}`, sub: `${stats.todayTickets} ${t.tickets}` },
           { icon: <i className="fa fa-ticket" style={{ color: '#10b981' }} />, bg: '#d1fae5', title: t.todayTickets, value: stats.todayTickets, sub: t.tickets },
           { icon: <i className="fa fa-clock" style={{ color: '#f59e0b' }} />, bg: '#fef3c7', title: t.pending, value: stats.pendingOrders, sub: `${t.pendingStatus} ${t.orders4}` },
           { icon: <i className="fa fa-calendar-check" style={{ color: '#6366f1' }} />, bg: '#ede9fe', title: t.activeSlots, value: stats.activeSlots.toLocaleString(), sub: t.inProgress },

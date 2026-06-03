@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from threading import Lock
 from typing import Any
 from uuid import UUID
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import HTTPException, status
 from sqlalchemy import MetaData, String, Table, and_, case, cast, delete, func, insert, or_, select, text, update
@@ -61,8 +62,18 @@ class AdminRepository:
     async def income_by_event(self, *, start_date: date | None) -> list[dict[str, Any]]:
         return await asyncio.to_thread(self._income_by_event_sync, start_date)
 
+    @staticmethod
+    def _admin_timezone() -> ZoneInfo | timezone:
+        try:
+            return ZoneInfo(settings.admin_default_timezone)
+        except ZoneInfoNotFoundError:
+            return timezone.utc
+
+    def _admin_today(self) -> date:
+        return datetime.now(self._admin_timezone()).date()
+
     def _income_by_event_sync(self, start_date: date | None) -> list[dict[str, Any]]:
-        today = date.today()
+        today = self._admin_today()
         with self._session() as db:
             orders = self._table(db, settings.admin_orders_table)
             slots = self._table(db, settings.admin_slots_table)
@@ -269,7 +280,7 @@ class AdminRepository:
             return set(table.c.keys())
 
     def _dashboard_sync(self, start_date: date | None, days: int | None) -> dict[str, Any]:
-        today = date.today()
+        today = self._admin_today()
         with self._session() as db:
             orders = self._table(db, settings.admin_orders_table)
             tickets = self._table(db, settings.admin_tickets_table)
@@ -277,10 +288,24 @@ class AdminRepository:
 
             order_created_date = func.date(orders.c.created_at)
             ticket_created_date = func.date(tickets.c.created_at)
+            ticket_checked_date = func.date(func.timezone(settings.admin_default_timezone, tickets.c.checked_in_at))
             slot_business_date = slots.c.business_date
             order_status = func.lower(cast(orders.c.order_status, String))
             slot_status = func.lower(cast(slots.c.status, String))
             amount = func.coalesce(orders.c.total_amount, 0)
+            ticket_base_amount = func.coalesce(tickets.c.original_ticket_amount, tickets.c.net_ticket_amount, 0)
+            order_ticket_base_total = func.sum(ticket_base_amount).over(partition_by=tickets.c.order_id)
+            order_ticket_amount = func.coalesce(orders.c.ticket_amount, order_ticket_base_total, 0)
+            order_discount = func.coalesce(orders.c.coupon_discount, 0)
+            order_adjustment = func.coalesce(orders.c.admin_adjustment, 0)
+            discounted_order_ticket_amount = func.greatest(order_ticket_amount + order_adjustment - order_discount, 0)
+            verified_ticket_amount = case(
+                (
+                    order_ticket_amount > 0,
+                    ticket_base_amount * discounted_order_ticket_amount / order_ticket_amount,
+                ),
+                else_=ticket_base_amount,
+            )
             slot_capacity = func.coalesce(getattr(slots.c, "capacity", None), 20)
             ticketing_order_filters = [orders.c.slot_id.is_not(None)] if hasattr(orders.c, "slot_id") else []
 
@@ -309,6 +334,36 @@ class AdminRepository:
             if order_filters:
                 order_summary_stmt = order_summary_stmt.where(*order_filters)
             order_summary = dict(db.execute(order_summary_stmt).mappings().one())
+
+            verified_ticket_rows = (
+                select(
+                    tickets.c.order_id.label("order_id"),
+                    ticket_checked_date.label("checked_date"),
+                    verified_ticket_amount.label("verified_ticket_amount"),
+                )
+                .select_from(tickets.outerjoin(orders, tickets.c.order_id == orders.c.id))
+                .subquery()
+            )
+            verified_summary_stmt = select(
+                func.coalesce(
+                    func.sum(
+                        case(
+                            (verified_ticket_rows.c.checked_date == today, verified_ticket_rows.c.verified_ticket_amount),
+                            else_=0,
+                        )
+                    ),
+                    0,
+                ).label("today_verified_revenue"),
+                func.count(
+                    case((verified_ticket_rows.c.checked_date == today, 1))
+                ).label("today_verified_tickets"),
+                func.count(
+                    func.distinct(
+                        case((verified_ticket_rows.c.checked_date == today, verified_ticket_rows.c.order_id))
+                    )
+                ).label("today_verified_orders"),
+            )
+            verified_summary = dict(db.execute(verified_summary_stmt).mappings().one())
             pending_orders = db.scalar(
                 select(func.count()).select_from(orders).where(order_status == "pending", *ticketing_order_filters)
             ) or 0
@@ -388,6 +443,7 @@ class AdminRepository:
                 "days": days,
                 "start_date": start_date,
                 "order_summary": order_summary,
+                "verified_summary": verified_summary,
                 "ticket_summary": ticket_summary,
                 "pending_orders": pending_orders,
                 "active_slots": active_slots,
