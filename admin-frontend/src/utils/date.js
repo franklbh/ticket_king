@@ -24,6 +24,21 @@ export function currentAdminMinutes() {
   return Number(hour) * 60 + Number(minute)
 }
 
+export function minutesFromTime(value) {
+  const [hours = '0', minutes = '0'] = String(value || '').slice(0, 5).split(':')
+  return Number(hours) * 60 + Number(minutes)
+}
+
+export function latestSlotStartForDate(dateStr) {
+  const day = new Date(`${dateStr}T12:00:00`).getDay()
+  return day === 5 || day === 6 ? '20:00' : '19:00'
+}
+
+export function isSlotStartWithinBusinessPolicy(dateStr, startTime) {
+  const start = minutesFromTime(startTime)
+  return start >= minutesFromTime('10:00') && start <= minutesFromTime(latestSlotStartForDate(dateStr))
+}
+
 export function addDays(date, days) {
   const next = new Date(`${date}T12:00:00`)
   next.setDate(next.getDate() + days)

@@ -68,7 +68,7 @@ function getAvailableTimes(slots, date) {
   const { timeStart, timeEnd } = getOrderConstraints()
   return slots
     .filter(s => s.date === date && s.status === 'active')
-    .filter(s => (!timeStart || s.startTime >= timeStart) && (!timeEnd || s.startTime < timeEnd))
+    .filter(s => (!timeStart || s.startTime >= timeStart) && (!timeEnd || s.startTime <= timeEnd))
     .sort((a, b) => a.startTime.localeCompare(b.startTime))
 }
 
