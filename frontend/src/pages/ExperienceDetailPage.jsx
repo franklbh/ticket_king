@@ -4,6 +4,7 @@ import HeaderActions from '../components/HeaderActions'
 import { allExperiences } from '../data/experiences'
 import { getExperiencePriceFrom, getPricesForSlot, hasSeniorTicket } from '../utils/pricing'
 import { formatSlotTicketTypes, ticketKeyFromLabel } from '../utils/tickets'
+import { businessTodayDate, isoDate } from '../utils/businessDate'
 
 /* ── Helpers ── */
 function Stars({ rating, size = 14 }) {
@@ -121,16 +122,10 @@ const TICKET_DESC_KEYS = {
 }
 
 function BookingWidget({ experience, cartItems, onAddToCart, t = (key, params = {}) => Object.entries(params).reduce((text, [name, value]) => text.replaceAll(`{${name}}`, value), key) }) {
-  const today = new Date()
+  const today = businessTodayDate()
   const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
   const MONTH_LABELS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-  const dateKey = (date) => {
-    const year = date.getFullYear()
-    const month = String(date.getMonth() + 1).padStart(2, '0')
-    const day = String(date.getDate()).padStart(2, '0')
-    return `${year}-${month}-${day}`
-  }
-  today.setHours(0, 0, 0, 0)
+  const dateKey = isoDate
   const monthOptions = Array.from({ length: 6 }, (_, i) => new Date(today.getFullYear(), today.getMonth() + i, 1))
   const [selMonthKey, setSelMonthKey] = useState(`${today.getFullYear()}-${today.getMonth()}`)
   const [selDateKey, setSelDateKey] = useState(() => dateKey(today))

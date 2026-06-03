@@ -26,6 +26,7 @@ import { currency } from './utils/format'
 import { getPricesForSlot, hasSeniorTicket } from './utils/pricing'
 import { formatSlotTicketTypes, minQtyForTicket } from './utils/tickets'
 import { formatNorthAmericanPhone, isReasonableName, isReasonablePhone, isStrictEmail } from './utils/validation'
+import { businessCurrentMonthStart, businessTodayDate, isoDate } from './utils/businessDate'
 
 const BACKEND_EVENT_SLUGS = {
   'terracotta-warriors': 'terracotta-warriors',
@@ -54,19 +55,6 @@ const TICKET_COPY_KEYS = {
   group: ['ticketTypeGroup', 'groupInfo'],
 }
 
-function isoDate(date) {
-  if (!date) return ''
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-function currentMonthStart() {
-  const now = new Date()
-  return new Date(now.getFullYear(), now.getMonth(), 1)
-}
-
 function initialTicketCounts() {
   return ticketTypes.reduce((acc, ticket) => ({ ...acc, [ticket.id]: 0 }), {})
 }
@@ -77,7 +65,7 @@ function App() {
   const [view, setView] = useState('main')
   const [showBooking, setShowBooking] = useState(false)
   const [step, setStep] = useState('date')
-  const [calendarMonth, setCalendarMonth] = useState(currentMonthStart)
+  const [calendarMonth, setCalendarMonth] = useState(businessCurrentMonthStart)
   const [selectedDate, setSelectedDate] = useState(null)
   const [selectedTime, setSelectedTime] = useState(null)
   const [counts, setCounts] = useState(initialTicketCounts)
@@ -259,7 +247,7 @@ function App() {
   }, [contact, t])
 
   const visibleDateGrid = useMemo(() => {
-    const today = new Date(); today.setHours(0, 0, 0, 0)
+    const today = businessTodayDate()
     const year = calendarMonth.getFullYear()
     const month = calendarMonth.getMonth()
     const daysInMonth = new Date(year, month + 1, 0).getDate()
@@ -530,7 +518,7 @@ function App() {
     setAppliedCoupon(null)
     setTimeLeft(300)
     setStep('date')
-    setCalendarMonth(currentMonthStart())
+    setCalendarMonth(businessCurrentMonthStart())
   }
 
   const restartBooking = () => {
@@ -556,8 +544,7 @@ function App() {
   const changeCalendarMonth = (delta) => {
     setCalendarMonth((current) => {
       const next = new Date(current.getFullYear(), current.getMonth() + delta, 1)
-      const now = new Date()
-      const minMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+      const minMonth = businessCurrentMonthStart()
       return next < minMonth ? current : next
     })
   }
