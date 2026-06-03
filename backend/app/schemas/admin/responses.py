@@ -89,6 +89,8 @@ class TicketRead(AdminModel):
     status: str
     verified_at: str | None = Field(default=None, alias="verifiedAt")
     created_at: str | None = Field(default=None, alias="createdAt")
+    original_ticket_amount: float = Field(default=0, alias="originalTicketAmount")
+    net_ticket_amount: float = Field(default=0, alias="netTicketAmount")
 
 
 class SlotRead(AdminModel):

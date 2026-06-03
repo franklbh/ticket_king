@@ -286,6 +286,8 @@ def normalize_ticket(
         "status": status,
         "verifiedAt": to_datetime_string(pick(row, "check_in_at", "verified_at", "checked_in_at")),
         "createdAt": to_datetime_string(pick(row, "created_at", "order_created_at")),
+        "originalTicketAmount": as_float(pick(row, "computed_original_ticket_amount", "original_ticket_amount")),
+        "netTicketAmount": as_float(pick(row, "computed_net_ticket_amount", "net_ticket_amount")),
     }
 
 

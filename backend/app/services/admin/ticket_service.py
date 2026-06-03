@@ -54,13 +54,15 @@ class TicketService:
         writer = csv.writer(output)
         writer.writerow([
             "#", "Verification Code", "Order ID", "Customer", "Email", "Payment Method",
-            "Remarks", "Ticket Type", "Slot Date", "Slot Time", "Status", "Verified At", "Order Created At",
+            "Remarks", "Ticket Type", "Original Ticket Amount", "Net Ticket Amount",
+            "Slot Date", "Slot Time", "Status", "Verified At", "Order Created At",
         ])
         for index, ticket in enumerate(data.items, start=1):
             writer.writerow([
                 index, ticket.code, ticket.order_id, ticket.order_user, ticket.order_email,
-                payment_method_label(ticket.order_payment), ticket.remarks, ticket.ticket_type, ticket.slot_date,
-                f"{ticket.slot_start or ''}-{ticket.slot_end or ''}".strip("-"),
+                payment_method_label(ticket.order_payment), ticket.remarks, ticket.ticket_type,
+                f"{ticket.original_ticket_amount:.2f}", f"{ticket.net_ticket_amount:.2f}",
+                ticket.slot_date, f"{ticket.slot_start or ''}-{ticket.slot_end or ''}".strip("-"),
                 ticket.status, ticket.verified_at, ticket.created_at,
             ])
         csv_body = output.getvalue()

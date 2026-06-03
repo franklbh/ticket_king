@@ -8,7 +8,7 @@ from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import HTTPException, status
-from sqlalchemy import MetaData, String, Table, and_, case, cast, delete, func, insert, or_, select, text, update
+from sqlalchemy import MetaData, String, Table, and_, case, cast, delete, func, insert, literal, or_, select, text, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -128,7 +128,11 @@ class AdminRepository:
                     orders.c.created_at.label("order_date"),
                     slots.c.slot_time_label.label("slot_time"),
                     orders.c.id.label("order_id"),
-                    func.coalesce(tickets.c.net_ticket_amount, 0).label("ticket_amount"),
+                    func.coalesce(
+                        self._optional_column(tickets, "net_ticket_amount"),
+                        self._optional_column(tickets, "original_ticket_amount"),
+                        0,
+                    ).label("ticket_amount"),
                     orders.c.payment_method,
                     orders.c.remarks,
                 )
@@ -293,11 +297,15 @@ class AdminRepository:
             order_status = func.lower(cast(orders.c.order_status, String))
             slot_status = func.lower(cast(slots.c.status, String))
             amount = func.coalesce(orders.c.total_amount, 0)
-            ticket_base_amount = func.coalesce(tickets.c.original_ticket_amount, tickets.c.net_ticket_amount, 0)
+            ticket_base_amount = func.coalesce(
+                self._optional_column(tickets, "original_ticket_amount"),
+                self._optional_column(tickets, "net_ticket_amount"),
+                0,
+            )
             order_ticket_base_total = func.sum(ticket_base_amount).over(partition_by=tickets.c.order_id)
-            order_ticket_amount = func.coalesce(orders.c.ticket_amount, order_ticket_base_total, 0)
-            order_discount = func.coalesce(orders.c.coupon_discount, 0)
-            order_adjustment = func.coalesce(orders.c.admin_adjustment, 0)
+            order_ticket_amount = func.coalesce(self._optional_column(orders, "ticket_amount"), order_ticket_base_total, 0)
+            order_discount = func.coalesce(self._optional_column(orders, "coupon_discount", 0), 0)
+            order_adjustment = func.coalesce(self._optional_column(orders, "admin_adjustment", 0), 0)
             discounted_order_ticket_amount = func.greatest(order_ticket_amount + order_adjustment - order_discount, 0)
             verified_ticket_amount = case(
                 (
@@ -562,6 +570,10 @@ class AdminRepository:
             orders = self._table(db, settings.admin_orders_table)
             slots = self._table(db, settings.admin_slots_table)
             users = self._table(db, settings.admin_users_table)
+            try:
+                order_items = self._table(db, "order_items")
+            except HTTPException:
+                order_items = None
 
             ticket_id_column = self._configured_column(
                 tickets,
@@ -575,6 +587,36 @@ class AdminRepository:
             ticket_status = func.lower(cast(tickets.c[settings.admin_ticket_status_column], String))
             slot_date = slots.c.business_date
             checked_date = func.date(func.timezone(settings.admin_default_timezone, tickets.c.checked_in_at))
+            can_join_order_items = order_items is not None and "order_item_id" in tickets.c and "id" in order_items.c
+            order_item_amount = (
+                func.coalesce(order_items.c.unit_price, 0)
+                if can_join_order_items and "unit_price" in order_items.c
+                else literal(0)
+            )
+            original_ticket_amount = func.coalesce(
+                self._optional_column(tickets, "original_ticket_amount"),
+                self._optional_column(tickets, "net_ticket_amount"),
+                order_item_amount,
+                0,
+            )
+            order_ticket_amount = func.coalesce(
+                self._optional_column(orders, "ticket_amount"),
+                original_ticket_amount,
+                0,
+            )
+            discounted_ticket_total = func.greatest(
+                order_ticket_amount
+                + func.coalesce(self._optional_column(orders, "admin_adjustment", 0), 0)
+                - func.coalesce(self._optional_column(orders, "coupon_discount", 0), 0),
+                0,
+            )
+            net_ticket_amount = case(
+                (
+                    order_ticket_amount > 0,
+                    original_ticket_amount * discounted_ticket_total / order_ticket_amount,
+                ),
+                else_=original_ticket_amount,
+            )
 
             conditions = []
             if filters.get("ticket_id_exact"):
@@ -608,6 +650,8 @@ class AdminRepository:
                 .outerjoin(slots, orders.c.slot_id == slots.c.id)
                 .outerjoin(users, orders.c.customer_id == users.c.id)
             )
+            if can_join_order_items:
+                from_clause = from_clause.outerjoin(order_items, tickets.c.order_item_id == order_items.c.id)
             base = select(
                 tickets,
                 orders.c.payment_method.label("order_payment"),
@@ -623,6 +667,8 @@ class AdminRepository:
                 slots.c.start_time.label("slot_start_time"),
                 slots.c.end_time.label("slot_end_time"),
                 slots.c.slot_time_label.label("slot_time"),
+                original_ticket_amount.label("computed_original_ticket_amount"),
+                net_ticket_amount.label("computed_net_ticket_amount"),
             ).select_from(from_clause)
             count_stmt = select(func.count()).select_from(from_clause)
             if conditions:
@@ -924,7 +970,11 @@ class AdminRepository:
             return []
         with self._session() as db:
             table = self._table(db, table_name)
-            result = db.execute(insert(table).returning(table), rows)
+            filtered_rows = [
+                {key: value for key, value in row.items() if key in table.c}
+                for row in rows
+            ]
+            result = db.execute(insert(table).returning(table), filtered_rows)
             db.commit()
             return [dict(row) for row in result.mappings().all()]
 
@@ -939,6 +989,9 @@ class AdminRepository:
             return []
         with self._session() as db:
             table = self._table(db, table_name)
+            values = {key: value for key, value in values.items() if key in table.c}
+            if not values:
+                return []
             if match_column not in table.c:
                 match_column = self._fallback_match_column(table, match_column)
             match_value = self._coerce_column_value(table, match_column, match_value)
@@ -1007,6 +1060,12 @@ class AdminRepository:
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"Configured column '{preferred}' does not exist on table '{table.name}'.",
         )
+
+    @staticmethod
+    def _optional_column(table: Table, column_name: str, default: Any = None):
+        if column_name in table.c:
+            return table.c[column_name]
+        return literal(default)
 
     @staticmethod
     def _fallback_match_column(table: Table, match_column: str) -> str:
