@@ -6,8 +6,9 @@
 --   Sunday-Thursday: active slots may start from 10:00 through 19:00.
 --   Friday-Saturday: active slots may start from 10:00 through 20:00.
 --
--- ticket_types.time_end is treated as the latest allowed slot start for that
--- ticket type window. For example, a 19:00 time_end allows a 19:00-19:45 slot.
+-- ticket_types rows are treated as price-period rules. Their time_start/time_end
+-- controls which ticket prices are available for a slot start, but the business
+-- policy above controls the latest possible operating start.
 
 do $$
 declare
@@ -21,7 +22,7 @@ begin
   drop table if exists desired_latest_start_slots;
 
   create temporary table desired_latest_start_slots on commit drop as
-  with slot_windows as (
+  with price_windows as (
     select
       e.id as event_id,
       e.slug,
@@ -33,9 +34,9 @@ begin
       ) as duration_minutes,
       case when e.content_mode = 'game' then 15 else 30 end as step_minutes,
       tt.weekdays,
-      greatest(tt.time_start, first_start) as time_start,
+      tt.time_start,
       tt.time_end,
-      min(tt.price) filter (where tt.price is not null) as base_price
+      tt.price
     from public.ticket_types tt
     join public.events e on e.id = tt.event
     where e.status = 'active'
@@ -43,26 +44,31 @@ begin
       and tt.time_start is not null
       and tt.time_end is not null
       and cardinality(tt.weekdays) > 0
-    group by
-      e.id,
-      e.slug,
-      e.content_mode,
-      e.vr_room_mode,
-      e.duration_minutes,
-      case when e.content_mode = 'game' then 15 else 30 end,
-      tt.weekdays,
-      tt.time_start,
-      tt.time_end
   ),
-  dated_windows as (
+  dated_event_windows as (
     select
-      w.*,
+      w.event_id,
+      w.slug,
+      w.content_mode,
+      w.vr_room_mode,
+      w.duration_minutes,
+      w.step_minutes,
       d.day::date as business_date,
+      greatest(min(w.time_start), first_start) as time_start,
       case
         when extract(isodow from d.day) in (5, 6) then time '20:00'
         else time '19:00'
-      end as policy_latest_start
-    from slot_windows w
+      end as latest_start,
+      case extract(isodow from d.day)::int
+        when 1 then 'Mon'
+        when 2 then 'Tue'
+        when 3 then 'Wed'
+        when 4 then 'Thu'
+        when 5 then 'Fri'
+        when 6 then 'Sat'
+        when 7 then 'Sun'
+      end as weekday
+    from price_windows w
     cross join generate_series(start_date, end_date, interval '1 day') as d(day)
     where case extract(isodow from d.day)::int
       when 1 then 'Mon'
@@ -73,13 +79,18 @@ begin
       when 6 then 'Sat'
       when 7 then 'Sun'
     end = any(w.weekdays)
-  ),
-  bounded_windows as (
-    select
-      w.*,
-      least(w.time_end, w.policy_latest_start) as latest_start
-    from dated_windows w
-    where w.time_start <= least(w.time_end, w.policy_latest_start)
+    group by
+      w.event_id,
+      w.slug,
+      w.content_mode,
+      w.vr_room_mode,
+      w.duration_minutes,
+      w.step_minutes,
+      d.day
+    having greatest(min(w.time_start), first_start) <= case
+      when extract(isodow from d.day) in (5, 6) then time '20:00'
+      else time '19:00'
+    end
   ),
   generated_slots as (
     select
@@ -90,8 +101,8 @@ begin
       t.start_time + make_interval(mins => w.duration_minutes) as end_time,
       w.content_mode,
       w.vr_room_mode,
-      w.base_price
-    from bounded_windows w
+      price_match.base_price
+    from dated_event_windows w
     cross join lateral (
       select w.time_start + make_interval(mins => offset_minutes) as start_time
       from generate_series(
@@ -100,6 +111,15 @@ begin
         w.step_minutes
       ) as offsets(offset_minutes)
     ) as t
+    cross join lateral (
+      select min(pw.price) filter (where pw.price is not null) as base_price
+      from price_windows pw
+      where pw.event_id = w.event_id
+        and w.weekday = any(pw.weekdays)
+        and pw.time_start <= t.start_time
+        and t.start_time <= pw.time_end
+    ) as price_match
+    where price_match.base_price is not null
   )
   select
     g.event_id,

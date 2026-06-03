@@ -225,9 +225,9 @@ function App() {
   }, [localizedTicketTypes, perEach, selectedTime, t])
 
   const totals = useMemo(() => {
-    const prices = activePrices
-    const numTickets = activeTicketTypes.reduce((sum, tk) => sum + counts[tk.id], 0)
-    const ticketTotal = activeTicketTypes.reduce((sum, tk) => sum + counts[tk.id] * prices[tk.id], 0)
+    const pricedTickets = bookingTicketTypes.length ? bookingTicketTypes : localizedTicketTypes
+    const numTickets = pricedTickets.reduce((sum, tk) => sum + (counts[tk.id] || 0), 0)
+    const ticketTotal = pricedTickets.reduce((sum, tk) => sum + (counts[tk.id] || 0) * (Number(tk.price) || 0), 0)
     const vipTotal = vipQty * 20
     const subtotal = ticketTotal + vipTotal
     const couponDiscount = Math.min(appliedCoupon?.discountAmount || 0, subtotal)
@@ -235,7 +235,7 @@ function App() {
     const tax = numTickets > 0 ? 0.05 * ticketTotal : 0
     const fees = processingFee + tax
     return { numTickets, ticketTotal, vipTotal, subtotal, couponDiscount, fees, processingFee, tax, grand: Math.max(0, subtotal - couponDiscount) + fees }
-  }, [counts, vipQty, activePrices, activeTicketTypes, appliedCoupon])
+  }, [counts, vipQty, bookingTicketTypes, localizedTicketTypes, appliedCoupon])
 
   const contactErrors = useMemo(() => {
     const errors = {}

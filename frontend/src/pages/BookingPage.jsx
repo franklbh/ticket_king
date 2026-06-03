@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { badge, currency } from '../utils/format'
 import { getExperiencePriceFrom, getPricesForSlot } from '../utils/pricing'
-import { minQtyForTicket } from '../utils/tickets'
+import { formatSlotTicketTypes, minQtyForTicket } from '../utils/tickets'
 
 function cartDateKey(date) {
   if (!date) return ''
@@ -90,13 +90,15 @@ function BookingPage({
     const time = slot.label || [slot.startTime, slot.endTime].filter(Boolean).join(' - ')
     const prices = getPricesForSlot(bookingExperience, selectedDate?.date)
     const weekend = selectedDate?.date ? [0, 6].includes(selectedDate.date.getDay()) : false
+    const slotTicketTypes = formatSlotTicketTypes(slot.ticketTypes || slot.ticket_types || [])
+    const adultTicket = slotTicketTypes.find((ticket) => ticket.key === 'adult') || slotTicketTypes[0]
     return {
       id: slot.id,
       eventId: slot.eventId,
       slotId: slot.id,
       time,
       label: time,
-      price: prices.adult ?? slot.price ?? localizedTicketTypes[0]?.price ?? 0,
+      price: adultTicket?.price ?? slot.price ?? prices.adult ?? localizedTicketTypes[0]?.price ?? 0,
       availableSeats: slot.availableSeats,
       peak: weekend,
       ticketTypes: slot.ticketTypes || slot.ticket_types || [],
