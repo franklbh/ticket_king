@@ -21,6 +21,7 @@ const STATUS_LIST = ['paid', 'completed', 'refunded', 'cancelled']
 const STATUS_OPTIONS = STATUS_LIST.map(status => ({ value: status, label: status[0].toUpperCase() + status.slice(1) }))
 const STATUS_BADGE = { paid: 'badge-blue', completed: 'badge-green', refunded: 'badge-red', cancelled: 'badge-gray' }
 const STATUS_T = { paid: 'paid', completed: 'completed', refunded: 'refunded', cancelled: 'cancelled' }
+const DEFAULT_VISIBLE_STATUSES = ['paid', 'completed', 'refunded']
 const TODAY = todayIso()
 const PAGE_SIZE = 10
 
@@ -358,6 +359,7 @@ export default function Orders() {
     statuses: [],
   })
   const [page, setPage] = useState(1)
+  const queryStatuses = appliedFilters.statuses.length ? appliedFilters.statuses : DEFAULT_VISIBLE_STATUSES
   const orderQueryFilters = useMemo(() => ({
     page,
     pageSize: PAGE_SIZE,
@@ -369,8 +371,8 @@ export default function Orders() {
     slotDateFrom: appliedFilters.slotDateFrom,
     slotDateTo: appliedFilters.slotDateTo,
     slotStart: appliedFilters.slotStart,
-    status: appliedFilters.statuses,
-  }), [appliedFilters, page])
+    status: queryStatuses,
+  }), [appliedFilters, page, queryStatuses])
   const { data: ordersData, error: loadError, loading: loadingOrders, setData: setOrdersData } = useOrdersQuery(
     orderQueryFilters,
     { initialData: { items: [], total: 0 } }
@@ -478,7 +480,7 @@ export default function Orders() {
       orderDateTo: appliedFilters.orderDateTo,
       slotDateFrom: appliedFilters.slotDateFrom,
       slotDateTo: appliedFilters.slotDateTo,
-      status: appliedFilters.statuses,
+      status: queryStatuses,
     })
     setShowExportConfirm(false)
   }
@@ -488,7 +490,8 @@ export default function Orders() {
     if (appliedFilters.orderId) items.push(`Order ID: ${appliedFilters.orderId}`)
     if (appliedFilters.userInfo) items.push(`User Info: ${appliedFilters.userInfo}`)
     if (appliedFilters.couponCode) items.push(`Coupon Code: ${appliedFilters.couponCode}`)
-    items.push(`Order Status: ${appliedFilters.statuses.length ? appliedFilters.statuses.map(s => t[STATUS_T[s]] || s).join(', ') : 'All'}`)
+    const visibleStatuses = appliedFilters.statuses.length ? appliedFilters.statuses : DEFAULT_VISIBLE_STATUSES
+    items.push(`Order Status: ${visibleStatuses.map(s => t[STATUS_T[s]] || s).join(', ')}`)
     items.push(`Slot Date Range: ${appliedFilters.slotDateFrom || 'No limit'} - ${appliedFilters.slotDateTo || 'No limit'}`)
     if (appliedFilters.slotStart) items.push(`Slot Start: ${appliedFilters.slotStart}`)
     if (appliedFilters.orderDateFrom || appliedFilters.orderDateTo) items.push(`Order Date Range: ${appliedFilters.orderDateFrom || 'No limit'} - ${appliedFilters.orderDateTo || 'No limit'}`)
