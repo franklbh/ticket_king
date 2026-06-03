@@ -13,7 +13,7 @@ import { useEventsQuery, useSlotsQuery, useTicketTypesQuery } from '../hooks/cat
 import LoadingIndicator from '../components/LoadingIndicator'
 import { AdminAlert, AdminCard, PageHeader } from '../components/AdminUI'
 import { dedupeBy } from '../utils/collections'
-import { todayIso } from '../utils/date'
+import { currentAdminMinutes, todayIso } from '../utils/date'
 import { formatNorthAmericanPhone } from '../utils/phone'
 import { localizeCatalogName, localizeTicketTypeName } from '../utils/localization'
 
@@ -110,9 +110,7 @@ function isPastDateKey(dateKey) {
 
 function isPastSlot(slot) {
   if (!slot || slot.date !== todayIso()) return false
-  const now = new Date()
-  const currentMinutes = now.getHours() * 60 + now.getMinutes()
-  return minutesFromTime(slot.startTime) <= currentMinutes
+  return minutesFromTime(slot.startTime) <= currentAdminMinutes()
 }
 
 function money(value) {

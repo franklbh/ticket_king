@@ -1,11 +1,27 @@
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+export const ADMIN_TIME_ZONE = 'America/Vancouver'
+
+function adminDateParts(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: ADMIN_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(date)
+  return Object.fromEntries(parts.map(part => [part.type, part.value]))
+}
 
 export function todayIso() {
-  const today = new Date()
-  const year = today.getFullYear()
-  const month = String(today.getMonth() + 1).padStart(2, '0')
-  const day = String(today.getDate()).padStart(2, '0')
+  const { year, month, day } = adminDateParts()
   return `${year}-${month}-${day}`
+}
+
+export function currentAdminMinutes() {
+  const { hour, minute } = adminDateParts()
+  return Number(hour) * 60 + Number(minute)
 }
 
 export function addDays(date, days) {
