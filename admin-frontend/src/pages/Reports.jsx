@@ -9,6 +9,7 @@ import { FilterCard, PageHeader, TableShell, EmptyTableRow } from '../components
 import { DateRangeFilter, ApplyFiltersButton, StatusChipFilter } from '../components/FilterControls'
 import LoadingIndicator from '../components/LoadingIndicator'
 import { localizeCatalogName } from '../utils/localization'
+import { todayIso } from '../utils/date'
 
 const QUICK_RANGES = [
   { key: 'today', getRange: () => { const d = todayStr(); return [d, d] } },
@@ -28,19 +29,30 @@ const QUICK_LABELS = {
 }
 
 function todayStr() {
-  return new Date().toISOString().slice(0, 10)
+  return todayIso()
+}
+
+function dateFromKey(dateKey) {
+  const [year, month, day] = dateKey.split('-').map(Number)
+  return new Date(Date.UTC(year, month - 1, day, 12))
+}
+
+function dateKeyFromDate(date) {
+  const year = date.getUTCFullYear()
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(date.getUTCDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
 function weekStartStr() {
-  const d = new Date()
-  const day = d.getDay()
-  d.setDate(d.getDate() - (day === 0 ? 6 : day - 1))
-  return d.toISOString().slice(0, 10)
+  const d = dateFromKey(todayStr())
+  const day = d.getUTCDay()
+  d.setUTCDate(d.getUTCDate() - (day === 0 ? 6 : day - 1))
+  return dateKeyFromDate(d)
 }
 
 function monthStartStr() {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
+  return `${todayStr().slice(0, 8)}01`
 }
 
 function buildFilters(dateFrom, dateTo, ipBrands, isPartner) {
