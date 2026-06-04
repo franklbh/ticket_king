@@ -113,9 +113,52 @@ class AdminRepository:
             orders  = self._table(db, settings.admin_orders_table)
             slots   = self._table(db, settings.admin_slots_table)
             events  = self._table(db, settings.admin_events_table)
+            try:
+                order_items = self._table(db, "order_items")
+            except HTTPException:
+                order_items = None
 
             ticket_status_col = func.lower(cast(tickets.c[settings.admin_ticket_status_column], String))
-            activity_date = func.coalesce(slots.c.business_date, func.date(orders.c.created_at))
+            activity_date = func.date(func.timezone(settings.admin_default_timezone, tickets.c.checked_in_at))
+            can_join_order_items = order_items is not None and "order_item_id" in tickets.c and "id" in order_items.c
+            order_item_amount = (
+                func.coalesce(order_items.c.unit_price, 0)
+                if can_join_order_items and "unit_price" in order_items.c
+                else literal(0)
+            )
+            original_ticket_amount = func.coalesce(
+                self._optional_column(tickets, "original_ticket_amount"),
+                self._optional_column(tickets, "net_ticket_amount"),
+                order_item_amount,
+                0,
+            )
+            order_ticket_amount = func.coalesce(
+                self._optional_column(orders, "ticket_amount"),
+                original_ticket_amount,
+                0,
+            )
+            discounted_ticket_total = func.greatest(
+                order_ticket_amount
+                + func.coalesce(self._optional_column(orders, "admin_adjustment", 0), 0)
+                - func.coalesce(self._optional_column(orders, "coupon_discount", 0), 0),
+                0,
+            )
+            ticket_amount = case(
+                (
+                    order_ticket_amount > 0,
+                    original_ticket_amount * discounted_ticket_total / order_ticket_amount,
+                ),
+                else_=original_ticket_amount,
+            )
+
+            from_clause = (
+                tickets
+                .join(orders, tickets.c.order_id == orders.c.id)
+                .join(slots, orders.c.slot_id == slots.c.id)
+                .join(events, slots.c.event_id == events.c.id)
+            )
+            if can_join_order_items:
+                from_clause = from_clause.outerjoin(order_items, tickets.c.order_item_id == order_items.c.id)
 
             stmt = (
                 select(
@@ -124,27 +167,18 @@ class AdminRepository:
                     events.c.name.label("event_name"),
                     tickets.c.ticket_type,
                     ticket_status_col.label("ticket_status"),
-                    tickets.c.checked_in_at,
+                    func.timezone(settings.admin_default_timezone, tickets.c.checked_in_at).label("checked_in_at"),
                     orders.c.created_at.label("order_date"),
                     slots.c.slot_time_label.label("slot_time"),
                     orders.c.id.label("order_id"),
-                    func.coalesce(
-                        self._optional_column(tickets, "net_ticket_amount"),
-                        self._optional_column(tickets, "original_ticket_amount"),
-                        0,
-                    ).label("ticket_amount"),
+                    ticket_amount.label("ticket_amount"),
                     orders.c.payment_method,
                     orders.c.remarks,
                 )
-                .select_from(
-                    tickets
-                    .join(orders, tickets.c.order_id == orders.c.id)
-                    .join(slots, orders.c.slot_id == slots.c.id)
-                    .join(events, slots.c.event_id == events.c.id)
-                )
+                .select_from(from_clause)
             )
 
-            wheres = []
+            wheres = [tickets.c.checked_in_at.is_not(None)]
             if filters.get("date_from"):
                 wheres.append(activity_date >= filters["date_from"])
             if filters.get("date_to"):
