@@ -811,9 +811,6 @@ export default function CreateOrder() {
                     <div className="create-order-slot-time" style={{ color: pastSlot ? '#9ca3af' : '#111827' }}>
                       {slot.startTime} - {slot.endTime}
                     </div>
-                    <div className="create-order-slot-price" style={{ color: pastSlot ? '#9ca3af' : '#6b7280' }}>
-                      {pastSlot ? t.timePassed : `$${slot.price.toFixed(2)} / ${lang === 'en' ? 'person' : '人'}`}
-                    </div>
                     <div className="create-order-slot-seats">
                       <span style={{ color: pastSlot ? '#9ca3af' : remaining > 5 ? '#10b981' : remaining > 0 ? '#f59e0b' : '#ef4444', fontWeight: 500 }}>
                         {lang === 'en' ? `${remaining} ${t.seatsLeft}` : `${remaining}${t.seatsLeft}`}

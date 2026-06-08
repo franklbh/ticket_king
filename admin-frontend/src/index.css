@@ -956,7 +956,6 @@ body {
     font-size: 14px;
   }
 
-  .create-order-slot-price,
   .create-order-slot-seats {
     font-size: 11px;
   }
@@ -1827,12 +1826,6 @@ table tr:hover {
   line-height: 1.25;
 }
 
-.create-order-slot-price {
-  margin-top: 4px;
-  font-size: 12px;
-  line-height: 1.25;
-}
-
 .create-order-slot-seats {
   margin-top: 6px;
   font-size: 12px;
@@ -2477,7 +2470,6 @@ table tr:hover {
     font-size: 14px;
   }
 
-  .create-order-slot-price,
   .create-order-slot-seats {
     font-size: 11px;
   }
