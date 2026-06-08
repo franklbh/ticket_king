@@ -1,6 +1,6 @@
 export const SHOW_SLOT_PRICES = {
-  weekday: { adult: 25.95, child: 21.95, group: 23.95, family: 22.95 },
-  weekend: { adult: 27.95, child: 23.95, group: 25.95, family: 24.95 },
+  weekday: { adult: 25.95, senior: 24.95, child: 21.95, group: 23.95, family: 22.95 },
+  weekend: { adult: 27.95, senior: 26.95, child: 23.95, group: 25.95, family: 24.95 },
 }
 
 export const GAME_SLOT_PRICES = {
@@ -9,7 +9,7 @@ export const GAME_SLOT_PRICES = {
 }
 
 export function hasSeniorTicket(experience) {
-  return experience?.id === 'terracotta-warriors'
+  return ['terracotta-warriors', 'panda', 'dragon'].includes(experience?.id)
 }
 
 export function getSlotPricePeriod(experience, date) {
