@@ -579,6 +579,31 @@ function periodKeyFromRow(row) {
   return `${rowTier(row)}|${[...(row.weekdays || [])].sort().join(',')}|${normalizeTime(row.timeStart)}|${normalizeTime(row.timeEnd)}`
 }
 
+function hasExactDays(days = [], expected = []) {
+  const set = new Set(days)
+  return set.size === expected.length && expected.every(day => set.has(day))
+}
+
+function periodPriority(period, tier) {
+  if (
+    tier === 'lower' &&
+    hasExactDays(period.weekdays, ['Sun', 'Mon', 'Tue', 'Wed', 'Thu']) &&
+    period.timeStart === '10:00' &&
+    period.timeEnd === '19:00'
+  ) {
+    return 0
+  }
+  if (
+    tier === 'higher' &&
+    hasExactDays(period.weekdays, ['Fri', 'Sat']) &&
+    period.timeStart === '10:00' &&
+    period.timeEnd === '20:00'
+  ) {
+    return 0
+  }
+  return 1
+}
+
 function periodFromRow(row) {
   const tier = rowTier(row)
   const timeStart = normalizeTime(row.timeStart)
@@ -600,15 +625,20 @@ function uniquePeriods(rows, tier) {
     const period = periodFromRow(row)
     if (!periods.has(period.key)) periods.set(period.key, period)
   })
-  return [...periods.values()]
+  return [...periods.values()].sort((a, b) => periodPriority(a, tier) - periodPriority(b, tier) || a.label.localeCompare(b.label))
 }
 
 function firstPeriod(group, tier) {
   return group?.periods?.[tier]?.[0] || null
 }
 
-function ruleForTier(rows, tier) {
-  return rows.find(row => rowTier(row) === tier)
+function ruleForTier(rows, tier, preferredPeriod = null) {
+  const tierRows = rows.filter(row => rowTier(row) === tier)
+  if (preferredPeriod) {
+    const preferredRule = tierRows.find(row => periodKeyFromRow(row) === preferredPeriod.key)
+    if (preferredRule) return preferredRule
+  }
+  return tierRows[0]
 }
 
 function buildEventGroups(events, ticketTypes, lang = 'en') {
@@ -643,8 +673,10 @@ function buildEventGroups(events, ticketTypes, lang = 'en') {
     const names = [...new Set(eventRows.map(row => row.name).filter(Boolean))]
     group.rows = names.map(name => {
       const liveRows = eventRows.filter(row => row.name === name)
-      const lowerRule = ruleForTier(liveRows, 'lower')
-      const higherRule = ruleForTier(liveRows, 'higher')
+      const preferredLowerPeriod = firstPeriod(group, 'lower')
+      const preferredHigherPeriod = firstPeriod(group, 'higher')
+      const lowerRule = ruleForTier(liveRows, 'lower', preferredLowerPeriod)
+      const higherRule = ruleForTier(liveRows, 'higher', preferredHigherPeriod)
       const anyEnabled = liveRows.some(row => row.status === 'enabled')
       return {
         name: localizeTicketTypeName(name, lang),
@@ -654,8 +686,8 @@ function buildEventGroups(events, ticketTypes, lang = 'en') {
         group,
         lowerRule,
         higherRule,
-        lowerPeriod: lowerRule ? periodFromRow(lowerRule) : firstPeriod(group, 'lower'),
-        higherPeriod: higherRule ? periodFromRow(higherRule) : firstPeriod(group, 'higher'),
+        lowerPeriod: lowerRule ? periodFromRow(lowerRule) : preferredLowerPeriod,
+        higherPeriod: higherRule ? periodFromRow(higherRule) : preferredHigherPeriod,
         lowerPrice: lowerRule?.price ?? null,
         higherPrice: higherRule?.price ?? null,
         liveRows,

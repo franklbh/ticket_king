@@ -7,7 +7,6 @@
 -- This keeps Admin/Create Order synced with Supabase:
 --   - events.duration_minutes controls slot length
 --   - ticket_types.weekdays/time_start/time_end controls available windows
---   - Terracotta Warriors also gets a final 14:30-15:00 slot
 --   - active slots outside these windows are archived
 --
 -- Current event durations:
@@ -31,10 +30,7 @@ begin
       coalesce(e.duration_minutes, 30) as duration_minutes,
       tt.weekdays,
       tt.time_start,
-      case
-        when e.slug = 'terracotta-warriors' and tt.time_end = time '14:30' then time '15:00'
-        else tt.time_end
-      end as time_end,
+      tt.time_end,
       min(tt.price) filter (where tt.price is not null) as base_price
     from public.ticket_types tt
     join public.events e on e.id = tt.event
@@ -51,10 +47,7 @@ begin
       e.duration_minutes,
       tt.weekdays,
       tt.time_start,
-      case
-        when e.slug = 'terracotta-warriors' and tt.time_end = time '14:30' then time '15:00'
-        else tt.time_end
-      end
+      tt.time_end
   ),
   dated_windows as (
     select
