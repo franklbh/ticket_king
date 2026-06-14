@@ -309,6 +309,7 @@ class AdminRepository:
             table = self._table(db, table_name)
             if column not in table.c:
                 raise HTTPException(status_code=400, detail=f"Invalid SQL column: {column}")
+            value = self._coerce_column_value(table, column, value)
             rows = db.execute(select(table).where(table.c[column] == value).limit(query_limit)).mappings().all()
             return [dict(row) for row in rows]
 

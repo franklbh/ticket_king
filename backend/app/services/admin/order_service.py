@@ -22,7 +22,6 @@ from app.schemas.admin.mappers import paginate, to_model, to_models
 from app.schemas.admin.responses import OrderPage, OrderRead, TicketRead, WalkInOrderResponse
 from app.services.admin.audit import audit_change, write_audit_log
 from app.services.admin.coupons_service import coupons_service
-from app.services.admin.enrichment import slots_by_id
 from app.services.admin.normalizers import (
     db_order_status,
     db_ticket_status,
@@ -73,6 +72,24 @@ class OrderService:
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Selected time slot was not found.",
                 )
+
+    async def _load_walk_in_slots(self, payload: WalkInOrderCreate) -> dict[str, dict[str, Any]]:
+        slot_ids = {
+            str(item.slot_id or payload.slot_id or "").strip()
+            for item in payload.tickets
+        }
+        slot_ids.discard("")
+        slot_map: dict[str, dict[str, Any]] = {}
+        for slot_id in slot_ids:
+            rows = await admin_repository.select_where(
+                settings.admin_slots_table,
+                column="id",
+                value=slot_id,
+                limit=1,
+            )
+            if rows:
+                slot_map[str(rows[0].get("id"))] = rows[0]
+        return slot_map
 
     async def _enrich_add_on(self, rows: list[dict]) -> None:
         tt_rows = await admin_repository.select(settings.admin_ticket_types_table)
@@ -312,7 +329,7 @@ class OrderService:
         now = utc_now_iso_seconds()
         order_id = str(uuid.uuid4())
         order_number = self._order_number()
-        slot_map = await slots_by_id()
+        slot_map = await self._load_walk_in_slots(payload)
         self._validate_walk_in_ticket_selection(payload, slot_map)
         ticket_quantity = sum(item.quantity for item in payload.tickets)
         total_amount = round(sum(item.quantity * item.unit_price for item in payload.tickets), 2)
