@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import BrandLogo from '../components/BrandLogo'
 import HeaderActions from '../components/HeaderActions'
 import { allExperiences } from '../data/experiences'
-import { getExperiencePriceFrom, getPricesForSlot, hasSeniorTicket } from '../utils/pricing'
+import { getExperiencePriceFrom, getPricesForSlot, getSlotPricePeriod, hasSeniorTicket } from '../utils/pricing'
 import { formatSlotTicketTypes, ticketKeyFromLabel } from '../utils/tickets'
 import { businessTodayDate, isoDate } from '../utils/businessDate'
 
@@ -175,7 +175,7 @@ function BookingWidget({ experience, cartItems, onAddToCart, t = (key, params = 
     ...Array.from({ length: new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0).getDate() }, (_, i) => {
       const d = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), i + 1)
       const disabled = d < today
-      const weekend = d.getDay() === 0 || d.getDay() === 6
+      const weekend = getSlotPricePeriod(experience, d) === 'weekend'
       return {
         key: dateKey(d),
         date: d,

@@ -23,7 +23,7 @@ import { getDisplayName } from './api/auth'
 import { ENABLE_MY_BOOKINGS } from './constants/features'
 import { useCustomerAuth } from './hooks/useCustomerAuth'
 import { currency } from './utils/format'
-import { getPricesForSlot, hasSeniorTicket } from './utils/pricing'
+import { getPricesForSlot, getSlotPricePeriod, hasSeniorTicket } from './utils/pricing'
 import { formatSlotTicketTypes, minQtyForTicket } from './utils/tickets'
 import { formatNorthAmericanPhone, isReasonableName, isReasonablePhone, isStrictEmail } from './utils/validation'
 import { businessCurrentMonthStart, businessTodayDate, isoDate } from './utils/businessDate'
@@ -263,7 +263,7 @@ function App() {
         key: `${year}-${month}-${day}`,
         disabled: isPast,
         price: isPast ? undefined : dayPrices.adult,
-        level: isPast ? undefined : (date.getDay() === 0 || date.getDay() === 6 ? 'peak' : 'normal'),
+        level: isPast ? undefined : (getSlotPricePeriod(bookingExperience, date) === 'weekend' ? 'peak' : 'normal'),
       }
     })
     return [

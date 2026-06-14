@@ -2,18 +2,9 @@ import mapInstructionPdf from '../picture/MAP--WE ARE VR.pdf'
 
 export const emailPattern = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/
 
-function parseSlotHour(timeStr) {
-  const [time, period] = timeStr.split(' ')
-  let h = parseInt(time)
-  if (period === 'PM' && h !== 12) h += 12
-  if (period === 'AM' && h === 12) h = 0
-  return h
-}
-
 export function isDateTimePeak(date, timeStr) {
   const dow = date.getDay() // 0=Sun, 6=Sat
   if (dow === 0 || dow === 6) return true
-  if (dow === 5) return parseSlotHour(timeStr) >= 14 // Fri 14:00+
   return false
 }
 
