@@ -120,7 +120,16 @@ class AdminRepository:
 
             ticket_status_col = func.lower(cast(tickets.c[settings.admin_ticket_status_column], String))
             activity_date = func.date(func.timezone(settings.admin_default_timezone, tickets.c.checked_in_at))
-            can_join_order_items = order_items is not None and "order_item_id" in tickets.c and "id" in order_items.c
+            can_join_order_items = (
+                order_items is not None
+                and "order_item_id" in tickets.c
+                and "id" in order_items.c
+            )
+            can_use_order_item_slot = (
+                can_join_order_items
+                and "slot_id" in order_items.c
+                and "event_id" in order_items.c
+            )
             order_item_amount = (
                 func.coalesce(order_items.c.unit_price, 0)
                 if can_join_order_items and "unit_price" in order_items.c
@@ -137,6 +146,7 @@ class AdminRepository:
                 original_ticket_amount,
                 0,
             )
+            order_total_amount = func.coalesce(self._optional_column(orders, "total_amount", 0), 0)
             discounted_ticket_total = func.greatest(
                 order_ticket_amount
                 + func.coalesce(self._optional_column(orders, "admin_adjustment", 0), 0)
@@ -144,32 +154,60 @@ class AdminRepository:
                 0,
             )
             ticket_amount = case(
+                (order_total_amount == 0, literal(0)),
                 (
                     order_ticket_amount > 0,
                     original_ticket_amount * discounted_ticket_total / order_ticket_amount,
                 ),
                 else_=original_ticket_amount,
             )
-
-            from_clause = (
-                tickets
-                .join(orders, tickets.c.order_id == orders.c.id)
-                .join(slots, orders.c.slot_id == slots.c.id)
-                .join(events, slots.c.event_id == events.c.id)
+            effective_slot_id = (
+                func.coalesce(order_items.c.slot_id, orders.c.slot_id)
+                if can_use_order_item_slot
+                else orders.c.slot_id
             )
+            effective_event_id = (
+                func.coalesce(slots.c.event_id, order_items.c.event_id)
+                if can_use_order_item_slot
+                else slots.c.event_id
+            )
+            event_name = (
+                func.coalesce(events.c.name, order_items.c.event_name)
+                if can_use_order_item_slot and "event_name" in order_items.c
+                else events.c.name
+            )
+            slot_time = (
+                func.coalesce(slots.c.slot_time_label, order_items.c.slot_time)
+                if can_use_order_item_slot and "slot_time" in order_items.c
+                else slots.c.slot_time_label
+            )
+
             if can_join_order_items:
-                from_clause = from_clause.outerjoin(order_items, tickets.c.order_item_id == order_items.c.id)
+                from_clause = (
+                    tickets
+                    .outerjoin(orders, tickets.c.order_id == orders.c.id)
+                    .outerjoin(order_items, tickets.c.order_item_id == order_items.c.id)
+                    .outerjoin(slots, effective_slot_id == slots.c.id)
+                    .outerjoin(events, effective_event_id == events.c.id)
+                )
+            else:
+                from_clause = (
+                    tickets
+                    .outerjoin(orders, tickets.c.order_id == orders.c.id)
+                    .outerjoin(slots, effective_slot_id == slots.c.id)
+                    .outerjoin(events, effective_event_id == events.c.id)
+                )
 
             stmt = (
                 select(
                     activity_date.label("date"),
                     events.c.headset_brand.label("ip_brand"),
-                    events.c.name.label("event_name"),
+                    event_name.label("event_name"),
                     tickets.c.ticket_type,
                     ticket_status_col.label("ticket_status"),
                     func.timezone(settings.admin_default_timezone, tickets.c.checked_in_at).label("checked_in_at"),
                     orders.c.created_at.label("order_date"),
-                    slots.c.slot_time_label.label("slot_time"),
+                    slot_time.label("slot_time"),
                     orders.c.id.label("order_id"),
                     ticket_amount.label("ticket_amount"),
                     orders.c.payment_method,
@@ -186,7 +224,7 @@ class AdminRepository:
             if filters.get("headset_brand"):
                 wheres.append(func.lower(cast(events.c.headset_brand, String)) == filters["headset_brand"].lower())
             if filters.get("event_ids"):
-                wheres.append(events.c.id.in_(filters["event_ids"]))
+                wheres.append(effective_event_id.in_(filters["event_ids"]))
             if filters.get("ticket_types"):
                 wheres.append(tickets.c.ticket_type.in_(filters["ticket_types"]))
             if filters.get("ticket_statuses"):
@@ -504,6 +542,10 @@ class AdminRepository:
             tickets = self._table(db, settings.admin_tickets_table)
             slots = self._table(db, settings.admin_slots_table)
             users = self._table(db, settings.admin_users_table)
+            try:
+                order_items = self._table(db, "order_items")
+            except HTTPException:
+                order_items = None
 
             order_id = cast(orders.c.id, String)
             order_number = cast(orders.c.order_number, String) if "order_number" in orders.c else None
@@ -512,6 +554,20 @@ class AdminRepository:
             slot_date = slots.c.business_date
             slot_start = cast(slots.c.start_time, String)
             ticket_status = func.lower(cast(tickets.c[settings.admin_ticket_status_column], String))
+            can_filter_order_items = (
+                order_items is not None
+                and "order_id" in order_items.c
+                and "slot_date" in order_items.c
+            )
+            can_filter_order_item_start = can_filter_order_items and "slot_time" in order_items.c
+
+            def order_item_filter_exists(*item_conditions: Any):
+                return (
+                    select(literal(1))
+                    .select_from(order_items)
+                    .where(order_items.c.order_id == orders.c.id, *item_conditions)
+                    .exists()
+                )
 
             ticket_counts = (
                 select(
@@ -554,12 +610,25 @@ class AdminRepository:
                 conditions.append(order_created_date >= filters["order_date_from"])
             if filters.get("order_date_to"):
                 conditions.append(order_created_date <= filters["order_date_to"])
+            slot_conditions = []
+            item_slot_conditions = []
             if filters.get("slot_date_from"):
-                conditions.append(slot_date >= filters["slot_date_from"])
+                slot_conditions.append(slot_date >= filters["slot_date_from"])
+                if can_filter_order_items:
+                    item_slot_conditions.append(order_items.c.slot_date >= filters["slot_date_from"])
             if filters.get("slot_date_to"):
-                conditions.append(slot_date <= filters["slot_date_to"])
+                slot_conditions.append(slot_date <= filters["slot_date_to"])
+                if can_filter_order_items:
+                    item_slot_conditions.append(order_items.c.slot_date <= filters["slot_date_to"])
             if filters.get("slot_start"):
-                conditions.append(slot_start.like(f"{filters['slot_start']}%"))
+                slot_conditions.append(slot_start.like(f"{filters['slot_start']}%"))
+                if can_filter_order_item_start:
+                    item_slot_conditions.append(cast(order_items.c.slot_time, String).like(f"{filters['slot_start']}%"))
+            if slot_conditions:
+                slot_filter = and_(*slot_conditions)
+                if item_slot_conditions:
+                    slot_filter = or_(slot_filter, order_item_filter_exists(*item_slot_conditions))
+                conditions.append(slot_filter)
 
             from_clause = (
                 orders.outerjoin(slots, orders.c.slot_id == slots.c.id)
