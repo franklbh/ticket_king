@@ -65,13 +65,13 @@ function LangTabs({ active, onSelect }) {
 
 function priceTierFromRemarks(remarks = '') {
   const normalized = String(remarks).toLowerCase()
-  if (normalized.includes('higher') || (normalized.includes('peak') && !normalized.includes('off-peak'))) return 'higher'
+  if (normalized.includes('weekend') || normalized.includes('higher') || (normalized.includes('peak') && !normalized.includes('off-peak'))) return 'higher'
   return 'lower'
 }
 
 function stripPriceTierRemark(remarks = '') {
   return String(remarks)
-    .replace(/^(lower price|higher price|off-peak|peak)\s*(·|-)?\s*[^,;]*\s*/i, '')
+    .replace(/^(weekday price|weekend price|lower price|higher price|off-peak|peak)\s*(·|-)?\s*[^,;]*\s*/i, '')
     .trim()
 }
 
@@ -134,7 +134,7 @@ function TypeModal({ type, events, eventGroups, onClose, onSave, onCreateEvent, 
     timeStart: type?.timeStart || initialPeriod?.timeStart || '00:00',
     timeEnd: type?.timeEnd || initialPeriod?.timeEnd || '23:59',
     discount: type?.discount || { percent: 0, start: '', end: '', message: { en: '', zhHans: '', zhHant: '' } },
-    weekdays: type?.weekdays || initialPeriod?.weekdays || ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],
+    weekdays: type?.weekdays || initialPeriod?.weekdays || ['Mon','Tue','Wed','Thu','Fri'],
     enabled: type ? type.status !== 'disabled' : true,
   })
   const [nameLang, setNameLang] = useState('en')
@@ -190,7 +190,7 @@ function TypeModal({ type, events, eventGroups, onClose, onSave, onCreateEvent, 
   }
 
   function handleSave() {
-    const tierLabel = form.priceTier === 'higher' ? 'Higher price' : 'Lower price'
+    const tierLabel = form.priceTier === 'higher' ? 'Weekend price' : 'Weekday price'
     const remarks = [tierLabel, selectedGroup?.label, form.remarks].filter(Boolean).join(' · ')
     onSave({
       ...form,
@@ -220,7 +220,7 @@ function TypeModal({ type, events, eventGroups, onClose, onSave, onCreateEvent, 
         eventGroupKey: group.key,
         weekdays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
         timeStart: '10:00',
-        timeEnd: '19:00',
+        timeEnd: '20:00',
       }))
       setNewEvent({ name: '', slug: '' })
       setShowNewEvent(false)
@@ -485,8 +485,8 @@ function TypeModal({ type, events, eventGroups, onClose, onSave, onCreateEvent, 
 }
 
 const TIER_STYLES = {
-  lower: { label: 'Lower Price', color: '#059669', bg: '#f0fdf4', border: '#bbf7d0' },
-  higher: { label: 'Higher Price', color: '#d97706', bg: '#fffbeb', border: '#fde68a' },
+  lower: { label: 'Weekday Price', color: '#059669', bg: '#f0fdf4', border: '#bbf7d0' },
+  higher: { label: 'Weekend Price', color: '#d97706', bg: '#fffbeb', border: '#fde68a' },
 }
 
 function PriceCell({ price, suffix = '', color, bg, border, editing, editValue, onStart, onChange, onCommit, onCancel, missingLabel, onCreateMissing, creatingMissing }) {
@@ -553,12 +553,12 @@ function isActiveEvent(event) {
 
 function isLowerRule(row) {
   const remarks = String(row?.remarks || '').toLowerCase()
-  return remarks.includes('lower') || remarks.includes('off-peak')
+  return remarks.includes('weekday') || remarks.includes('lower') || remarks.includes('off-peak')
 }
 
 function isHigherRule(row) {
   const remarks = String(row?.remarks || '').toLowerCase()
-  return remarks.includes('higher') || (remarks.includes('peak') && !remarks.includes('off-peak'))
+  return remarks.includes('weekend') || remarks.includes('higher') || (remarks.includes('peak') && !remarks.includes('off-peak'))
 }
 
 function rowTier(row) {
@@ -587,15 +587,15 @@ function hasExactDays(days = [], expected = []) {
 function periodPriority(period, tier) {
   if (
     tier === 'lower' &&
-    hasExactDays(period.weekdays, ['Sun', 'Mon', 'Tue', 'Wed', 'Thu']) &&
+    hasExactDays(period.weekdays, ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']) &&
     period.timeStart === '10:00' &&
-    period.timeEnd === '19:00'
+    period.timeEnd === '20:00'
   ) {
     return 0
   }
   if (
     tier === 'higher' &&
-    hasExactDays(period.weekdays, ['Fri', 'Sat']) &&
+    hasExactDays(period.weekdays, ['Sat', 'Sun']) &&
     period.timeStart === '10:00' &&
     period.timeEnd === '20:00'
   ) {
@@ -714,7 +714,7 @@ function ticketRulePayloadFromPeriod(group, ticket, tier, eventId, period, price
     validTo: null,
     timeStart: period?.timeStart || null,
     timeEnd: period?.timeEnd || null,
-    remarks: `${tier === 'lower' ? 'Lower price' : 'Higher price'} · ${group.label}`,
+    remarks: `${tier === 'lower' ? 'Weekday price' : 'Weekend price'} · ${group.label}`,
     status: 'enabled',
   }
 }

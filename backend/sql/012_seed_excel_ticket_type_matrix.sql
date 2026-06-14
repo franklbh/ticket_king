@@ -16,44 +16,44 @@ drop table if exists desired_excel_ticket_type_rules;
 create temporary table desired_excel_ticket_type_rules as
 with matrix(event_slug, ticket_name, lower_days, lower_start, lower_end, lower_price, higher_days, higher_start, higher_end, higher_price) as (
   values
-    ('terracotta-warriors', 'Adult', array['Sun','Mon','Tue','Wed','Thu']::text[], time '10:00', time '19:00', 37.95, array['Fri','Sat']::text[], time '10:00', time '20:00', 45.95),
-    ('terracotta-warriors', 'Child (7-15)', array['Sun','Mon','Tue','Wed','Thu']::text[], time '10:00', time '19:00', 27.95, array['Fri','Sat']::text[], time '10:00', time '20:00', 34.95),
-    ('terracotta-warriors', 'Senior (65+)', array['Sun','Mon','Tue','Wed','Thu']::text[], time '10:00', time '19:00', 34.95, array['Fri','Sat']::text[], time '10:00', time '20:00', 41.95),
-    ('terracotta-warriors', 'Group (6+ people)', array['Sun','Mon','Tue','Wed','Thu']::text[], time '10:00', time '19:00', 32.95, array['Fri','Sat']::text[], time '10:00', time '20:00', 40.95),
-    ('terracotta-warriors', 'Family (2 adults + 1 child)', array['Sun','Mon','Tue','Wed','Thu']::text[], time '10:00', time '19:00', 31.95, array['Fri','Sat']::text[], time '10:00', time '20:00', 39.95),
+    ('terracotta-warriors', 'Adult', array['Mon','Tue','Wed','Thu','Fri']::text[], time '10:00', time '20:00', 37.95, array['Sat','Sun']::text[], time '10:00', time '20:00', 45.95),
+    ('terracotta-warriors', 'Child (7-15)', array['Mon','Tue','Wed','Thu','Fri']::text[], time '10:00', time '20:00', 27.95, array['Sat','Sun']::text[], time '10:00', time '20:00', 34.95),
+    ('terracotta-warriors', 'Senior (65+)', array['Mon','Tue','Wed','Thu','Fri']::text[], time '10:00', time '20:00', 34.95, array['Sat','Sun']::text[], time '10:00', time '20:00', 41.95),
+    ('terracotta-warriors', 'Group (6+ people)', array['Mon','Tue','Wed','Thu','Fri']::text[], time '10:00', time '20:00', 32.95, array['Sat','Sun']::text[], time '10:00', time '20:00', 40.95),
+    ('terracotta-warriors', 'Family (2 adults + 1 child)', array['Mon','Tue','Wed','Thu','Fri']::text[], time '10:00', time '20:00', 31.95, array['Sat','Sun']::text[], time '10:00', time '20:00', 39.95),
 
-    ('panda-vr', 'Adult', array['Sun','Mon','Tue','Wed','Thu']::text[], time '10:00', time '19:00', 25.95, array['Fri','Sat']::text[], time '10:00', time '20:00', 27.95),
-    ('panda-vr', 'Senior (65+)', array['Sun','Mon','Tue','Wed','Thu']::text[], time '10:00', time '19:00', 24.95, array['Fri','Sat']::text[], time '10:00', time '20:00', 26.95),
-    ('panda-vr', 'Child/Youth (7-15)', array['Sun','Mon','Tue','Wed','Thu']::text[], time '10:00', time '19:00', 21.95, array['Fri','Sat']::text[], time '10:00', time '20:00', 23.95),
-    ('panda-vr', 'Group (6+ people)', array['Sun','Mon','Tue','Wed','Thu']::text[], time '10:00', time '19:00', 23.95, array['Fri','Sat']::text[], time '10:00', time '20:00', 25.95),
-    ('panda-vr', 'Family (2 adults + 1 child)', array['Sun','Mon','Tue','Wed','Thu']::text[], time '10:00', time '19:00', 22.95, array['Fri','Sat']::text[], time '10:00', time '20:00', 24.95),
+    ('panda-vr', 'Adult', array['Mon','Tue','Wed','Thu','Fri']::text[], time '10:00', time '20:00', 25.95, array['Sat','Sun']::text[], time '10:00', time '20:00', 27.95),
+    ('panda-vr', 'Senior (65+)', array['Mon','Tue','Wed','Thu','Fri']::text[], time '10:00', time '20:00', 24.95, array['Sat','Sun']::text[], time '10:00', time '20:00', 26.95),
+    ('panda-vr', 'Child/Youth (7-15)', array['Mon','Tue','Wed','Thu','Fri']::text[], time '10:00', time '20:00', 21.95, array['Sat','Sun']::text[], time '10:00', time '20:00', 23.95),
+    ('panda-vr', 'Group (6+ people)', array['Mon','Tue','Wed','Thu','Fri']::text[], time '10:00', time '20:00', 23.95, array['Sat','Sun']::text[], time '10:00', time '20:00', 25.95),
+    ('panda-vr', 'Family (2 adults + 1 child)', array['Mon','Tue','Wed','Thu','Fri']::text[], time '10:00', time '20:00', 22.95, array['Sat','Sun']::text[], time '10:00', time '20:00', 24.95),
 
-    ('dino-vr', 'Adult', array['Sun','Mon','Tue','Wed','Thu']::text[], time '10:00', time '19:00', 25.95, array['Fri','Sat']::text[], time '10:00', time '20:00', 27.95),
-    ('dino-vr', 'Senior (65+)', array['Sun','Mon','Tue','Wed','Thu']::text[], time '10:00', time '19:00', 24.95, array['Fri','Sat']::text[], time '10:00', time '20:00', 26.95),
-    ('dino-vr', 'Child/Youth (7-15)', array['Sun','Mon','Tue','Wed','Thu']::text[], time '10:00', time '19:00', 21.95, array['Fri','Sat']::text[], time '10:00', time '20:00', 23.95),
-    ('dino-vr', 'Group (6+ people)', array['Sun','Mon','Tue','Wed','Thu']::text[], time '10:00', time '19:00', 23.95, array['Fri','Sat']::text[], time '10:00', time '20:00', 25.95),
-    ('dino-vr', 'Family (2 adults + 1 child)', array['Sun','Mon','Tue','Wed','Thu']::text[], time '10:00', time '19:00', 22.95, array['Fri','Sat']::text[], time '10:00', time '20:00', 24.95),
+    ('dino-vr', 'Adult', array['Mon','Tue','Wed','Thu','Fri']::text[], time '10:00', time '20:00', 25.95, array['Sat','Sun']::text[], time '10:00', time '20:00', 27.95),
+    ('dino-vr', 'Senior (65+)', array['Mon','Tue','Wed','Thu','Fri']::text[], time '10:00', time '20:00', 24.95, array['Sat','Sun']::text[], time '10:00', time '20:00', 26.95),
+    ('dino-vr', 'Child/Youth (7-15)', array['Mon','Tue','Wed','Thu','Fri']::text[], time '10:00', time '20:00', 21.95, array['Sat','Sun']::text[], time '10:00', time '20:00', 23.95),
+    ('dino-vr', 'Group (6+ people)', array['Mon','Tue','Wed','Thu','Fri']::text[], time '10:00', time '20:00', 23.95, array['Sat','Sun']::text[], time '10:00', time '20:00', 25.95),
+    ('dino-vr', 'Family (2 adults + 1 child)', array['Mon','Tue','Wed','Thu','Fri']::text[], time '10:00', time '20:00', 22.95, array['Sat','Sun']::text[], time '10:00', time '20:00', 24.95),
 
-    ('game-a', 'Adult', array['Sun','Mon','Tue','Wed','Thu']::text[], time '10:00', time '19:00', 15.95, array['Fri','Sat']::text[], time '10:00', time '20:00', 16.95),
-    ('game-a', 'Child/Youth (7-15)', array['Sun','Mon','Tue','Wed','Thu']::text[], time '10:00', time '19:00', 12.95, array['Fri','Sat']::text[], time '10:00', time '20:00', 13.95),
-    ('game-a', 'Group (6+ people)', array['Sun','Mon','Tue','Wed','Thu']::text[], time '10:00', time '19:00', 14.95, array['Fri','Sat']::text[], time '10:00', time '20:00', 15.95),
-    ('game-a', 'Family (2 adults + 1 child)', array['Sun','Mon','Tue','Wed','Thu']::text[], time '10:00', time '19:00', 13.95, array['Fri','Sat']::text[], time '10:00', time '20:00', 14.95),
+    ('game-a', 'Adult', array['Mon','Tue','Wed','Thu','Fri']::text[], time '10:00', time '20:00', 15.95, array['Sat','Sun']::text[], time '10:00', time '20:00', 16.95),
+    ('game-a', 'Child/Youth (7-15)', array['Mon','Tue','Wed','Thu','Fri']::text[], time '10:00', time '20:00', 12.95, array['Sat','Sun']::text[], time '10:00', time '20:00', 13.95),
+    ('game-a', 'Group (6+ people)', array['Mon','Tue','Wed','Thu','Fri']::text[], time '10:00', time '20:00', 14.95, array['Sat','Sun']::text[], time '10:00', time '20:00', 15.95),
+    ('game-a', 'Family (2 adults + 1 child)', array['Mon','Tue','Wed','Thu','Fri']::text[], time '10:00', time '20:00', 13.95, array['Sat','Sun']::text[], time '10:00', time '20:00', 14.95),
 
-    ('game-b', 'Adult', array['Sun','Mon','Tue','Wed','Thu']::text[], time '10:00', time '19:00', 15.95, array['Fri','Sat']::text[], time '10:00', time '20:00', 16.95),
-    ('game-b', 'Child/Youth (7-15)', array['Sun','Mon','Tue','Wed','Thu']::text[], time '10:00', time '19:00', 12.95, array['Fri','Sat']::text[], time '10:00', time '20:00', 13.95),
-    ('game-b', 'Group (6+ people)', array['Sun','Mon','Tue','Wed','Thu']::text[], time '10:00', time '19:00', 14.95, array['Fri','Sat']::text[], time '10:00', time '20:00', 15.95),
-    ('game-b', 'Family (2 adults + 1 child)', array['Sun','Mon','Tue','Wed','Thu']::text[], time '10:00', time '19:00', 13.95, array['Fri','Sat']::text[], time '10:00', time '20:00', 14.95),
+    ('game-b', 'Adult', array['Mon','Tue','Wed','Thu','Fri']::text[], time '10:00', time '20:00', 15.95, array['Sat','Sun']::text[], time '10:00', time '20:00', 16.95),
+    ('game-b', 'Child/Youth (7-15)', array['Mon','Tue','Wed','Thu','Fri']::text[], time '10:00', time '20:00', 12.95, array['Sat','Sun']::text[], time '10:00', time '20:00', 13.95),
+    ('game-b', 'Group (6+ people)', array['Mon','Tue','Wed','Thu','Fri']::text[], time '10:00', time '20:00', 14.95, array['Sat','Sun']::text[], time '10:00', time '20:00', 15.95),
+    ('game-b', 'Family (2 adults + 1 child)', array['Mon','Tue','Wed','Thu','Fri']::text[], time '10:00', time '20:00', 13.95, array['Sat','Sun']::text[], time '10:00', time '20:00', 14.95),
 
-    ('game-c', 'Adult', array['Sun','Mon','Tue','Wed','Thu']::text[], time '10:00', time '19:00', 15.95, array['Fri','Sat']::text[], time '10:00', time '20:00', 16.95),
-    ('game-c', 'Child/Youth (7-15)', array['Sun','Mon','Tue','Wed','Thu']::text[], time '10:00', time '19:00', 12.95, array['Fri','Sat']::text[], time '10:00', time '20:00', 13.95),
-    ('game-c', 'Group (6+ people)', array['Sun','Mon','Tue','Wed','Thu']::text[], time '10:00', time '19:00', 14.95, array['Fri','Sat']::text[], time '10:00', time '20:00', 15.95),
-    ('game-c', 'Family (2 adults + 1 child)', array['Sun','Mon','Tue','Wed','Thu']::text[], time '10:00', time '19:00', 13.95, array['Fri','Sat']::text[], time '10:00', time '20:00', 14.95)
+    ('game-c', 'Adult', array['Mon','Tue','Wed','Thu','Fri']::text[], time '10:00', time '20:00', 15.95, array['Sat','Sun']::text[], time '10:00', time '20:00', 16.95),
+    ('game-c', 'Child/Youth (7-15)', array['Mon','Tue','Wed','Thu','Fri']::text[], time '10:00', time '20:00', 12.95, array['Sat','Sun']::text[], time '10:00', time '20:00', 13.95),
+    ('game-c', 'Group (6+ people)', array['Mon','Tue','Wed','Thu','Fri']::text[], time '10:00', time '20:00', 14.95, array['Sat','Sun']::text[], time '10:00', time '20:00', 15.95),
+    ('game-c', 'Family (2 adults + 1 child)', array['Mon','Tue','Wed','Thu','Fri']::text[], time '10:00', time '20:00', 13.95, array['Sat','Sun']::text[], time '10:00', time '20:00', 14.95)
 ),
 rules as (
-  select event_slug, ticket_name, 'Lower price' as tier, lower_days as weekdays, lower_start as time_start, lower_end as time_end, lower_price as price
+  select event_slug, ticket_name, 'Weekday price' as tier, lower_days as weekdays, lower_start as time_start, lower_end as time_end, lower_price as price
   from matrix
   union all
-  select event_slug, ticket_name, 'Higher price' as tier, higher_days as weekdays, higher_start as time_start, higher_end as time_end, higher_price as price
+  select event_slug, ticket_name, 'Weekend price' as tier, higher_days as weekdays, higher_start as time_start, higher_end as time_end, higher_price as price
   from matrix
 )
 select

@@ -6,7 +6,8 @@
 --
 -- This keeps Admin/Create Order synced with Supabase:
 --   - events.duration_minutes controls slot length
---   - ticket_types.weekdays/time_start/time_end controls available windows
+--   - ticket_types.weekdays/time_start/time_end controls pricing windows
+--   - operating latest start is Sun-Thu 19:00 and Fri-Sat 20:00
 --   - active slots outside these windows are archived
 --
 -- Current event durations:
@@ -52,7 +53,11 @@ begin
   dated_windows as (
     select
       w.*,
-      d.day::date as business_date
+      d.day::date as business_date,
+      case
+        when extract(isodow from d.day) in (5, 6) then time '20:00'
+        else time '19:00'
+      end as latest_start
     from slot_windows w
     cross join generate_series(start_date, end_date, interval '1 day') as d(day)
     where case extract(isodow from d.day)::int
@@ -97,7 +102,7 @@ begin
       0,
       greatest(
         0,
-        (extract(epoch from (w.time_end - w.time_start)) / 60)::integer - w.duration_minutes
+        (extract(epoch from (least(w.time_end, w.latest_start) - w.time_start)) / 60)::integer
       ),
       w.duration_minutes
     ) as offsets(offset_minutes)
