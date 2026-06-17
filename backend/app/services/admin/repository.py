@@ -673,6 +673,7 @@ class AdminRepository:
             tickets = self._table(db, settings.admin_tickets_table)
             orders = self._table(db, settings.admin_orders_table)
             slots = self._table(db, settings.admin_slots_table)
+            events = self._table(db, settings.admin_events_table)
             users = self._table(db, settings.admin_users_table)
             try:
                 order_items = self._table(db, "order_items")
@@ -689,9 +690,13 @@ class AdminRepository:
             order_id = cast(tickets.c.order_id, String)
             ticket_code = cast(tickets.c.verification_code, String)
             ticket_status = func.lower(cast(tickets.c[settings.admin_ticket_status_column], String))
-            slot_date = slots.c.business_date
             checked_date = func.date(func.timezone(settings.admin_default_timezone, tickets.c.checked_in_at))
             can_join_order_items = order_items is not None and "order_item_id" in tickets.c and "id" in order_items.c
+            can_use_order_item_slot = (
+                can_join_order_items
+                and "slot_id" in order_items.c
+                and "event_id" in order_items.c
+            )
             order_item_amount = (
                 func.coalesce(order_items.c.unit_price, 0)
                 if can_join_order_items and "unit_price" in order_items.c
@@ -708,6 +713,7 @@ class AdminRepository:
                 original_ticket_amount,
                 0,
             )
+            order_total_amount = func.coalesce(self._optional_column(orders, "total_amount", 0), 0)
             discounted_ticket_total = func.greatest(
                 order_ticket_amount
                 + func.coalesce(self._optional_column(orders, "admin_adjustment", 0), 0)
@@ -715,12 +721,34 @@ class AdminRepository:
                 0,
             )
             net_ticket_amount = case(
+                (order_total_amount == 0, literal(0)),
                 (
                     order_ticket_amount > 0,
                     original_ticket_amount * discounted_ticket_total / order_ticket_amount,
                 ),
                 else_=original_ticket_amount,
             )
+            effective_slot_id = (
+                func.coalesce(order_items.c.slot_id, orders.c.slot_id)
+                if can_use_order_item_slot
+                else orders.c.slot_id
+            )
+            effective_event_id = (
+                func.coalesce(slots.c.event_id, order_items.c.event_id)
+                if can_use_order_item_slot
+                else slots.c.event_id
+            )
+            event_name = (
+                func.coalesce(events.c.name, order_items.c.event_name)
+                if can_use_order_item_slot and "event_name" in order_items.c
+                else events.c.name
+            )
+            slot_time = (
+                func.coalesce(slots.c.slot_time_label, order_items.c.slot_time)
+                if can_use_order_item_slot and "slot_time" in order_items.c
+                else slots.c.slot_time_label
+            )
+            slot_date = slots.c.business_date
 
             conditions = []
             if filters.get("ticket_id_exact"):
@@ -749,13 +777,21 @@ class AdminRepository:
                 types = [item.strip() for item in str(filters["ticket_type"]).split(",") if item.strip()]
                 conditions.append(tickets.c.ticket_type.in_(types))
 
-            from_clause = (
-                tickets.outerjoin(orders, tickets.c.order_id == orders.c.id)
-                .outerjoin(slots, orders.c.slot_id == slots.c.id)
-                .outerjoin(users, orders.c.customer_id == users.c.id)
-            )
             if can_join_order_items:
-                from_clause = from_clause.outerjoin(order_items, tickets.c.order_item_id == order_items.c.id)
+                from_clause = (
+                    tickets.outerjoin(orders, tickets.c.order_id == orders.c.id)
+                    .outerjoin(order_items, tickets.c.order_item_id == order_items.c.id)
+                    .outerjoin(slots, effective_slot_id == slots.c.id)
+                    .outerjoin(events, effective_event_id == events.c.id)
+                    .outerjoin(users, orders.c.customer_id == users.c.id)
+                )
+            else:
+                from_clause = (
+                    tickets.outerjoin(orders, tickets.c.order_id == orders.c.id)
+                    .outerjoin(slots, effective_slot_id == slots.c.id)
+                    .outerjoin(events, effective_event_id == events.c.id)
+                    .outerjoin(users, orders.c.customer_id == users.c.id)
+                )
             base = select(
                 tickets,
                 orders.c.payment_method.label("order_payment"),
@@ -770,7 +806,8 @@ class AdminRepository:
                 slots.c.business_date.label("slot_date"),
                 slots.c.start_time.label("slot_start_time"),
                 slots.c.end_time.label("slot_end_time"),
-                slots.c.slot_time_label.label("slot_time"),
+                slot_time.label("slot_time"),
+                event_name.label("event_name"),
                 original_ticket_amount.label("computed_original_ticket_amount"),
                 net_ticket_amount.label("computed_net_ticket_amount"),
             ).select_from(from_clause)

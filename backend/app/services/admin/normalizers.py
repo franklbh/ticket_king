@@ -250,9 +250,9 @@ def normalize_ticket(
         start_time = pick(row, "slot_start_time", "start_time", default=start_time)
         end_time = pick(row, "slot_end_time", "end_time", default=end_time)
         slot_date = to_date_string(pick(row, "slot_date", "date"))
-    event_name = None
+    event_name = pick(row, "event_name")
     order_details = pick(row, "order_ticket_details") or []
-    if isinstance(order_details, list) and order_details:
+    if event_name is None and isinstance(order_details, list) and order_details:
         ticket_type = pick(row, "ticket_type")
         matched = next(
             (d for d in order_details if d.get("ticket_type") == ticket_type),
