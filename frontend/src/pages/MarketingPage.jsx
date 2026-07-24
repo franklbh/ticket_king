@@ -89,7 +89,9 @@ function MarketingPage({
   localizedNewsItems,
   newsletterEmail,
   newsletterMessage,
+  buyTicketsOpen = false,
   onBuyTicket,
+  onCloseBuyTickets,
   onGoHome,
   onLogout,
   onOpenAuth,
@@ -109,7 +111,6 @@ function MarketingPage({
   const [heroIndex, setHeroIndex] = useState(0)
   const [heroTimerResetKey, setHeroTimerResetKey] = useState(0)
   const [navScrolled, setNavScrolled] = useState(false)
-  const [themePickerOpen, setThemePickerOpen] = useState(false)
   const heroCount = localizedExperiences?.length || 6
   const resetHeroTimer = () => setHeroTimerResetKey((key) => key + 1)
   const goToHero = (index) => {
@@ -215,7 +216,7 @@ function MarketingPage({
             <div className="mkt-hero-cta-stack">
               <button
                 className="mkt-hero-primary"
-                onClick={() => setThemePickerOpen(true)}
+                onClick={onBuyTicket}
                 type="button"
               >
                 {t('bookExperience')}
@@ -376,8 +377,8 @@ function MarketingPage({
         <div className="footer-copy">© {new Date().getFullYear()} We Are VR · Lansdowne Centre, Richmond BC</div>
       </footer>
 
-      {themePickerOpen && (
-        <div className="mkt-theme-picker-backdrop" role="presentation" onMouseDown={() => setThemePickerOpen(false)}>
+      {buyTicketsOpen && (
+        <div className="mkt-theme-picker-backdrop" role="presentation" onMouseDown={onCloseBuyTickets}>
           <div
             className="mkt-theme-picker"
             role="dialog"
@@ -390,7 +391,7 @@ function MarketingPage({
                 <p className="mkt-theme-picker-kicker">{t('bookExperience')}</p>
                 <h2 id="mkt-theme-picker-title">Choose an experience</h2>
               </div>
-              <button className="mkt-theme-picker-close" type="button" onClick={() => setThemePickerOpen(false)} aria-label="Close experience picker">
+              <button className="mkt-theme-picker-close" type="button" onClick={onCloseBuyTickets} aria-label="Close experience picker">
                 ×
               </button>
             </div>
@@ -407,7 +408,6 @@ function MarketingPage({
                           className="mkt-theme-option"
                           type="button"
                           onClick={() => {
-                            setThemePickerOpen(false)
                             onBuyTicket(exp)
                           }}
                         >

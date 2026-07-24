@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import StripeCheckout from './components/StripeCheckout'
 import Cart from './components/Cart'
 import './App.css'
@@ -55,15 +56,66 @@ const TICKET_COPY_KEYS = {
   group: ['ticketTypeGroup', 'groupInfo'],
 }
 
+const MAIN_PATH = '/'
+const BOOKING_PATH = '/book'
+const EXPERIENCE_NAVIGATOR_PATH = '/experience-navigator'
+const LEGACY_CHOOSE_EXPERIENCE_PATH = '/choose-experience'
+const LEGACY_BUY_TICKETS_PATH = '/buy-tickets'
+const CART_PATH = '/shopping-cart'
+const LEGACY_CART_PATH = '/cart'
+const NAVIGATION_PATH = '/navigation'
+const BOOKINGS_PATH = '/my-bookings'
+const ACCOUNT_PATH = '/account'
+const LOGIN_PATH = '/login'
+const SIGNUP_PATH = '/signup'
+const RESET_PASSWORD_PATH = '/reset-password'
+const EXPERIENCE_PATH_PREFIX = '/experiences'
+const GAME_PATH_PREFIX = '/games'
+const SECTION_ROUTES = {
+  '/experiences': 'experiences',
+  '/games': 'games',
+}
+const SECTION_PATHS = Object.fromEntries(Object.entries(SECTION_ROUTES).map(([path, id]) => [id, path]))
+
+function routeSlug(value = '') {
+  return String(value)
+    .trim()
+    .toLowerCase()
+    .replace(/['’]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
+function experienceRoute(experience) {
+  const prefix = experience?.category === 'arcade' ? GAME_PATH_PREFIX : EXPERIENCE_PATH_PREFIX
+  return `${prefix}/${routeSlug(experience.title || experience.id)}`
+}
+
+function findExperienceBySlug(slug) {
+  const normalizedSlug = routeSlug(slug)
+  return allExperiences.find((experience) => (
+    routeSlug(experience.title) === normalizedSlug
+    || routeSlug(experience.id) === normalizedSlug
+    || experience.id === slug
+  ))
+}
+
+function isAuthPath(pathname) {
+  return pathname === LOGIN_PATH
+    || pathname === SIGNUP_PATH
+    || pathname === RESET_PASSWORD_PATH
+    || pathname === '/auth/callback'
+}
+
 function initialTicketCounts() {
   return ticketTypes.reduce((acc, ticket) => ({ ...acc, [ticket.id]: 0 }), {})
 }
 
 // ── Main App ─────────────────────────────────────────────────────────────
 function App() {
+  const location = useLocation()
+  const navigate = useNavigate()
   const [selectedLang, setSelectedLang] = useState(languages[0])
-  const [view, setView] = useState('main')
-  const [showBooking, setShowBooking] = useState(false)
   const [step, setStep] = useState('date')
   const [calendarMonth, setCalendarMonth] = useState(businessCurrentMonthStart)
   const [selectedDate, setSelectedDate] = useState(null)
@@ -95,9 +147,7 @@ function App() {
   const [newsletterEmail, setNewsletterEmail] = useState('')
   const [newsletterMessage, setNewsletterMessage] = useState('')
   const [showMapModal, setShowMapModal] = useState(false)
-  const [selectedExperience, setSelectedExperience] = useState(null)
   const [bookingExperience, setBookingExperience] = useState(vrExperiences[0])
-  const [showNavMenu, setShowNavMenu] = useState(false)
   const [cartItems, setCartItems] = useState(() => {
     try {
       const storedItems = JSON.parse(localStorage.getItem('wearevr_cart') || '[]')
@@ -107,8 +157,6 @@ function App() {
       })
     } catch { return [] }
   })
-  const [showCart, setShowCart] = useState(false)
-  const [bookingsInitialSection, setBookingsInitialSection] = useState('bookings')
   const [couponCode, setCouponCode] = useState('')
   const [couponMessage, setCouponMessage] = useState('')
   const [appliedCoupon, setAppliedCoupon] = useState(null)
@@ -117,8 +165,84 @@ function App() {
     const template = translations[selectedLang.code]?.[key] ?? translations.en[key] ?? key
     return Object.entries(params).reduce((text, [name, value]) => text.replaceAll(`{${name}}`, value), template)
   }, [selectedLang.code])
-  const showAuthView = useCallback(() => setView('auth'), [])
-  const showMainView = useCallback(() => setView('main'), [])
+  const pathname = location.pathname.replace(/\/+$/, '') || MAIN_PATH
+  const showBuyTicketsPicker = pathname === EXPERIENCE_NAVIGATOR_PATH
+    || pathname === LEGACY_CHOOSE_EXPERIENCE_PATH
+    || pathname === LEGACY_BUY_TICKETS_PATH
+  const isCartRoute = pathname === CART_PATH || pathname === LEGACY_CART_PATH
+  const showNavMenu = pathname === NAVIGATION_PATH
+  const overlayReturnPathname = typeof location.state?.returnTo === 'string'
+    ? location.state.returnTo.split('?')[0].replace(/\/+$/, '') || MAIN_PATH
+    : null
+  const activePathname = (showBuyTicketsPicker || isCartRoute || showNavMenu) && overlayReturnPathname
+    ? overlayReturnPathname
+    : pathname
+  const pathParts = activePathname.split('/').filter(Boolean)
+  const routeRoot = pathParts[0] || ''
+  const routeBeforeCart = isCartRoute ? MAIN_PATH : `${location.pathname}${location.search}`
+  const routeBeforeNavigation = showNavMenu ? MAIN_PATH : `${location.pathname}${location.search}`
+  const sectionRouteId = SECTION_ROUTES[activePathname] || null
+  const isExperiencePath = routeRoot === 'experiences' || routeRoot === 'games'
+  const routeExperience = isExperiencePath && pathParts[1]
+    ? findExperienceBySlug(pathParts[1])
+    : null
+  const isAuthRoute = isAuthPath(activePathname)
+  const isBookingsRoute = ENABLE_MY_BOOKINGS && (activePathname === BOOKINGS_PATH || activePathname === ACCOUNT_PATH)
+  const showBooking = activePathname === BOOKING_PATH
+  const showCart = isCartRoute
+  const view = isAuthRoute ? 'auth' : routeExperience ? 'experience' : isBookingsRoute ? 'bookings' : 'main'
+  const isKnownRoute = activePathname === MAIN_PATH
+    || showBooking
+    || showBuyTicketsPicker
+    || isCartRoute
+    || showNavMenu
+    || Boolean(sectionRouteId)
+    || Boolean(routeExperience)
+    || isAuthRoute
+    || isBookingsRoute
+  const selectedExperience = routeExperience
+  const bookingsInitialSection = activePathname === ACCOUNT_PATH ? 'account' : 'bookings'
+  const cartReturnPath = location.state?.returnTo && location.state.returnTo !== CART_PATH && location.state.returnTo !== LEGACY_CART_PATH
+    ? location.state.returnTo
+    : MAIN_PATH
+  const navigationReturnPath = location.state?.returnTo && location.state.returnTo !== NAVIGATION_PATH
+    ? location.state.returnTo
+    : MAIN_PATH
+  const buyTicketsReturnPath = location.state?.returnTo
+    && location.state.returnTo !== EXPERIENCE_NAVIGATOR_PATH
+    && location.state.returnTo !== LEGACY_CHOOSE_EXPERIENCE_PATH
+    && location.state.returnTo !== LEGACY_BUY_TICKETS_PATH
+    ? location.state.returnTo
+    : MAIN_PATH
+  const showAuthView = useCallback(() => {
+    const currentPathname = window.location.pathname.replace(/\/+$/, '') || MAIN_PATH
+    if (!isAuthPath(currentPathname)) navigate(LOGIN_PATH)
+  }, [navigate])
+  const showMainView = useCallback(() => {
+    navigate(MAIN_PATH)
+  }, [navigate])
+  const openCartRoute = useCallback(() => {
+    navigate(CART_PATH, { state: { returnTo: routeBeforeCart } })
+  }, [navigate, routeBeforeCart])
+  const closeCartRoute = useCallback(() => {
+    navigate(cartReturnPath)
+  }, [cartReturnPath, navigate])
+  const openNavigationRoute = useCallback(() => {
+    navigate(NAVIGATION_PATH, { state: { returnTo: routeBeforeNavigation } })
+  }, [navigate, routeBeforeNavigation])
+  const closeNavigationRoute = useCallback(() => {
+    navigate(navigationReturnPath)
+  }, [navigate, navigationReturnPath])
+  const openBuyTicketsRoute = useCallback(() => {
+    navigate(EXPERIENCE_NAVIGATOR_PATH, {
+      state: {
+        returnTo: showBuyTicketsPicker ? MAIN_PATH : `${location.pathname}${location.search}`,
+      },
+    })
+  }, [location.pathname, location.search, navigate, showBuyTicketsPicker])
+  const closeBuyTicketsRoute = useCallback(() => {
+    navigate(buyTicketsReturnPath)
+  }, [buyTicketsReturnPath, navigate])
   const {
     authForm,
     authMessage,
@@ -141,11 +265,65 @@ function App() {
     t,
   })
 
+  useEffect(() => {
+    if (activePathname === SIGNUP_PATH && authMode !== 'signup') {
+      setAuthMode('signup')
+    }
+    if (activePathname === LOGIN_PATH && authMode !== 'login') {
+      setAuthMode('login')
+    }
+    if (activePathname === RESET_PASSWORD_PATH && authMode !== 'reset') {
+      setAuthMode('reset')
+    }
+  }, [activePathname, authMode, setAuthMode])
+
+  useEffect(() => {
+    if (!routeExperience) return
+    if (activePathname !== pathname) return
+    const canonicalPath = experienceRoute(routeExperience)
+    if (activePathname !== canonicalPath) {
+      navigate(canonicalPath, { replace: true })
+    }
+  }, [activePathname, navigate, pathname, routeExperience])
+
+  useEffect(() => {
+    if (pathname === LEGACY_CART_PATH) {
+      navigate(CART_PATH, { replace: true, state: location.state })
+    }
+  }, [location.state, navigate, pathname])
+
+  useEffect(() => {
+    if (pathname === LEGACY_BUY_TICKETS_PATH || pathname === LEGACY_CHOOSE_EXPERIENCE_PATH) {
+      navigate(EXPERIENCE_NAVIGATOR_PATH, { replace: true, state: location.state })
+    }
+  }, [location.state, navigate, pathname])
+
+  useEffect(() => {
+    if (isKnownRoute) return
+    navigate(routeRoot === 'games' ? SECTION_PATHS.games : isExperiencePath ? SECTION_PATHS.experiences : MAIN_PATH, { replace: true })
+  }, [isExperiencePath, isKnownRoute, navigate, routeRoot])
+
+  useEffect(() => {
+    if (!sectionRouteId || showBooking || view !== 'main') return
+    const scrollToSection = () => {
+      document.getElementById(sectionRouteId)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+    const timeout = window.setTimeout(scrollToSection, 80)
+    return () => window.clearTimeout(timeout)
+  }, [sectionRouteId, showBooking, view])
+
+  const setAuthRouteMode = useCallback((mode) => {
+    setAuthMode(mode)
+    if (mode === 'signup') navigate(SIGNUP_PATH)
+    if (mode === 'login') navigate(LOGIN_PATH)
+    if (mode === 'reset') navigate(RESET_PASSWORD_PATH)
+  }, [navigate, setAuthMode])
+
   const clearCart = useCallback(() => {
     setCartItems([])
     localStorage.removeItem('wearevr_cart')
-    setShowCart(false)
-  }, [])
+    if (showCart) closeCartRoute()
+  }, [closeCartRoute, showCart])
 
   const handleLogout = useCallback(async () => {
     clearCart()
@@ -383,8 +561,8 @@ function App() {
   }, [view, showBooking])
 
   const openAuthScreen = (mode) => {
-    setShowBooking(false)
     openAuth(mode)
+    navigate(mode === 'signup' ? SIGNUP_PATH : LOGIN_PATH)
   }
 
   const revealBooking = useCallback((experience = null) => {
@@ -397,14 +575,17 @@ function App() {
       setSelectedTime(null)
       setStep('date')
     }
-    setView('main')
-    setShowBooking(true)
-    if (!selectedDate) setCalendarMonth(currentMonthStart())
+    navigate(BOOKING_PATH)
+    if (!selectedDate) setCalendarMonth(businessCurrentMonthStart())
     window.scrollTo({ top: 0, behavior: 'instant' })
-  }, [selectedDate])
+  }, [navigate, selectedDate])
 
   const startBookingWithAuth = (experience = null) => {
-    revealBooking(experience)
+    if (experience?.id) {
+      revealBooking(experience)
+      return
+    }
+    openBuyTicketsRoute()
   }
 
   const openBookingsPage = (section = 'bookings') => {
@@ -413,30 +594,22 @@ function App() {
       openAuthScreen('login')
       return
     }
-    setBookingsInitialSection(section)
-    setShowBooking(false)
-    setSelectedExperience(null)
-    setView('bookings')
+    navigate(section === 'account' ? ACCOUNT_PATH : BOOKINGS_PATH)
     window.scrollTo({ top: 0, behavior: 'instant' })
   }
 
   const backToMain = () => {
-    setShowBooking(false)
-    setSelectedExperience(null)
-    setView('main')
+    navigate(MAIN_PATH)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   const openExperience = (exp) => {
-    setSelectedExperience(exp)
-    setView('experience')
+    navigate(experienceRoute(exp))
     window.scrollTo({ top: 0, behavior: 'instant' })
   }
   const backToExperienceSection = () => {
     const sectionId = selectedExperience?.category === 'arcade' ? 'games' : 'experiences'
-    setSelectedExperience(null)
-    setView('main')
-    setShowBooking(false)
+    navigate(MAIN_PATH)
     setTimeout(() => {
       document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }, 80)
@@ -501,7 +674,7 @@ function App() {
       localStorage.setItem('wearevr_cart', JSON.stringify(updated))
       return updated
     })
-    if (openCart) setShowCart(true)
+    if (openCart) openCartRoute()
   }
 
   const switchBookingExperience = (experienceId) => {
@@ -527,7 +700,7 @@ function App() {
     setSelectedTime(null)
     setVipQty(0)
     setTimeLeft(300)
-    setCalendarMonth(currentMonthStart())
+    setCalendarMonth(businessCurrentMonthStart())
   }
 
   const changeCount = (id, delta) => {
@@ -597,8 +770,7 @@ function App() {
     setNewsletterMessage(isStrictEmail(newsletterEmail) ? t('footerThanks') : t('footerEmailInvalid'))
   }
   const navigateToMainSection = (id) => {
-    setView('main')
-    setShowBooking(false)
+    navigate(SECTION_PATHS[id] || MAIN_PATH)
     setTimeout(() => {
       document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }, 80)
@@ -801,7 +973,7 @@ function App() {
           setReservation(null)
           setShowQr(null)
           setAlphapayQrImage(null)
-          window.location.href = `${import.meta.env.VITE_BASE_URL || ''}/success`
+          backToMain()
         }
       }
       es.onerror = () => es.close()
@@ -843,8 +1015,8 @@ function App() {
             onLogout={handleLogout}
             onOpenAuth={() => openAuthScreen('login')}
             onOpenBookings={openBookingsPage}
-            onOpenCart={() => setShowCart(true)}
-            onOpenNav={() => setShowNavMenu(true)}
+            onOpenCart={openCartRoute}
+            onOpenNav={openNavigationRoute}
             renderLangSelect={renderLangSelect}
             t={t}
           />
@@ -861,12 +1033,12 @@ function App() {
           handlePasswordResetRequest={handlePasswordResetRequest}
           handlePasswordUpdate={handlePasswordUpdate}
           handleSignup={handleSignup}
-          onClose={() => setView('main')}
+          onClose={backToMain}
           resetAuthForm={resetAuthForm}
           selectedLang={selectedLang}
           setAuthForm={setAuthForm}
           setAuthMessage={setAuthMessage}
-          setAuthMode={setAuthMode}
+          setAuthMode={setAuthRouteMode}
           t={t}
         />
       )}
@@ -885,8 +1057,8 @@ function App() {
           onLogout={handleLogout}
           onOpenAuth={() => openAuthScreen('login')}
           onOpenBookings={openBookingsPage}
-          onOpenCart={() => setShowCart(true)}
-          onOpenNav={() => setShowNavMenu(true)}
+          onOpenCart={openCartRoute}
+          onOpenNav={openNavigationRoute}
           onSelectExperience={openExperience}
           renderLangSelect={renderLangSelect}
           selectedLang={selectedLang}
@@ -901,11 +1073,11 @@ function App() {
           currentUser={currentUser}
           experiences={localizedExperiences}
           initialSection={bookingsInitialSection}
-          onGoHome={() => { setView('main'); setShowBooking(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
+          onGoHome={backToMain}
           onLogout={handleLogout}
           onOpenAuth={() => openAuthScreen('login')}
-          onOpenCart={() => setShowCart(true)}
-          onOpenNav={() => setShowNavMenu(true)}
+          onOpenCart={openCartRoute}
+          onOpenNav={openNavigationRoute}
           onVisitContact={() => navigateToMainSection('contact')}
           onVisitFaq={() => navigateToMainSection('faq')}
           renderLangSelect={renderLangSelect}
@@ -927,14 +1099,16 @@ function App() {
               localizedNewsItems={localizedNewsItems}
               newsletterEmail={newsletterEmail}
               newsletterMessage={newsletterMessage}
+              buyTicketsOpen={showBuyTicketsPicker}
               onBuyTicket={startBookingWithAuth}
-              onGoHome={() => { setView('main'); setShowBooking(false) }}
+              onCloseBuyTickets={closeBuyTicketsRoute}
+              onGoHome={backToMain}
               onLogout={handleLogout}
               onOpenAuth={() => openAuthScreen('login')}
               onOpenBookings={openBookingsPage}
-              onOpenCart={() => setShowCart(true)}
+              onOpenCart={openCartRoute}
               onOpenMap={() => setShowMapModal(true)}
-              onOpenNav={() => setShowNavMenu(true)}
+              onOpenNav={openNavigationRoute}
               onSelectExperience={openExperience}
               renderLangSelect={renderLangSelect}
               setFaqOpen={setFaqOpen}
@@ -981,7 +1155,7 @@ function App() {
               onAddToCart={addExperienceTicketsToCart}
               onBookingExperienceChange={switchBookingExperience}
               onClose={backToMain}
-              onOpenCart={() => setShowCart(true)}
+              onOpenCart={openCartRoute}
               paymentExpired={paymentExpired}
               rawCounts={rawCounts}
               restartBooking={restartBooking}
@@ -1034,7 +1208,14 @@ function App() {
       )}
 
       {showMapModal && <MapModal onClose={() => setShowMapModal(false)} />}
-      {showNavMenu && <NavMenu onClose={() => setShowNavMenu(false)} onNavigateToSection={navigateToMainSection} t={t} />}
+      {showNavMenu && (
+        <NavMenu
+          onClose={closeNavigationRoute}
+          onNavigateHome={backToMain}
+          onNavigateToSection={navigateToMainSection}
+          t={t}
+        />
+      )}
 
       {showStripeCheckout && (
         <StripeCheckout
@@ -1102,9 +1283,8 @@ function App() {
             localStorage.setItem('wearevr_cart', JSON.stringify(updated))
             return updated
           })}
-          onClose={() => setShowCart(false)}
+          onClose={closeCartRoute}
           onBrowseExperiences={() => {
-            setShowCart(false)
             navigateToMainSection('experiences')
           }}
           onPaymentSuccess={() => {
@@ -1112,13 +1292,12 @@ function App() {
             localStorage.removeItem('wearevr_cart')
           }}
           onManageBooking={ENABLE_MY_BOOKINGS ? () => {
-            setShowCart(false)
             openBookingsPage()
           } : undefined}
           resetAuthForm={resetAuthForm}
           selectedLang={selectedLang}
           setAuthForm={setAuthForm}
-          setAuthMode={setAuthMode}
+          setAuthMode={setAuthRouteMode}
         />
       )}
 

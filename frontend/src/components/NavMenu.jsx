@@ -1,4 +1,4 @@
-function NavMenu({ onClose, onNavigateToSection, t }) {
+function NavMenu({ onClose, onNavigateHome, onNavigateToSection, t }) {
   const scrollTo = (id) => {
     onClose()
     if (onNavigateToSection) {
@@ -12,6 +12,10 @@ function NavMenu({ onClose, onNavigateToSection, t }) {
 
   const scrollToTop = () => {
     onClose()
+    if (onNavigateHome) {
+      onNavigateHome()
+      return
+    }
     setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 60)
   }
 
@@ -32,8 +36,6 @@ function NavMenu({ onClose, onNavigateToSection, t }) {
           <button className="nav-menu-item" onClick={() => scrollTo('experiences')} type="button"><Icon type="show" />{t('vrShows')}<Arrow /></button>
           <button className="nav-menu-item" onClick={() => scrollTo('games')} type="button"><Icon type="game" />{t('vrGames')}<Arrow /></button>
           <button className="nav-menu-item" onClick={() => window.open('https://www.showpass.com/', '_blank', 'noopener,noreferrer')} type="button"><Icon type="ticket" />{t('showpass')}<Arrow /></button>
-          <button className="nav-menu-item" onClick={() => scrollTo('gift-cards')} type="button"><Icon type="gift" />{t('giftCards')}<Arrow /></button>
-          <button className="nav-menu-item" onClick={() => scrollTo('groups')} type="button"><Icon type="group" />{t('groups')}<Arrow /></button>
           <button className="nav-menu-item" onClick={() => scrollTo('faq')} type="button"><Icon type="faq" />{t('faqs')}<Arrow /></button>
           <button className="nav-menu-item" onClick={() => scrollTo('news')} type="button"><Icon type="news" />{t('newsMedia')}<Arrow /></button>
           <button className="nav-menu-item" onClick={() => scrollTo('contact')} type="button"><Icon type="contact" />{t('contactLabel')}<Arrow /></button>
