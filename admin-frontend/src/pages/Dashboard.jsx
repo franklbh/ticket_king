@@ -45,24 +45,41 @@ const EMPTY_DASHBOARD = {
 function ProjectRevenueTooltip({ active, payload, t }) {
   if (!active || !payload?.length) return null
   const row = payload[0].payload
+  const metrics = [
+    { label: t.revenueCAD, value: `$${Number(row.revenue || 0).toFixed(2)}` },
+    { label: t.ticketCount, value: row.ticketCount || 0 },
+    { label: t.share, value: row.percentLabel || `${Number(row.percent || 0).toFixed(1)}%` },
+  ]
   return (
     <Box
       sx={{
-        minWidth: 170,
-        maxWidth: 240,
-        p: 1.35,
+        minWidth: 210,
+        maxWidth: 280,
+        p: 1.5,
         border: '1px solid rgba(148, 163, 184, 0.24)',
         borderRadius: 2,
         background: '#fff',
         boxShadow: '0 18px 42px rgba(15, 23, 42, 0.16)',
       }}
     >
-      <Typography fontWeight={800} fontSize={13} color="#111827" lineHeight={1.2} sx={{ overflowWrap: 'anywhere' }}>
-        {row.eventName || (t ? t.project : 'Project')}
-      </Typography>
-      <Typography fontWeight={900} fontSize={18} color="#2563eb" lineHeight={1.1} sx={{ mt: 0.65 }}>
-        {row.percentLabel || `${row.percent}%`}
-      </Typography>
+      <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.1 }}>
+        <Box sx={{ width: 10, height: 10, borderRadius: 0.5, bgcolor: row.color, flexShrink: 0 }} />
+        <Typography fontWeight={900} fontSize={13.5} color="#111827" lineHeight={1.2} sx={{ overflowWrap: 'anywhere' }}>
+          {row.eventName || (t ? t.project : 'Project')}
+        </Typography>
+      </Stack>
+      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 0.75 }}>
+        {metrics.map(metric => (
+          <Box key={metric.label} sx={{ border: '1px solid #e5e7eb', borderRadius: 1.4, p: 0.8, bgcolor: '#f8fafc' }}>
+            <Typography sx={{ fontSize: 10.5, lineHeight: 1.1, color: '#64748b', fontWeight: 800 }}>
+              {metric.label}
+            </Typography>
+            <Typography sx={{ mt: 0.35, fontSize: 12.5, lineHeight: 1.15, color: '#111827', fontWeight: 900, whiteSpace: 'nowrap' }}>
+              {metric.value}
+            </Typography>
+          </Box>
+        ))}
+      </Box>
     </Box>
   )
 }
@@ -330,11 +347,31 @@ export default function Dashboard() {
                   </ResponsiveContainer>
                   <Box sx={{ mt: 1 }}>
                     {pieData.map((d, i) => (
-                      <Box key={i} sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.5, fontSize: 12 }}>
-                        <div style={{ width: 10, height: 10, borderRadius: 2, background: d.color, flexShrink: 0 }} />
-                        <span style={{ color: '#6b7280' }}>{d.eventName}</span>
-                        <span style={{ marginLeft: 'auto', fontWeight: 600 }}>${d.revenue.toFixed(2)}</span>
-                        <span style={{ width: 42, textAlign: 'right', color: '#6b7280', fontWeight: 600 }}>{d.percentLabel}</span>
+                      <Box
+                        key={i}
+                        sx={{
+                          display: 'grid',
+                          gridTemplateColumns: '12px minmax(0, 1fr) 100px 44px',
+                          alignItems: 'center',
+                          columnGap: 1,
+                          py: 0.45,
+                        }}
+                      >
+                        <Box sx={{ width: 10, height: 10, borderRadius: 0.5, bgcolor: d.color }} />
+                        <Box component="span" title={d.eventName} sx={{ color: '#6b7280', fontSize: 13, lineHeight: 1.25, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {d.eventName}
+                        </Box>
+                        <Box sx={{ textAlign: 'right', minWidth: 0 }}>
+                          <Box component="span" sx={{ display: 'block', fontWeight: 700, fontSize: 12.5, lineHeight: 1.15, whiteSpace: 'nowrap' }}>
+                            ${d.revenue.toFixed(2)}
+                          </Box>
+                          <Box component="span" sx={{ display: 'block', color: '#6b7280', fontWeight: 700, fontSize: 10.5, lineHeight: 1.15, whiteSpace: 'nowrap' }}>
+                            {d.ticketCount || 0} {t.tickets}
+                          </Box>
+                        </Box>
+                        <Box component="span" sx={{ color: '#6b7280', fontWeight: 600, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                          {d.percentLabel}
+                        </Box>
                       </Box>
                     ))}
                   </Box>
@@ -369,8 +406,8 @@ export default function Dashboard() {
             <button
               onClick={() => {
                 if (!incomeByEvent?.length) return
-                const header = 'Project,Revenue (CAD)\n'
-                const rows = incomeByEvent.map(row => `"${row.eventName}",${row.revenue.toFixed(2)}`).join('\n')
+                const header = 'Project,Ticket Count,Revenue (CAD)\n'
+                const rows = incomeByEvent.map(row => `"${row.eventName}",${row.ticketCount || 0},${row.revenue.toFixed(2)}`).join('\n')
                 const blob = new Blob([header + rows], { type: 'text/csv' })
                 const url = URL.createObjectURL(blob)
                 const a = document.createElement('a')
@@ -395,6 +432,7 @@ export default function Dashboard() {
             <thead>
               <tr style={{ background: '#6366f1', borderBottom: '2px solid #e5e7eb' }}>
                 <th style={{ textAlign: 'left', padding: '8px 12px', color: '#fff', fontWeight: 700 }}>{t.project}</th>
+                <th style={{ textAlign: 'right', padding: '8px 12px', color: '#fff', fontWeight: 700 }}>{t.ticketCount}</th>
                 <th style={{ textAlign: 'right', padding: '8px 12px', color: '#fff', fontWeight: 700 }}>{t.revenueCAD}</th>
               </tr>
             </thead>
@@ -402,19 +440,23 @@ export default function Dashboard() {
               {(incomeByEvent || []).map((row, i) => (
                 <tr key={row.eventId} style={{ borderBottom: '1px solid #f3f4f6', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
                   <td style={{ padding: '10px 12px', fontWeight: 600, color: '#111827' }}>{row.eventName}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: '#374151' }}>{row.ticketCount || 0}</td>
                   <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: '#6366f1' }}>
                     ${row.revenue.toFixed(2)}
                   </td>
                 </tr>
               ))}
               {!incomeByEvent?.length && (
-                <tr><td colSpan={2} style={{ padding: '20px 12px', textAlign: 'center', color: '#9ca3af' }}>{t.noData}</td></tr>
+                <tr><td colSpan={3} style={{ padding: '20px 12px', textAlign: 'center', color: '#9ca3af' }}>{t.noData}</td></tr>
               )}
             </tbody>
             {incomeByEvent?.length > 0 && (
               <tfoot>
                 <tr style={{ borderTop: '2px solid #e5e7eb' }}>
                   <td style={{ padding: '10px 12px', fontWeight: 700, color: '#111827' }}>{t.total}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 800, color: '#374151' }}>
+                    {incomeByEvent.reduce((s, r) => s + (r.ticketCount || 0), 0)}
+                  </td>
                   <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 800, color: '#6366f1' }}>
                     ${incomeByEvent.reduce((s, r) => s + r.revenue, 0).toFixed(2)}
                   </td>

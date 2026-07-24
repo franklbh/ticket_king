@@ -92,6 +92,7 @@ class AdminRepository:
                     events.c.id.label("event_id"),
                     events.c.name.label("event_name"),
                     func.coalesce(func.sum(amount), 0).label("revenue"),
+                    func.coalesce(func.sum(orders.c.ticket_quantity), 0).label("ticket_count"),
                 )
                 .select_from(
                     events

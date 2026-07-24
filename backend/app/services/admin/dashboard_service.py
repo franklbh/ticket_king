@@ -130,6 +130,7 @@ class DashboardService:
                 "eventId": row["event_id"],
                 "eventName": row["event_name"],
                 "revenue": round(as_float(row.get("revenue")), 2),
+                "ticketCount": int(row.get("ticket_count") or 0),
             }
             for row in rows
         ]

@@ -231,6 +231,7 @@ class EventIncomeItem(AdminModel):
     event_id: int = Field(alias="eventId")
     event_name: str = Field(alias="eventName")
     revenue: float
+    ticket_count: int = Field(default=0, alias="ticketCount")
 
 
 class ReportRow(AdminModel):
