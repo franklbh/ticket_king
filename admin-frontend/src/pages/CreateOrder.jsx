@@ -632,7 +632,7 @@ export default function CreateOrder() {
         <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
           <Button variant="outlined" onClick={resetOrder} startIcon={<i className="fa fa-plus" />}>{t.createAnotherOrder}</Button>
           <Button variant="contained" startIcon={<i className="fa fa-print" />}>{t.printTickets}</Button>
-          <Button variant="contained" onClick={() => navigate(`/orders?orderId=${encodeURIComponent(lastOrderId)}`)} startIcon={<i className="fa fa-external-link-alt" />}>{t.viewInOrders}</Button>
+          <Button variant="contained" onClick={() => navigate(`/orders/${encodeURIComponent(lastOrderId)}`)} startIcon={<i className="fa fa-external-link-alt" />}>{t.viewInOrders}</Button>
         </div>
       </div>
     )

@@ -358,7 +358,7 @@ export default function Marketing() {
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
                       <span style={{ fontFamily: 'monospace', fontWeight: 600, color: '#374151', fontSize: 13 }}>#{r.orderId}</span>
                       <Button
-                        onClick={() => navigate(`/orders?orderId=${encodeURIComponent(r.orderId)}`)}
+                        onClick={() => navigate(`/orders/${encodeURIComponent(r.orderId)}`)}
                         variant="outlined"
                         size="small"
                         startIcon={<i className="fa fa-external-link-alt" />}

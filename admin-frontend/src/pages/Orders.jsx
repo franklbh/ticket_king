@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import Button from '@mui/material/Button'
 import MenuItem from '@mui/material/MenuItem'
 import MuiPagination from '@mui/material/Pagination'
@@ -338,12 +338,14 @@ export default function Orders() {
   const { lang } = useLang()
   const t = useT(lang)
   const navigate = useNavigate()
+  const { orderId: routeOrderId = '' } = useParams()
   const [searchParams] = useSearchParams()
+  const linkedOrderId = routeOrderId || searchParams.get('orderId') || ''
   const linkedSlotDate = searchParams.get('slotDate') || ''
   const linkedSlotStart = searchParams.get('slotStart') || ''
 
   const [filters, setFilters] = useState({
-    orderId: searchParams.get('orderId') || '', userInfo: '',
+    orderId: linkedOrderId, userInfo: '',
     couponCode: searchParams.get('couponCode') || '',
     orderDateFrom: '', orderDateTo: '',
     slotDateFrom: linkedSlotDate || '', slotDateTo: linkedSlotDate || '',
@@ -351,7 +353,7 @@ export default function Orders() {
     statuses: [],
   })
   const [appliedFilters, setAppliedFilters] = useState({
-    orderId: searchParams.get('orderId') || '', userInfo: '',
+    orderId: linkedOrderId, userInfo: '',
     couponCode: searchParams.get('couponCode') || '',
     orderDateFrom: '', orderDateTo: '',
     slotDateFrom: linkedSlotDate || '', slotDateTo: linkedSlotDate || '',
@@ -679,7 +681,7 @@ export default function Orders() {
                           <span className="badge badge-green"><i className="fa fa-check" style={{ marginRight: 3 }} />{t.completed}</span>
                         )}
                         <IconBtn icon="fa-info-circle" onClick={e => openPopover('ticket', o.id, e)} title={t.ticketDetails} color="#6366f1" bg="#eef2ff" />
-                        <IconBtn icon="fa-eye" onClick={() => navigate('/tickets')} title={t.viewTickets} />
+                        <IconBtn icon="fa-eye" onClick={() => navigate(`/tickets/order/${encodeURIComponent(o.id)}`)} title={t.viewTickets} />
                       </div>
                       <div style={{ fontSize: 11, color: '#9ca3af' }}>{t.total}: {o.ticketCount.total}</div>
                     </div>

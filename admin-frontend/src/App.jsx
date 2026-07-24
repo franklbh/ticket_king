@@ -56,7 +56,9 @@ function AppRoutes() {
         <Route index element={<Navigate to={defaultPath} replace />} />
         <Route path="dashboard" element={<ProtectedRoute permission="dashboard:read"><Dashboard /></ProtectedRoute>} />
         <Route path="orders" element={<ProtectedRoute permission="orders:read"><Orders /></ProtectedRoute>} />
+        <Route path="orders/:orderId" element={<ProtectedRoute permission="orders:read"><Orders /></ProtectedRoute>} />
         <Route path="tickets" element={<ProtectedRoute permission="tickets:read"><Tickets /></ProtectedRoute>} />
+        <Route path="tickets/order/:orderId" element={<ProtectedRoute permission="tickets:read"><Tickets /></ProtectedRoute>} />
         <Route path="coupons" element={<ProtectedRoute permission="coupons:read"><Coupons /></ProtectedRoute>} />
         <Route path="marketing" element={<ProtectedRoute permission="marketing:read"><Marketing /></ProtectedRoute>} />
         <Route path="slots" element={<ProtectedRoute permission="catalog:read"><Slots /></ProtectedRoute>} />

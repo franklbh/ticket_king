@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import Button from '@mui/material/Button'
 import Chip from '@mui/material/Chip'
 import MuiPagination from '@mui/material/Pagination'
@@ -105,15 +105,19 @@ export default function Tickets() {
   const { lang } = useLang()
   const t = useT(lang)
   const navigate = useNavigate()
+  const { orderId: routeOrderId = '' } = useParams()
+  const [searchParams] = useSearchParams()
+  const linkedOrderId = routeOrderId || searchParams.get('orderId') || ''
+  const linkedTicketCode = searchParams.get('code') || ''
 
   const [filters, setFilters] = useState({
-    code: '', orderId: '', status: 'all',
+    code: linkedTicketCode, orderId: linkedOrderId, status: 'all',
     slotDateFrom: '', slotDateTo: '',
     verifiedFrom: '', verifiedTo: '',
     types: [],
   })
   const [appliedFilters, setAppliedFilters] = useState({
-    code: '', orderId: '', status: 'all',
+    code: linkedTicketCode, orderId: linkedOrderId, status: 'all',
     slotDateFrom: '', slotDateTo: '',
     verifiedFrom: '', verifiedTo: '',
     types: [],
@@ -473,7 +477,7 @@ export default function Tickets() {
                           <span style={{ fontWeight: 800, color: '#344155', fontFamily: 'monospace', fontSize: 13, whiteSpace: 'nowrap' }}>#{tk.orderId}</span>
                           <button
                             title={t.viewOrder}
-                            onClick={() => navigate(`/orders?orderId=${encodeURIComponent(tk.orderId)}`)}
+                            onClick={() => navigate(`/orders/${encodeURIComponent(tk.orderId)}`)}
                             style={{ ...actionButton, background: THEME.primary, color: '#fff', padding: '6px 9px' }}
                           >
                             <i className="fa fa-external-link-alt" />
