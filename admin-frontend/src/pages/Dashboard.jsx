@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Box from '@mui/material/Box'
+import Button from '@mui/material/Button'
 import Stack from '@mui/material/Stack'
 import ToggleButton from '@mui/material/ToggleButton'
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup'
@@ -13,6 +14,7 @@ import { useLang } from '../context/authHooks'
 import { useT } from '../i18n/translations'
 import { useAuth } from '../context/authHooks'
 import { useDashboardQuery, useIncomeByEventQuery } from '../hooks/dashboard'
+import { useTicketsQuery } from '../hooks/tickets'
 import {
   CustomTooltip,
   PopularSlotsChart,
@@ -23,6 +25,7 @@ import {
 import LoadingIndicator from '../components/LoadingIndicator'
 import { AdminAlert, AdminCard, PageHeader } from '../components/AdminUI'
 import { can } from '../auth/permissions'
+import { todayIso } from '../utils/date'
 import { localizeCatalogName } from '../utils/localization'
 
 const RANGE_TO_API = { last7Days: '7d', last14Days: '14d', last30Days: '30d', last90Days: '90d', allTime: 'all' }
@@ -64,6 +67,36 @@ function ProjectRevenueTooltip({ active, payload, t }) {
   )
 }
 
+function ticketSlotTimeText(ticket) {
+  return [ticket.slotStart, ticket.slotEnd].filter(Boolean).join('-') || ticket.slotDate || '-'
+}
+
+function buildReservationSummary(tickets, lang) {
+  const groups = new Map()
+
+  function addItem(name, time, count) {
+    const ticketCount = Number(count || 0)
+    if (!ticketCount) return
+    const label = name ? localizeCatalogName(name, lang) : '-'
+    const slotTime = time || '-'
+    const group = groups.get(label) || { name: label, total: 0, slots: new Map() }
+    group.total += ticketCount
+    group.slots.set(slotTime, (group.slots.get(slotTime) || 0) + ticketCount)
+    groups.set(label, group)
+  }
+
+  tickets.forEach(ticket => addItem(ticket.eventName, ticketSlotTimeText(ticket), 1))
+
+  return Array.from(groups.values())
+    .map(group => ({
+      ...group,
+      slots: Array.from(group.slots.entries())
+        .map(([time, count]) => ({ time, count }))
+        .sort((a, b) => a.time.localeCompare(b.time)),
+    }))
+    .sort((a, b) => (a.slots[0]?.time || '').localeCompare(b.slots[0]?.time || '') || a.name.localeCompare(b.name))
+}
+
 export default function Dashboard() {
   const { lang } = useLang()
   const { admin } = useAuth()
@@ -71,9 +104,15 @@ export default function Dashboard() {
   const navigate = useNavigate()
   const [range, setRange] = useState('allTime')
   const [projectRange, setProjectRange] = useState('today')
+  const today = todayIso()
+  const canViewTickets = can(admin, 'tickets:read')
   const { data: dashboard, error, loading } = useDashboardQuery(
     RANGE_TO_API[range],
     { initialData: EMPTY_DASHBOARD }
+  )
+  const { data: todayPendingTickets, error: reservationsError, loading: loadingReservations } = useTicketsQuery(
+    { page: 1, pageSize: 200, status: 'not_used', slotDateFrom: today, slotDateTo: today },
+    { initialData: { items: [], total: 0 }, enabled: canViewTickets, refetchOnWindowFocus: true }
   )
   const { data: rawIncomeByEvent } = useIncomeByEventQuery(PROJECT_RANGE_TO_API[projectRange])
   const { data: rawIncomeForPie } = useIncomeByEventQuery(RANGE_TO_API[range])
@@ -87,6 +126,14 @@ export default function Dashboard() {
   const totalRevenue = dashboard?.summary?.totalRevenue || 0
   const totalOrders  = dashboard?.summary?.totalOrders || 0
   const totalTickets = dashboard?.summary?.totalTickets || 0
+  const pendingTicketItems = todayPendingTickets?.items || []
+  const pendingReservationTickets = todayPendingTickets?.total ?? pendingTicketItems.length
+  const reservationSummary = buildReservationSummary(pendingTicketItems, lang)
+  const reservationError = reservationsError
+
+  function openTodayReservations() {
+    navigate(`/tickets?slotDate=${encodeURIComponent(today)}&status=not_used`)
+  }
 
   if (loading) {
     return <LoadingIndicator label={t.loadingDashboard} />
@@ -127,6 +174,76 @@ export default function Dashboard() {
           <StatCard key={item.title} icon={item.icon} iconBg={item.bg} title={item.title} value={item.value} sub={item.sub} />
         ))}
       </Box>
+
+      {canViewTickets && (
+        <AdminCard className="mb-6">
+          <Stack direction={{ xs: 'column', md: 'row' }} alignItems={{ xs: 'stretch', md: 'center' }} justifyContent="space-between" spacing={2} sx={{ mb: reservationSummary.length || reservationError || loadingReservations ? 2 : 0 }}>
+            <Stack direction="row" alignItems="center" spacing={1.4} sx={{ minWidth: 0 }}>
+              <Box sx={{ width: 38, height: 38, borderRadius: 1.5, bgcolor: '#eff6ff', color: '#2563eb', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
+                <i className="fa fa-clock" />
+              </Box>
+              <Box sx={{ minWidth: 0 }}>
+                <Typography fontWeight={900} sx={{ fontSize: 20, lineHeight: 1.15 }}>
+                  {t.todayReservations}
+                </Typography>
+              </Box>
+            </Stack>
+
+            <Stack direction="row" spacing={1.25} alignItems="center" justifyContent={{ xs: 'space-between', md: 'flex-end' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.4, py: 0.8, border: '1px solid #e2e8f0', borderRadius: 999, bgcolor: '#fff7ed', whiteSpace: 'nowrap' }}>
+                <Typography sx={{ fontSize: 18, lineHeight: 1, fontWeight: 900, color: '#9a3412' }}>{pendingReservationTickets}</Typography>
+                <Typography sx={{ fontSize: 12, fontWeight: 800, color: '#64748b' }}>{t.pending}</Typography>
+              </Box>
+              <Button variant="outlined" size="small" onClick={openTodayReservations} startIcon={<i className="fa fa-filter" />} sx={{ fontWeight: 800, whiteSpace: 'nowrap', bgcolor: '#fff' }}>
+                {t.viewPendingReservations}
+              </Button>
+            </Stack>
+          </Stack>
+
+          {reservationError && (
+            <AdminAlert tone="warning">
+              {t.backendLoadError} {reservationError.message}
+            </AdminAlert>
+          )}
+
+          {loadingReservations && (
+            <Box sx={{ pt: 0.5, color: 'text.secondary', fontSize: 13, fontWeight: 700 }}>{t.loadingReservations}</Box>
+          )}
+
+          {!loadingReservations && reservationSummary.length > 0 && (
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 1fr))', xl: 'repeat(3, minmax(0, 1fr))' }, gap: 1.25 }}>
+              {reservationSummary.map(item => {
+                const visibleSlots = item.slots.slice(0, 4)
+                const hiddenCount = item.slots.length - visibleSlots.length
+                return (
+                  <Box key={item.name} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, p: 1.5, bgcolor: '#fff', minWidth: 0 }}>
+                    <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1.25}>
+                      <Typography sx={{ fontSize: 14, lineHeight: 1.2, fontWeight: 900, color: '#111827', minWidth: 0 }}>
+                        {item.name}
+                      </Typography>
+                      <Box sx={{ px: 1.1, py: 0.45, borderRadius: 999, bgcolor: '#eff6ff', color: '#1d4ed8', fontSize: 12, fontWeight: 900, whiteSpace: 'nowrap' }}>
+                        {item.total} {t.tickets}
+                      </Box>
+                    </Stack>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mt: 1.2 }}>
+                      {visibleSlots.map(slot => (
+                        <Box key={slot.time} sx={{ px: 1, py: 0.45, borderRadius: 1.2, bgcolor: '#f8fafc', border: '1px solid #e5e7eb', color: '#475569', fontSize: 12, fontWeight: 800 }}>
+                          {slot.time} · {slot.count}
+                        </Box>
+                      ))}
+                      {hiddenCount > 0 && (
+                        <Box sx={{ px: 1, py: 0.45, borderRadius: 1.2, bgcolor: '#f1f5f9', color: '#64748b', fontSize: 12, fontWeight: 800 }}>
+                          +{hiddenCount}
+                        </Box>
+                      )}
+                    </Box>
+                  </Box>
+                )
+              })}
+            </Box>
+          )}
+        </AdminCard>
+      )}
 
       {/* Stats & Analysis */}
       <AdminCard className="mb-6">

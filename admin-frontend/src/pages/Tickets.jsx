@@ -16,6 +16,11 @@ import { ApplyFiltersButton, DateRangeFilter, ResetFiltersButton, SelectFilter, 
 import { localizeCatalogName, localizeTicketTypeName } from '../utils/localization'
 
 const PAGE_SIZE = 10
+const TICKET_STATUS_FILTERS = ['all', 'not_used', 'used', 'voided']
+
+function statusFilterFromQuery(value) {
+  return TICKET_STATUS_FILTERS.includes(value) ? value : 'all'
+}
 const ADMIN_TIME_ZONE = 'America/Vancouver'
 function adminTodayDateKey() {
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -109,16 +114,18 @@ export default function Tickets() {
   const [searchParams] = useSearchParams()
   const linkedOrderId = routeOrderId || searchParams.get('orderId') || ''
   const linkedTicketCode = searchParams.get('code') || ''
+  const linkedStatus = statusFilterFromQuery(searchParams.get('status'))
+  const linkedSlotDate = searchParams.get('slotDate') || ''
 
   const [filters, setFilters] = useState({
-    code: linkedTicketCode, orderId: linkedOrderId, status: 'all',
-    slotDateFrom: '', slotDateTo: '',
+    code: linkedTicketCode, orderId: linkedOrderId, status: linkedStatus,
+    slotDateFrom: linkedSlotDate, slotDateTo: linkedSlotDate,
     verifiedFrom: '', verifiedTo: '',
     types: [],
   })
   const [appliedFilters, setAppliedFilters] = useState({
-    code: linkedTicketCode, orderId: linkedOrderId, status: 'all',
-    slotDateFrom: '', slotDateTo: '',
+    code: linkedTicketCode, orderId: linkedOrderId, status: linkedStatus,
+    slotDateFrom: linkedSlotDate, slotDateTo: linkedSlotDate,
     verifiedFrom: '', verifiedTo: '',
     types: [],
   })

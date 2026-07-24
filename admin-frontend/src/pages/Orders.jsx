@@ -17,13 +17,18 @@ import { formatDateShort, todayIso, weekdayName } from '../utils/date'
 import { localizeCatalogName } from '../utils/localization'
 import { formatNorthAmericanPhone } from '../utils/phone'
 
-const STATUS_LIST = ['paid', 'completed', 'refunded', 'cancelled']
+const STATUS_LIST = ['pending', 'paid', 'completed', 'refunded', 'cancelled']
 const STATUS_OPTIONS = STATUS_LIST.map(status => ({ value: status, label: status[0].toUpperCase() + status.slice(1) }))
-const STATUS_BADGE = { paid: 'badge-blue', completed: 'badge-green', refunded: 'badge-red', cancelled: 'badge-gray' }
-const STATUS_T = { paid: 'paid', completed: 'completed', refunded: 'refunded', cancelled: 'cancelled' }
+const STATUS_BADGE = { pending: 'badge-orange', paid: 'badge-blue', completed: 'badge-green', refunded: 'badge-red', cancelled: 'badge-gray' }
+const STATUS_T = { pending: 'pendingStatus', paid: 'paid', completed: 'completed', refunded: 'refunded', cancelled: 'cancelled' }
 const DEFAULT_VISIBLE_STATUSES = ['paid', 'completed', 'refunded']
 const TODAY = todayIso()
 const PAGE_SIZE = 10
+
+function statusFiltersFromQuery(value) {
+  if (!value) return []
+  return String(value).split(',').map(status => status.trim()).filter(status => STATUS_LIST.includes(status))
+}
 
 function splitName(name = '') {
   const parts = name.trim().split(/\s+/)
@@ -343,6 +348,7 @@ export default function Orders() {
   const linkedOrderId = routeOrderId || searchParams.get('orderId') || ''
   const linkedSlotDate = searchParams.get('slotDate') || ''
   const linkedSlotStart = searchParams.get('slotStart') || ''
+  const linkedStatuses = statusFiltersFromQuery(searchParams.get('status'))
 
   const [filters, setFilters] = useState({
     orderId: linkedOrderId, userInfo: '',
@@ -350,7 +356,7 @@ export default function Orders() {
     orderDateFrom: '', orderDateTo: '',
     slotDateFrom: linkedSlotDate || '', slotDateTo: linkedSlotDate || '',
     slotStart: linkedSlotStart,
-    statuses: [],
+    statuses: linkedStatuses,
   })
   const [appliedFilters, setAppliedFilters] = useState({
     orderId: linkedOrderId, userInfo: '',
@@ -358,7 +364,7 @@ export default function Orders() {
     orderDateFrom: '', orderDateTo: '',
     slotDateFrom: linkedSlotDate || '', slotDateTo: linkedSlotDate || '',
     slotStart: linkedSlotStart,
-    statuses: [],
+    statuses: linkedStatuses,
   })
   const [page, setPage] = useState(1)
   const queryStatuses = appliedFilters.statuses.length ? appliedFilters.statuses : DEFAULT_VISIBLE_STATUSES
@@ -446,7 +452,19 @@ export default function Orders() {
 
   async function updateStatus(orderId, status) {
     const updated = await updateStatusMutation(orderId, status)
-    setOrdersData(prev => ({ ...prev, items: (prev?.items || []).map(o => o.id === orderId ? updated : o) }))
+    setOrdersData(prev => {
+      const items = prev?.items || []
+      const orderWasVisible = items.some(o => o.id === orderId)
+      const orderStillMatchesStatus = queryStatuses.includes(updated.status)
+      if (!orderStillMatchesStatus) {
+        return {
+          ...prev,
+          items: items.filter(o => o.id !== orderId),
+          total: orderWasVisible ? Math.max(0, Number(prev?.total || 0) - 1) : prev?.total,
+        }
+      }
+      return { ...prev, items: items.map(o => o.id === orderId ? updated : o) }
+    })
   }
 
   async function applyCoupon(order) {
