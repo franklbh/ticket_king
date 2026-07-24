@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth, useLang } from '../context/authHooks'
+import { ADMIN_LOGOUT_NOTICE_KEY } from '../context/AuthContext'
 import { useT } from '../i18n/translations'
 import { AdminAlert } from '../components/AdminUI'
 
@@ -13,11 +14,17 @@ export default function Login() {
 
   const [form, setForm] = useState({ email: '', password: '', remember: false })
   const [error, setError] = useState('')
+  const [notice, setNotice] = useState(() => sessionStorage.getItem(ADMIN_LOGOUT_NOTICE_KEY) || '')
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (notice) sessionStorage.removeItem(ADMIN_LOGOUT_NOTICE_KEY)
+  }, [notice])
 
   async function handleSubmit(e) {
     e.preventDefault()
     setError('')
+    setNotice('')
     setLoading(true)
     try {
       await login(form.email.trim(), form.password, form.remember)
@@ -89,6 +96,10 @@ export default function Login() {
 
           {error && (
             <AdminAlert tone="error">{error}</AdminAlert>
+          )}
+
+          {notice === 'tokenExpired' && (
+            <AdminAlert tone="warning">{t.tokenExpiredNotice}</AdminAlert>
           )}
 
           <button

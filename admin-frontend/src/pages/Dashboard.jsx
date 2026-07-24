@@ -62,7 +62,7 @@ function ProjectRevenueTooltip({ active, payload, t }) {
         boxShadow: '0 18px 42px rgba(15, 23, 42, 0.16)',
       }}
     >
-      <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.1 }}>
+      <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 1.1 }}>
         <Box sx={{ width: 10, height: 10, borderRadius: 0.5, bgcolor: row.color, flexShrink: 0 }} />
         <Typography fontWeight={900} fontSize={13.5} color="#111827" lineHeight={1.2} sx={{ overflowWrap: 'anywhere' }}>
           {row.eventName || (t ? t.project : 'Project')}
@@ -194,8 +194,8 @@ export default function Dashboard() {
 
       {canViewTickets && (
         <AdminCard className="mb-6">
-          <Stack direction={{ xs: 'column', md: 'row' }} alignItems={{ xs: 'stretch', md: 'center' }} justifyContent="space-between" spacing={2} sx={{ mb: reservationSummary.length || reservationError || loadingReservations ? 2 : 0 }}>
-            <Stack direction="row" alignItems="center" spacing={1.4} sx={{ minWidth: 0 }}>
+          <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ alignItems: { xs: 'stretch', md: 'center' }, justifyContent: 'space-between', mb: reservationSummary.length || reservationError || loadingReservations ? 2 : 0 }}>
+            <Stack direction="row" spacing={1.4} sx={{ alignItems: 'center', minWidth: 0 }}>
               <Box sx={{ width: 38, height: 38, borderRadius: 1.5, bgcolor: '#eff6ff', color: '#2563eb', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
                 <i className="fa fa-clock" />
               </Box>
@@ -206,7 +206,7 @@ export default function Dashboard() {
               </Box>
             </Stack>
 
-            <Stack direction="row" spacing={1.25} alignItems="center" justifyContent={{ xs: 'space-between', md: 'flex-end' }}>
+            <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center', justifyContent: { xs: 'space-between', md: 'flex-end' } }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.4, py: 0.8, border: '1px solid #e2e8f0', borderRadius: 999, bgcolor: '#fff7ed', whiteSpace: 'nowrap' }}>
                 <Typography sx={{ fontSize: 18, lineHeight: 1, fontWeight: 900, color: '#9a3412' }}>{pendingReservationTickets}</Typography>
                 <Typography sx={{ fontSize: 12, fontWeight: 800, color: '#64748b' }}>{t.pending}</Typography>
@@ -234,7 +234,7 @@ export default function Dashboard() {
                 const hiddenCount = item.slots.length - visibleSlots.length
                 return (
                   <Box key={item.name} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, p: 1.5, bgcolor: '#fff', minWidth: 0 }}>
-                    <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1.25}>
+                    <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
                       <Typography sx={{ fontSize: 14, lineHeight: 1.2, fontWeight: 900, color: '#111827', minWidth: 0 }}>
                         {item.name}
                       </Typography>
@@ -264,7 +264,7 @@ export default function Dashboard() {
 
       {/* Stats & Analysis */}
       <AdminCard className="mb-6">
-        <Stack direction={{ xs: 'column', lg: 'row' }} alignItems={{ xs: 'stretch', lg: 'center' }} justifyContent="space-between" spacing={2} sx={{ mb: 2.5 }}>
+        <Stack direction={{ xs: 'column', lg: 'row' }} spacing={2} sx={{ alignItems: { xs: 'stretch', lg: 'center' }, justifyContent: 'space-between', mb: 2.5 }}>
           <Typography variant="h6" fontWeight={800} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <i className="fa fa-chart-bar" style={{ color: '#6366f1' }} />
             {t.statisticsAnalysis}
@@ -384,12 +384,12 @@ export default function Dashboard() {
 
       {/* Revenue by Project */}
       <AdminCard className="mb-6">
-        <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'stretch', sm: 'center' }} justifyContent="space-between" spacing={2} sx={{ mb: 2.5 }}>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ alignItems: { xs: 'stretch', sm: 'center' }, justifyContent: 'space-between', mb: 2.5 }}>
           <Typography variant="h6" fontWeight={800} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <i className="fa fa-store" style={{ color: '#6366f1' }} />
             {t.projectRevenue}
           </Typography>
-          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+          <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
             <ToggleButtonGroup
               exclusive
               size="small"

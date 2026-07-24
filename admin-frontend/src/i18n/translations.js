@@ -14,6 +14,10 @@ const t = {
     captchaWrong: 'Captcha incorrect, please retry',
     changePassword: 'Change Password',
     logout: 'Logout',
+    dismiss: 'Dismiss',
+    sessionExpiresSoon: 'Session expires soon',
+    sessionRefreshNotice: 'Your token expires in about {minutes} minutes. The app will try to refresh it automatically.',
+    tokenExpiredNotice: 'Token expired. Please log in again.',
 
     // Nav
     dashboard: 'Dashboard',
@@ -600,6 +604,10 @@ const t = {
     captchaWrong: '验证码错误，请重试',
     changePassword: '修改密码',
     logout: '退出',
+    dismiss: '关闭',
+    sessionExpiresSoon: '会话即将过期',
+    sessionRefreshNotice: '你的权限将在约 {minutes} 分钟后过期，系统会自动尝试刷新。',
+    tokenExpiredNotice: '权限已过期，请重新登录。',
 
     // Nav
     dashboard: '仪表盘',
@@ -1186,6 +1194,10 @@ const t = {
     captchaWrong: '驗證碼錯誤，請重試',
     changePassword: '修改密碼',
     logout: '登出',
+    dismiss: '關閉',
+    sessionExpiresSoon: '工作階段即將過期',
+    sessionRefreshNotice: '你的權限將在約 {minutes} 分鐘後過期，系統會自動嘗試刷新。',
+    tokenExpiredNotice: '權限已過期，請重新登錄。',
 
     // Nav
     dashboard: '儀表板',

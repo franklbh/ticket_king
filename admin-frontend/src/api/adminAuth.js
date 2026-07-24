@@ -45,7 +45,47 @@ export async function loginAdminWithPassword(email, password) {
     },
     accessToken,
     refreshToken: authData.refresh_token,
-    expiresAt: authData.expires_at,
+    expiresAt: getExpiresAt(authData),
+  }
+}
+
+export async function refreshAdminSession(refreshToken) {
+  const missing = missingAdminAuthEnvVars()
+  if (missing.length) {
+    throw new Error(`Missing admin auth env: ${missing.join(', ')}`)
+  }
+  if (!refreshToken) {
+    throw new Error('Admin refresh token is missing.')
+  }
+
+  const authResponse = await fetch(`${supabaseUrl.replace(/\/$/, '')}/auth/v1/token?grant_type=refresh_token`, {
+    method: 'POST',
+    headers: {
+      apikey: supabasePublishableKey,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ refresh_token: refreshToken }),
+  })
+
+  const authData = await readJson(authResponse)
+  if (!authResponse.ok) {
+    throw new Error(authData?.msg || authData?.error_description || authData?.error || 'Could not refresh admin session.')
+  }
+
+  const accessToken = authData.access_token
+  if (!accessToken) {
+    throw new Error('Supabase did not return a refreshed access token.')
+  }
+
+  const admin = await fetchCurrentAdmin(accessToken)
+  return {
+    admin: {
+      ...admin,
+      username: admin.username || admin.name || admin.email,
+    },
+    accessToken,
+    refreshToken: authData.refresh_token || refreshToken,
+    expiresAt: getExpiresAt(authData),
   }
 }
 
@@ -81,4 +121,10 @@ async function readJson(response) {
   } catch {
     return null
   }
+}
+
+function getExpiresAt(authData) {
+  if (authData?.expires_at) return authData.expires_at
+  if (authData?.expires_in) return Math.floor(Date.now() / 1000) + Number(authData.expires_in)
+  return null
 }

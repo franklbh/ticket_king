@@ -1,9 +1,16 @@
+import { refreshAdminSession } from './adminAuth'
+
 const DEFAULT_ADMIN_API_URL = 'http://localhost:8000/api/v1/admin'
 const backendBase = (import.meta.env.VITE_BACKEND_BASE || import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
 const API_BASE_URL = (
   import.meta.env.VITE_ADMIN_API_URL ||
   (backendBase ? `${backendBase}/api/v1/admin` : DEFAULT_ADMIN_API_URL)
 ).replace(/\/$/, '')
+const ADMIN_SESSION_KEY = 'tk_admin_session'
+const ADMIN_SESSION_REFRESHED_EVENT = 'tk-admin-session-refreshed'
+const ADMIN_SESSION_EXPIRED_EVENT = 'tk-admin-session-expired'
+const ADMIN_LOGOUT_NOTICE_KEY = 'tk_admin_logout_notice'
+const TOKEN_EXPIRED_NOTICE = 'tokenExpired'
 
 export class AdminApiError extends Error {
   constructor(message, status, payload) {
@@ -33,6 +40,39 @@ function authHeaders() {
   return headers
 }
 
+function persistAdmin(admin) {
+  const localSession = localStorage.getItem(ADMIN_SESSION_KEY)
+  const sessionStorageSession = sessionStorage.getItem(ADMIN_SESSION_KEY)
+  const storage = localSession ? localStorage : sessionStorageSession ? sessionStorage : localStorage
+  storage.setItem(ADMIN_SESSION_KEY, JSON.stringify({ admin }))
+  storage.setItem('tk_admin', JSON.stringify(admin))
+  window.dispatchEvent(new CustomEvent(ADMIN_SESSION_REFRESHED_EVENT, { detail: admin }))
+}
+
+function expireStoredSession() {
+  sessionStorage.setItem(ADMIN_LOGOUT_NOTICE_KEY, TOKEN_EXPIRED_NOTICE)
+  localStorage.removeItem(ADMIN_SESSION_KEY)
+  sessionStorage.removeItem(ADMIN_SESSION_KEY)
+  localStorage.removeItem('tk_admin')
+  sessionStorage.removeItem('tk_admin')
+  window.dispatchEvent(new CustomEvent(ADMIN_SESSION_EXPIRED_EVENT))
+}
+
+async function refreshStoredSession() {
+  const current = session()
+  if (!current?.refreshToken) return null
+  const refreshed = await refreshAdminSession(current.refreshToken)
+  const admin = {
+    ...refreshed.admin,
+    accessToken: refreshed.accessToken,
+    refreshToken: refreshed.refreshToken,
+    expiresAt: refreshed.expiresAt,
+    loginTime: current.loginTime,
+  }
+  persistAdmin(admin)
+  return admin
+}
+
 function withQuery(path, params = {}) {
   const search = new URLSearchParams()
   Object.entries(params).forEach(([key, value]) => {
@@ -48,16 +88,33 @@ function withQuery(path, params = {}) {
 }
 
 export async function apiRequest(path, options = {}) {
+  const body = options.body && typeof options.body !== 'string' ? JSON.stringify(options.body) : options.body
   const headers = {
     ...authHeaders(),
     ...(options.body ? { 'Content-Type': 'application/json' } : {}),
     ...(options.headers || {}),
   }
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  let response = await fetch(`${API_BASE_URL}${path}`, {
     ...options,
     headers,
-    body: options.body && typeof options.body !== 'string' ? JSON.stringify(options.body) : options.body,
+    body,
   })
+
+  if (response.status === 401) {
+    const refreshedAdmin = await refreshStoredSession().catch(() => null)
+    if (refreshedAdmin?.accessToken) {
+      response = await fetch(`${API_BASE_URL}${path}`, {
+        ...options,
+        headers: {
+          ...headers,
+          Authorization: `Bearer ${refreshedAdmin.accessToken}`,
+        },
+        body,
+      })
+    } else {
+      expireStoredSession()
+    }
+  }
 
   if (!response.ok) {
     let payload = null

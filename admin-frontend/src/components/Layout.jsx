@@ -80,7 +80,7 @@ function UserMenu({ admin, logout, t }) {
 }
 
 export default function Layout() {
-  const { admin, logout } = useAuth()
+  const { admin, logout, sessionWarning, dismissSessionWarning } = useAuth()
   const { lang, changeLang } = useLang()
   const t = useT(lang)
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -102,6 +102,9 @@ export default function Layout() {
 
   const visibleNavItems = navItems.filter(item => can(admin, item.permission))
   const showScanner = can(admin, 'scanner:use')
+  const sessionMinutesLeft = sessionWarning?.expiresAt
+    ? Math.max(1, Math.ceil(((Number(sessionWarning.expiresAt) * 1000) - Date.now()) / 60000))
+    : null
 
   function closeMobileSidebar() {
     setSidebarOpen(false)
@@ -165,6 +168,29 @@ export default function Layout() {
             <UserMenu admin={admin} logout={logout} t={t} />
           </div>
         </header>
+
+        {sessionWarning && (
+          <div className="mx-4 mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-sm sm:mx-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 items-start gap-3">
+                <i className="fa fa-clock mt-0.5 text-amber-600" />
+                <div className="min-w-0">
+                  <div className="font-bold">{t.sessionExpiresSoon}</div>
+                  <div className="mt-0.5 text-amber-800">
+                    {t.sessionRefreshNotice.replace('{minutes}', sessionMinutesLeft)}
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={dismissSessionWarning}
+                className="self-start rounded-md border border-amber-300 bg-white px-3 py-1.5 text-xs font-bold text-amber-800 hover:bg-amber-100 sm:self-center"
+              >
+                {t.dismiss}
+              </button>
+            </div>
+          </div>
+        )}
 
         <main className="admin-main">
           <Outlet />
