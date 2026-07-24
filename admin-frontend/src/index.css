@@ -307,27 +307,38 @@ body {
 }
 
 .logs-chip-grid {
-  display: grid;
-  grid-template-columns: 96px repeat(auto-fit, minmax(104px, 1fr));
+  display: flex;
   gap: 8px;
   align-items: center;
   width: 100%;
   min-width: 0;
   margin-top: 10px;
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
 }
 
 .logs-chip-label {
   color: #374151;
   font-size: 13px;
   font-weight: 700;
+  flex: 0 0 92px;
+  white-space: nowrap;
 }
 
 .logs-chip-grid .MuiChip-root {
-  width: 100%;
-  min-width: 0;
-  max-width: 100%;
+  flex: 0 0 auto;
+  min-width: 88px;
+  max-width: 148px;
+  height: 30px;
   justify-content: center;
+}
+
+.logs-chip-grid .MuiChip-icon {
+  margin-left: 9px;
+  margin-right: -2px;
+  font-size: 14px;
 }
 
 .logs-chip-grid .MuiChip-label {
@@ -335,6 +346,8 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  padding-left: 10px;
+  padding-right: 10px;
 }
 
 .marketing-stats-grid {
@@ -1028,12 +1041,8 @@ body {
     padding-right: 8px;
   }
 
-  .logs-chip-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .logs-chip-label {
-    grid-column: 1 / -1;
+    flex-basis: 100%;
   }
 
   .marketing-stats-grid {
@@ -1157,9 +1166,16 @@ body {
     padding-right: 10px !important;
   }
 
-  .logs-filter-grid,
-  .logs-chip-grid {
+  .logs-filter-grid {
     grid-template-columns: 1fr;
+  }
+
+  .logs-chip-grid {
+    align-items: flex-start;
+  }
+
+  .logs-chip-grid .MuiChip-root {
+    min-width: 112px;
   }
 
   .logs-filter-actions {

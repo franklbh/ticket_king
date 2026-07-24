@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import Button from '@mui/material/Button'
 import Checkbox from '@mui/material/Checkbox'
+import Dialog from '@mui/material/Dialog'
+import DialogActions from '@mui/material/DialogActions'
+import DialogContent from '@mui/material/DialogContent'
+import DialogTitle from '@mui/material/DialogTitle'
 import FormControlLabel from '@mui/material/FormControlLabel'
 import TextField from '@mui/material/TextField'
 import { useNavigate } from 'react-router-dom'
@@ -186,6 +190,114 @@ function StepIndicator({ step }) {
   )
 }
 
+function localizeCouponValidationMessage(message, t) {
+  const key = String(message || '').trim().toLowerCase()
+  if (!key) return ''
+  const messages = {
+    'coupon not found.': t.couponNotFound,
+    'coupon is not active.': t.couponNotActive,
+    'coupon usage limit reached.': t.couponUsageLimitReached,
+    'minimum purchase not met.': t.couponMinimumPurchaseNotMet,
+  }
+  return messages[key] || message
+}
+
+function CouponCodeDialog({ open, onClose, onApply, loading, error, t }) {
+  const [code, setCode] = useState('')
+
+  useEffect(() => {
+    if (open) setCode('')
+  }, [open])
+
+  function submit(e) {
+    e.preventDefault()
+    const trimmedCode = code.trim()
+    if (!trimmedCode || loading) return
+    onApply(trimmedCode)
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onClose={loading ? undefined : onClose}
+      maxWidth="xs"
+      fullWidth
+      PaperProps={{
+        sx: {
+          borderRadius: 2,
+          width: 'calc(100vw - 24px)',
+          maxWidth: 420,
+          overflow: 'hidden',
+          boxShadow: '0 18px 48px rgba(15,23,42,0.24)',
+          m: 1.5,
+        },
+      }}
+    >
+      <form onSubmit={submit}>
+        <DialogTitle sx={{ px: { xs: 2.25, sm: 3 }, pt: { xs: 2.25, sm: 3 }, pb: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+            <div style={{ width: 40, height: 40, borderRadius: 12, background: '#4f46e5', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 }}>
+              <i className="fa fa-tag" />
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 22, fontWeight: 900, color: '#111827', lineHeight: 1.15 }}>{t.couponDialogTitle}</div>
+              <div style={{ marginTop: 5, fontSize: 14, fontWeight: 600, color: '#64748b', lineHeight: 1.35 }}>{t.couponDialogSubtitle}</div>
+            </div>
+          </div>
+        </DialogTitle>
+        <DialogContent sx={{ px: { xs: 2.25, sm: 3 }, pt: 2.5, pb: 1 }}>
+          <div style={{ display: 'grid', gap: 8 }}>
+            <label htmlFor="admin-coupon-code" style={{ fontSize: 13, fontWeight: 800, color: '#374151' }}>
+              {t.couponCode}
+            </label>
+            <TextField
+              id="admin-coupon-code"
+              autoFocus
+              fullWidth
+              value={code}
+              onChange={e => setCode(e.target.value)}
+              error={Boolean(error)}
+              helperText={error || t.couponDialogHelper}
+              disabled={loading}
+              inputProps={{ autoComplete: 'off' }}
+              sx={{
+                '& .MuiInputBase-root': {
+                  minHeight: 48,
+                  fontSize: 18,
+                  fontWeight: 700,
+                },
+                '& .MuiInputBase-input': {
+                  py: 1.25,
+                },
+                '& .MuiFormHelperText-root': {
+                  mx: 0,
+                  mt: 1,
+                  fontSize: 13,
+                  lineHeight: 1.35,
+                },
+              }}
+            />
+          </div>
+        </DialogContent>
+        <DialogActions sx={{ px: { xs: 2.25, sm: 3 }, pb: { xs: 2.25, sm: 3 }, pt: 1.25, gap: 1, flexDirection: { xs: 'column-reverse', sm: 'row' }, alignItems: { xs: 'stretch', sm: 'center' } }}>
+          <Button onClick={onClose} disabled={loading} variant="outlined" sx={{ minWidth: { sm: 96 }, fontWeight: 800 }}>
+            {t.cancel}
+          </Button>
+          <Button
+            type="submit"
+            variant="contained"
+            disabled={!code.trim() || loading}
+            startIcon={<i className={`fa ${loading ? 'fa-spinner fa-spin' : 'fa-check'}`} />}
+            sx={{ minWidth: { sm: 118 }, fontWeight: 800 }}
+          >
+            {t.validateCoupon}
+          </Button>
+        </DialogActions>
+      </form>
+    </Dialog>
+  )
+}
+
 export default function CreateOrder() {
   const navigate = useNavigate()
   const { admin } = useAuth()
@@ -209,6 +321,8 @@ export default function CreateOrder() {
   const [appliedCoupon, setAppliedCoupon] = useState(null)
   const [couponMessage, setCouponMessage] = useState('')
   const [applyingCoupon, setApplyingCoupon] = useState(false)
+  const [couponDialogOpen, setCouponDialogOpen] = useState(false)
+  const [couponDialogError, setCouponDialogError] = useState('')
   const [orderComplete, setOrderComplete] = useState(false)
   const [lastOrderId, setLastOrderId] = useState(null)
   const [submitError, setSubmitError] = useState(null)
@@ -365,6 +479,8 @@ export default function CreateOrder() {
     setFeeEditorOpen(false)
     setAppliedCoupon(null)
     setCouponMessage('')
+    setCouponDialogOpen(false)
+    setCouponDialogError('')
   }
 
   function handleDateChange(value) {
@@ -586,7 +702,7 @@ export default function CreateOrder() {
     })
   }
 
-  async function applyCoupon() {
+  function applyCoupon() {
     if (manualFees) {
       setCouponMessage(t.useCouponDiscountInFees)
       return
@@ -596,23 +712,29 @@ export default function CreateOrder() {
       setCouponMessage(t.couponRemoved)
       return
     }
-    const code = window.prompt(t.couponCodePrompt)
-    if (!code?.trim()) return
+    setCouponDialogError('')
+    setCouponMessage('')
+    setCouponDialogOpen(true)
+  }
+
+  async function validateCouponCode(code) {
     setApplyingCoupon(true)
     setCouponMessage('')
+    setCouponDialogError('')
     try {
       const result = await validateCoupon({ code: code.trim(), amount: adjustedTicketAmount })
       if (!result.valid) {
-        setCouponMessage(result.reason || t.couponInvalid)
+        setCouponDialogError(localizeCouponValidationMessage(result.reason, t) || t.couponInvalid)
         return
       }
       setAppliedCoupon({
         code: result.code,
         discount: Number(result.discount || 0),
       })
-      setCouponMessage(lang === 'en' ? `Coupon ${result.code} applied.` : `优惠券 ${result.code} 已使用。`)
+      setCouponMessage(t.couponApplied.replace('{code}', result.code))
+      setCouponDialogOpen(false)
     } catch (err) {
-      setCouponMessage(err.message || t.unableValidateCoupon)
+      setCouponDialogError(localizeCouponValidationMessage(err.message, t) || t.unableValidateCoupon)
     } finally {
       setApplyingCoupon(false)
     }
@@ -654,6 +776,17 @@ export default function CreateOrder() {
           {submitError || `${t.catalogLoadError}: ${(slotsError || typesError || eventsError)?.message}`}
         </AdminAlert>
       )}
+      <CouponCodeDialog
+        open={couponDialogOpen}
+        onClose={() => {
+          setCouponDialogOpen(false)
+          setCouponDialogError('')
+        }}
+        onApply={validateCouponCode}
+        loading={applyingCoupon}
+        error={couponDialogError}
+        t={t}
+      />
       <StepIndicator step={step} />
 
       {/* Step 1: Select Time Slot */}
@@ -1096,7 +1229,11 @@ export default function CreateOrder() {
                       onClick={applyCoupon}
                       disabled={applyingCoupon}
                       startIcon={<i className={`fa ${appliedCoupon ? 'fa-times' : 'fa-tag'}`} />}
-                      sx={{ bgcolor: '#6b7280', '&:hover': { bgcolor: '#4b5563' } }}
+                      sx={{
+                        bgcolor: appliedCoupon ? '#dc2626' : '#2563eb',
+                        '&:hover': { bgcolor: appliedCoupon ? '#b91c1c' : '#1d4ed8' },
+                        '&.Mui-disabled': { bgcolor: '#bfdbfe', color: '#eff6ff' },
+                      }}
                     >
                       {appliedCoupon ? t.removeCoupon : t.applyCoupon}
                     </Button>

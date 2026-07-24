@@ -2,7 +2,12 @@ import { useState, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import Button from '@mui/material/Button'
 import Checkbox from '@mui/material/Checkbox'
+import Dialog from '@mui/material/Dialog'
+import DialogActions from '@mui/material/DialogActions'
+import DialogContent from '@mui/material/DialogContent'
+import DialogTitle from '@mui/material/DialogTitle'
 import FormControlLabel from '@mui/material/FormControlLabel'
+import TextField from '@mui/material/TextField'
 import { useLang } from '../context/authHooks'
 import { useT } from '../i18n/translations'
 import { archiveCoupon, createCoupon, getCouponOrders, getCouponQr, updateCoupon, validateCoupon } from '../api/adminApi'
@@ -14,6 +19,19 @@ import { useAdminMutation } from '../hooks/useAdminApi'
 import { ApplyFiltersButton, ResetFiltersButton, SelectFilter, TextFilter } from '../components/FilterControls'
 
 const PAGE_SIZE = 10
+const CODE_ONLY_VALIDATION_AMOUNT = 1000000
+
+function localizeCouponValidationMessage(message, t) {
+  const key = String(message || '').trim().toLowerCase()
+  if (!key) return ''
+  const messages = {
+    'coupon not found.': t.couponNotFound,
+    'coupon is not active.': t.couponNotActive,
+    'coupon usage limit reached.': t.couponUsageLimitReached,
+    'minimum purchase not met.': t.couponMinimumPurchaseNotMet,
+  }
+  return messages[key] || message
+}
 
 function CouponModal({ coupon, onClose, onSave, t }) {
   const [form, setForm] = useState(coupon || {
@@ -156,6 +174,176 @@ function CouponModal({ coupon, onClose, onSave, t }) {
   )
 }
 
+function CouponOrdersDialog({ notice, onClose, onOpen, t }) {
+  if (!notice) return null
+  const count = Number(notice.total || 0)
+  return (
+    <Dialog
+      open
+      onClose={onClose}
+      maxWidth="xs"
+      fullWidth
+      PaperProps={{
+        sx: {
+          width: 'calc(100vw - 24px)',
+          maxWidth: 380,
+          m: 1.5,
+          borderRadius: 2,
+        },
+      }}
+    >
+      <DialogTitle sx={{ px: 3, pt: 3, pb: 1 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ width: 38, height: 38, borderRadius: 10, background: '#eef2ff', color: '#4f46e5', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <i className="fa fa-shopping-cart" />
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 20, fontWeight: 900, lineHeight: 1.15, color: '#111827' }}>{t.couponUsageTitle}</div>
+            <div style={{ marginTop: 5, fontSize: 13, fontWeight: 800, color: '#4f46e5', fontFamily: 'monospace' }}>{notice.code}</div>
+          </div>
+        </div>
+      </DialogTitle>
+      <DialogContent sx={{ px: 3, pt: 1.5, pb: 1 }}>
+        <div style={{ display: 'grid', gap: 14 }}>
+          <div style={{ border: '1px solid #e5e7eb', borderRadius: 10, padding: '14px 16px', background: '#f8fafc' }}>
+            <div style={{ fontSize: 28, fontWeight: 900, color: '#111827', lineHeight: 1 }}>{count}</div>
+            <div style={{ marginTop: 5, fontSize: 13, fontWeight: 700, color: '#64748b' }}>{t.orders}</div>
+          </div>
+          <p style={{ margin: 0, fontSize: 14, lineHeight: 1.45, color: '#475569' }}>
+            {(count > 0 ? t.couponUsageDescription : t.couponUsageEmpty)
+              .replace('{count}', count)
+              .replace('{code}', notice.code)}
+          </p>
+        </div>
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 3, pt: 1.5, gap: 1, flexDirection: { xs: 'column-reverse', sm: 'row' }, alignItems: { xs: 'stretch', sm: 'center' } }}>
+        <Button variant="outlined" onClick={onClose} sx={{ fontWeight: 800 }}>
+          {t.cancel}
+        </Button>
+        <Button variant="contained" onClick={onOpen} startIcon={<i className="fa fa-filter" />} sx={{ fontWeight: 800 }}>
+          {t.openFilteredOrders}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  )
+}
+
+function CouponValidationDialog({ open, onClose, onValidate, loading, t }) {
+  const [code, setCode] = useState('')
+  const [result, setResult] = useState(null)
+  const [error, setError] = useState('')
+
+  function reset() {
+    setCode('')
+    setResult(null)
+    setError('')
+  }
+
+  function close() {
+    reset()
+    onClose()
+  }
+
+  function updateCode(value) {
+    setCode(value)
+    setResult(null)
+    setError('')
+  }
+
+  async function submit(e) {
+    e.preventDefault()
+    const trimmedCode = code.trim()
+    if (!trimmedCode || loading) return
+    try {
+      const nextResult = await onValidate(trimmedCode)
+      setResult(nextResult)
+      setError(nextResult.valid ? '' : localizeCouponValidationMessage(nextResult.reason, t) || t.couponInvalid)
+    } catch (err) {
+      setResult(null)
+      setError(localizeCouponValidationMessage(err.message, t) || t.unableValidateCoupon)
+    }
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onClose={loading ? undefined : close}
+      maxWidth="xs"
+      fullWidth
+      PaperProps={{
+        sx: {
+          width: 'calc(100vw - 24px)',
+          maxWidth: 420,
+          m: 1.5,
+          borderRadius: 2,
+        },
+      }}
+    >
+      <form onSubmit={submit}>
+        <DialogTitle sx={{ px: { xs: 2.25, sm: 3 }, pt: { xs: 2.25, sm: 3 }, pb: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+            <div style={{ width: 38, height: 38, borderRadius: 11, background: '#eef2ff', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <i className="fa fa-check-circle" />
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 19, fontWeight: 900, lineHeight: 1.15, color: '#111827' }}>{t.couponValidationTitle}</div>
+              <div style={{ marginTop: 5, fontSize: 13, fontWeight: 600, lineHeight: 1.35, color: '#64748b' }}>{t.couponValidationSubtitle}</div>
+            </div>
+          </div>
+        </DialogTitle>
+        <DialogContent sx={{ px: { xs: 2.25, sm: 3 }, pt: 2.5, pb: 1 }}>
+          <div style={{ display: 'grid', gap: 10 }}>
+            <label htmlFor="coupon-validation-code" style={{ fontSize: 13, fontWeight: 800, color: '#374151' }}>
+              {t.couponCode}
+            </label>
+            <TextField
+              id="coupon-validation-code"
+              autoFocus
+              fullWidth
+              size="small"
+              value={code}
+              onChange={e => updateCode(e.target.value)}
+              disabled={loading}
+              inputProps={{ autoComplete: 'off' }}
+              sx={{
+                '& .MuiInputBase-root': {
+                  minHeight: 46,
+                  fontSize: 17,
+                  fontWeight: 700,
+                },
+              }}
+            />
+            {(error || result?.valid) && (
+              <div style={{
+                border: `1px solid ${result?.valid ? '#bbf7d0' : '#fecaca'}`,
+                background: result?.valid ? '#f0fdf4' : '#fef2f2',
+                color: result?.valid ? '#047857' : '#dc2626',
+                borderRadius: 10,
+                padding: '10px 12px',
+                fontSize: 13,
+                fontWeight: 700,
+                lineHeight: 1.4,
+              }}>
+                {result?.valid ? (
+                  <span>{t.couponValidMessage.replace('{code}', result.code)}</span>
+                ) : error}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 3, pt: 1.5, gap: 1, flexDirection: { xs: 'column-reverse', sm: 'row' }, alignItems: { xs: 'stretch', sm: 'center' } }}>
+          <Button variant="outlined" onClick={close} disabled={loading} sx={{ fontWeight: 800 }}>
+            {t.cancel}
+          </Button>
+          <Button type="submit" variant="contained" disabled={!code.trim() || loading} startIcon={<i className={`fa ${loading ? 'fa-spinner fa-spin' : 'fa-check'}`} />} sx={{ fontWeight: 800 }}>
+            {t.validateCoupon}
+          </Button>
+        </DialogActions>
+      </form>
+    </Dialog>
+  )
+}
+
 export default function Coupons() {
   const { lang } = useLang()
   const t = useT(lang)
@@ -166,6 +354,8 @@ export default function Coupons() {
   const [page, setPage] = useState(1)
   const [modal, setModal] = useState(null) // null | 'create' | { coupon }
   const [couponQr, setCouponQr] = useState(null)
+  const [couponOrdersNotice, setCouponOrdersNotice] = useState(null)
+  const [couponValidationOpen, setCouponValidationOpen] = useState(false)
 
   const couponParams = useMemo(() => ({
     search: appliedFilters.search || undefined,
@@ -234,12 +424,8 @@ export default function Coupons() {
     reload()
   }
 
-  async function validateCouponCode() {
-    const code = window.prompt('Coupon code to validate')
-    if (!code) return
-    const amount = Number(window.prompt('Order amount', '0') || 0)
-    const result = await couponAction.mutate(() => validateCoupon({ code, amount }))
-    alert(`${result.valid ? 'Valid' : 'Invalid'}: ${result.message || ''}`)
+  async function validateCouponCode(code) {
+    return couponAction.mutate(() => validateCoupon({ code, amount: CODE_ONLY_VALIDATION_AMOUNT }))
   }
 
   async function showCouponQr(coupon) {
@@ -253,8 +439,7 @@ export default function Coupons() {
 
   async function showCouponOrders(coupon) {
     const result = await couponAction.mutate(() => getCouponOrders(coupon.id, { page: 1, pageSize: 5 }))
-    alert(`${result.total || 0} orders use ${coupon.code}. Opening filtered orders.`)
-    navigate(`/orders?couponCode=${encodeURIComponent(coupon.code)}`)
+    setCouponOrdersNotice({ code: coupon.code, total: result.total || 0 })
   }
 
   async function archiveCouponCode(coupon) {
@@ -302,6 +487,23 @@ export default function Coupons() {
           onClose={() => setCouponQr(null)}
         />
       )}
+      <CouponOrdersDialog
+        notice={couponOrdersNotice}
+        onClose={() => setCouponOrdersNotice(null)}
+        onOpen={() => {
+          const code = couponOrdersNotice?.code
+          setCouponOrdersNotice(null)
+          if (code) navigate(`/orders?couponCode=${encodeURIComponent(code)}`)
+        }}
+        t={t}
+      />
+      <CouponValidationDialog
+        open={couponValidationOpen}
+        onClose={() => setCouponValidationOpen(false)}
+        onValidate={validateCouponCode}
+        loading={couponAction.loading}
+        t={t}
+      />
 
       <PageHeader
         icon="fa-tag"
@@ -309,7 +511,7 @@ export default function Coupons() {
         subtitle={t.manageCoupons}
         actions={
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <Button variant="outlined" size="small" onClick={validateCouponCode} startIcon={<i className="fa fa-check-circle" />}>
+          <Button variant="outlined" size="small" onClick={() => setCouponValidationOpen(true)} startIcon={<i className="fa fa-check-circle" />}>
             {t.validateCoupon}
           </Button>
           <Button variant="contained" size="small" onClick={() => setModal('create')}>
