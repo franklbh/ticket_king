@@ -67,7 +67,7 @@ class PublicCatalogService:
                 continue
             capacity = self._effective_capacity(slot, event_requirements, catalog["resources"])
             slot_ticket_types = self._ticket_types_for_slot(ticket_types, slot)
-            available.append(self._slot_response(slot, event["id"], availability, capacity, slot_ticket_types))
+            available.append(self._slot_response(slot, event, availability, capacity, slot_ticket_types))
 
         available.sort(key=lambda item: (item.date, item.start_time))
         return available
@@ -448,7 +448,7 @@ class PublicCatalogService:
     @staticmethod
     def _slot_response(
         slot: dict[str, Any],
-        event_id: Any,
+        event: dict[str, Any],
         availability: int,
         capacity: int,
         ticket_types: list[SlotTicketTypeRead],
@@ -459,7 +459,8 @@ class PublicCatalogService:
         label = str(slot.get("slot_time_label") or fallback_label)
         return AvailableSlotRead(
             id=str(slot["id"]),
-            eventId=int(event_id),
+            eventId=int(event["id"]),
+            eventSlug=str(event.get("slug") or ""),
             date=PublicCatalogService._parse_date(slot.get("business_date")).isoformat(),
             startTime=start,
             endTime=end,

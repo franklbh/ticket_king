@@ -5,6 +5,7 @@ import BrandLogo from './BrandLogo'
 import { qrPlaceholder } from '../data/showData'
 import { allExperiences } from '../data/experiences'
 import { translations } from '../i18n/translations'
+import { applyCartItemTuesdayDiscount } from '../utils/pricing'
 import { minQtyForTicket } from '../utils/tickets'
 import { formatNorthAmericanPhone } from '../utils/validation'
 
@@ -497,8 +498,14 @@ export default function Cart({
     workspaceRef.current?.scrollTo({ top: 0, left: 0, behavior: 'auto' })
   }, [step])
 
-  const subtotal = items.reduce((s, i) => s + i.unit_price * i.quantity, 0)
-  const numTickets = items.reduce((s, i) => s + i.quantity, 0)
+  const pricedItems = useMemo(() => items.map((item) => applyCartItemTuesdayDiscount(item)), [items])
+  const originalSubtotal = pricedItems.reduce(
+    (sum, item) => sum + Number(item.original_unit_price ?? item.unit_price) * item.quantity,
+    0,
+  )
+  const subtotal = pricedItems.reduce((s, i) => s + i.unit_price * i.quantity, 0)
+  const automaticDiscount = Math.max(0, originalSubtotal - subtotal)
+  const numTickets = pricedItems.reduce((s, i) => s + i.quantity, 0)
   const discount = Math.min(appliedCoupon?.discountAmount || 0, subtotal)
   const procFee = numTickets > 0 ? 1.8 * numTickets + 0.025 * subtotal : 0
   const tax = numTickets > 0 ? 0.05 * subtotal : 0
@@ -508,7 +515,7 @@ export default function Cart({
     && validEmail(contact.email)
     && (!contact.phone.trim() || validPhone(contact.phone))
 
-  const orderItems = useMemo(() => items.map((item) => ({
+  const orderItems = useMemo(() => pricedItems.map((item) => ({
     eventId: Number(item.event_id),
     slotId: item.slot_id,
     ticketTypeId: Number.isFinite(Number(item.ticket_type_id)) ? Number(item.ticket_type_id) : null,
@@ -517,8 +524,8 @@ export default function Cart({
     slotTime: item.session_time,
     ticketType: item.ticket_type_label,
     quantity: item.quantity,
-    unitPrice: item.unit_price,
-  })), [items, langCode])
+    unitPrice: item.original_unit_price ?? item.unit_price,
+  })), [pricedItems, langCode])
 
   const liveSlotReady = orderItems.length > 0 && orderItems.every((item) => Number.isFinite(item.eventId) && item.slotId && item.quantity > 0)
   const minQtyForCartItem = (item) => minQtyForTicket({
@@ -526,8 +533,8 @@ export default function Cart({
     label: item?.ticket_type_label,
     minQty: item?.ticket_min_qty,
   })
-  const zeroQtyItems = items.filter((item) => item.quantity <= 0)
-  const invalidItems = items.filter((item) => item.quantity > 0 && item.quantity < minQtyForCartItem(item))
+  const zeroQtyItems = pricedItems.filter((item) => item.quantity <= 0)
+  const invalidItems = pricedItems.filter((item) => item.quantity > 0 && item.quantity < minQtyForCartItem(item))
   const canContinueReview = liveSlotReady && zeroQtyItems.length === 0 && invalidItems.length === 0
 
   const checkoutOrder = useMemo(() => ({
@@ -688,19 +695,19 @@ export default function Cart({
 
   useEffect(() => {
     setAppliedCoupon((prev) => (prev?.autoCombo ? null : prev))
-    if (!items.length) return undefined
-    const sub = items.reduce((s, i) => s + i.unit_price * i.quantity, 0)
+    if (!pricedItems.length) return undefined
+    const sub = pricedItems.reduce((s, i) => s + i.unit_price * i.quantity, 0)
     let cancelled = false
     fetch(`${BACKEND}/api/v1/combos/check`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ eventIds: items.map((i) => Number(i.event_id)), subtotal: sub }),
+      body: JSON.stringify({ eventIds: pricedItems.map((i) => Number(i.event_id)), subtotal: sub }),
     })
       .then((r) => r.json())
       .then(async (data) => {
         if (cancelled || !data.eligible) return
         const eligibleEventIds = new Set((data.eligible_event_ids || []).map((id) => Number(id)))
-        const comboSubtotal = items.reduce((sum, item) => (
+        const comboSubtotal = pricedItems.reduce((sum, item) => (
           eligibleEventIds.has(Number(item.event_id))
             ? sum + item.unit_price * item.quantity
             : sum
@@ -724,7 +731,7 @@ export default function Cart({
       })
       .catch(() => {})
     return () => { cancelled = true }
-  }, [items])
+  }, [pricedItems])
 
   async function loadIssuedTickets(order, providerReference, method, snapshot) {
     if (!order?.id || !providerReference) return fallbackTickets(snapshot)
@@ -755,8 +762,10 @@ export default function Cart({
       method,
       paidAt: new Date(),
       contact: { ...contact },
-      items: items.map((item) => ({ ...item })),
+      items: pricedItems.map((item) => ({ ...item })),
+      originalSubtotal,
       subtotal,
+      automaticDiscount,
       discount,
       procFee,
       tax,
@@ -927,7 +936,8 @@ export default function Cart({
       'Tickets:',
       ...(order.tickets || []).map((ticket, index) => `${index + 1}. ${ticket.ticketNumber} | ${ticket.showTitle} | ${ticket.ticketType} | Code: ${ticket.code}`),
       '',
-      `Subtotal: ${fmt(order.subtotal)}`,
+      `Subtotal: ${fmt(order.originalSubtotal ?? order.subtotal)}`,
+      order.automaticDiscount ? `${t('tuesdayPromo50Off')}: -${fmt(order.automaticDiscount)}` : '',
       order.discount ? `Coupon ${order.couponCode}: -${fmt(order.discount)}` : '',
       `Processing fee: ${fmt(order.procFee)}`,
       `GST (5%): ${fmt(order.tax)}`,
@@ -958,7 +968,7 @@ export default function Cart({
   }
 
   const renderSummary = () => {
-    const summaryItems = confirmed?.items || items
+    const summaryItems = confirmed?.items || pricedItems
     const total = confirmed?.grand ?? grand
     const toggleSummaryTooltip = (key) => {
       setOpenSummaryTooltip((current) => current === key ? null : key)
@@ -980,7 +990,14 @@ export default function Cart({
               <b>{fmt(item.unit_price * item.quantity)}</b>
             </div>
           ))}
-          <SummaryRow label={t('subtotal')} value={fmt(confirmed?.subtotal ?? subtotal)} muted />
+          <SummaryRow label={t('subtotal')} value={fmt(confirmed?.originalSubtotal ?? originalSubtotal)} muted />
+          {Boolean(confirmed?.automaticDiscount ?? automaticDiscount) && (
+            <SummaryRow
+              label={t('tuesdayPromo50Off')}
+              value={`-${fmt(confirmed?.automaticDiscount ?? automaticDiscount)}`}
+              muted
+            />
+          )}
           {Boolean(confirmed?.discount ?? discount) && (
             <SummaryRow
               label={(confirmed?.autoCombo || appliedCoupon?.autoCombo)
@@ -1060,7 +1077,7 @@ export default function Cart({
                 {paymentError && <div className="crt-warning">{paymentError}</div>}
                 <div className="crt-table">
                   <div className="crt-table-head"><span>{t('experience')}</span><span>{t('dateAndTime')}</span><span>{t('ticketType')}</span><span>{t('qty')}</span><span>{t('unitPrice')}</span><span>{t('subtotal')}</span><span /></div>
-                  {items.map((item) => (
+                  {pricedItems.map((item) => (
                     <article className="crt-cart-row" key={item.id}>
                       <div className="crt-exp-cell"><ItemImage item={item} className="crt-cart-thumb" /><strong>{itemShowTitle(item, langCode)}</strong></div>
                       <div className="crt-date-cell"><span>{item.session_date}</span><span>{item.session_time}</span></div>

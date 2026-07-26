@@ -13,6 +13,7 @@ class SlotTicketTypeRead(BaseModel):
 class AvailableSlotRead(BaseModel):
     id: str
     event_id: int = Field(alias="eventId")
+    event_slug: str = Field(alias="eventSlug")
     date: str
     start_time: str = Field(alias="startTime")
     end_time: str | None = Field(default=None, alias="endTime")

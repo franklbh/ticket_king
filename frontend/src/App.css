@@ -14592,7 +14592,7 @@ body:has(.btk-page) .topbar {
   border: 1px solid #e6eaf5;
   border-radius: 8px;
   display: grid;
-  grid-template-columns: minmax(240px, 0.9fr) minmax(180px, 1fr) 118px 110px 28px;
+  grid-template-columns: minmax(220px, 0.9fr) minmax(170px, 1fr) 118px minmax(118px, auto) 28px;
   gap: 14px;
   align-items: center;
   padding: 14px;
@@ -14672,6 +14672,10 @@ body:has(.btk-page) .topbar {
   justify-self: end;
   font-size: 15px;
   font-weight: 950;
+}
+
+.btk-ticket-row > strong .btk-summary-price-discount {
+  justify-items: end;
 }
 
 .btk-remove-ticket {
@@ -14933,6 +14937,45 @@ body:has(.btk-page) .topbar {
 
 .btk-summary-line > strong {
   flex: 0 0 auto;
+}
+
+.btk-summary-price-discount {
+  display: grid;
+  justify-items: end;
+  gap: 3px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.btk-summary-price-discount small {
+  width: max-content;
+  border-radius: 999px;
+  background: #fff1d6;
+  color: #b45309;
+  font-size: 10px;
+  font-weight: 950;
+  letter-spacing: 0;
+  line-height: 1;
+  padding: 4px 7px;
+}
+
+.btk-summary-price-discount span {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 7px;
+}
+
+.btk-summary-price-discount del {
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 850;
+  text-decoration-thickness: 2px;
+}
+
+.btk-summary-price-discount b {
+  color: #111827;
+  font-size: 13px;
+  font-weight: 950;
 }
 
 .btk-summary-item-label {

@@ -2,7 +2,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import BrandLogo from '../components/BrandLogo'
 import HeaderActions from '../components/HeaderActions'
 import { allExperiences } from '../data/experiences'
-import { getExperiencePriceFrom, getPricesForSlot, getSlotPricePeriod, hasSeniorTicket } from '../utils/pricing'
+import {
+  TERRACOTTA_TUESDAY_DISCOUNT_CODE,
+  applyTerracottaTuesdayDiscount,
+  getBasePricesForSlot,
+  getExperiencePriceFrom,
+  getPricesForSlot,
+  getSlotPricePeriod,
+  hasSeniorTicket,
+  isTerracottaTuesdayDiscountEligible,
+} from '../utils/pricing'
 import { formatSlotTicketTypes, ticketKeyFromLabel } from '../utils/tickets'
 import { businessTodayDate, isoDate } from '../utils/businessDate'
 
@@ -147,18 +156,22 @@ function BookingWidget({ experience, cartItems, onAddToCart, t = (key, params = 
   const selectedDate = days.find((d) => dateKey(d) === selDateKey) || days[0]
   const selectedDateKey = selectedDate ? dateKey(selectedDate) : ''
   const prices = getPricesForSlot(experience, selectedDate)
+  const basePrices = getBasePricesForSlot(experience, selectedDate)
   const fallbackTicketTypes = useMemo(() => [
-    { id: 'adult',  label: 'Adult',  desc: 'Ages 18+', price: prices.adult ?? 37.95 },
-    { id: 'child',  label: 'Child',  desc: 'Ages 7–15', price: prices.child ?? 27.95 },
+    { id: 'adult',  label: 'Adult',  desc: 'Ages 18+', price: prices.adult ?? 37.95, originalPrice: basePrices.adult },
+    { id: 'child',  label: 'Child',  desc: 'Ages 7–15', price: prices.child ?? 27.95, originalPrice: basePrices.child },
     ...(hasSeniorTicket(experience)
-      ? [{ id: 'senior', label: 'Senior', desc: '65+ years', price: prices.senior ?? prices.adult ?? 37.95 }]
+      ? [{ id: 'senior', label: 'Senior', desc: '65+ years', price: prices.senior ?? prices.adult ?? 37.95, originalPrice: basePrices.senior ?? basePrices.adult }]
       : []),
-    { id: 'group',  label: 'Group',  desc: '6+ guests', price: prices.group ?? 32.95, minQty: 6, notice: 'min. 6 people required.' },
-    { id: 'family', label: 'Family', desc: '3+ family bundle', price: prices.family ?? 31.95, minQty: 3, notice: 'Ticket for min. 3 people, max. 2 adults.' },
-  ], [experience, prices.adult, prices.child, prices.family, prices.group, prices.senior])
+    { id: 'group',  label: 'Group',  desc: '6+ guests', price: prices.group ?? 32.95, originalPrice: basePrices.group, minQty: 6, notice: 'min. 6 people required.' },
+    { id: 'family', label: 'Family', desc: '3+ family bundle', price: prices.family ?? 31.95, originalPrice: basePrices.family, minQty: 3, notice: 'Ticket for min. 3 people, max. 2 adults.' },
+  ], [basePrices.adult, basePrices.child, basePrices.family, basePrices.group, basePrices.senior, experience, prices.adult, prices.child, prices.family, prices.group, prices.senior])
   const TICKET_TYPES = useMemo(() => {
     const selectedSlotHasTicketTypes = selTime && ('ticketTypes' in selTime || 'ticket_types' in selTime)
-    return formatSlotTicketTypes(selTime?.ticketTypes || selTime?.ticket_types || [], { fallback: selectedSlotHasTicketTypes ? [] : fallbackTicketTypes })
+    const liveTicketTypes = selTime?.ticketTypes || selTime?.ticket_types || []
+    const usesLiveTicketTypes = liveTicketTypes.length > 0
+    const discounted = isTerracottaTuesdayDiscountEligible(experience, selectedDate)
+    return formatSlotTicketTypes(liveTicketTypes, { fallback: selectedSlotHasTicketTypes ? [] : fallbackTicketTypes })
     .map((ticket) => {
       const key = ticket.key || ticketKeyFromLabel(ticket.label)
       const desc = TICKET_DESC_KEYS[key] ? t(TICKET_DESC_KEYS[key]) : ticket.desc
@@ -167,9 +180,21 @@ function BookingWidget({ experience, cartItems, onAddToCart, t = (key, params = 
           : key === 'family' ? t('familyMinRequired')
             : undefined
       )
-      return { ...ticket, key, label: TICKET_LABEL_KEYS[key] ? t(TICKET_LABEL_KEYS[key]) : (DISPLAY_TICKET_LABELS[key] || ticket.label), desc, notice }
+      const price = usesLiveTicketTypes
+        ? applyTerracottaTuesdayDiscount(ticket.price, experience, selectedDate)
+        : ticket.price
+      return {
+        ...ticket,
+        key,
+        label: TICKET_LABEL_KEYS[key] ? t(TICKET_LABEL_KEYS[key]) : (DISPLAY_TICKET_LABELS[key] || ticket.label),
+        price,
+        originalPrice: discounted && usesLiveTicketTypes ? Number(ticket.originalPrice ?? ticket.price ?? 0) : ticket.originalPrice,
+        automaticDiscountCode: discounted ? TERRACOTTA_TUESDAY_DISCOUNT_CODE : ticket.automaticDiscountCode,
+        desc,
+        notice,
+      }
     })
-  }, [fallbackTicketTypes, selTime, t])
+  }, [experience, fallbackTicketTypes, selTime, selectedDate, t])
   const calendarCells = [
     ...Array.from({ length: monthStartDay }, (_, idx) => ({ key: `blank-${idx}`, blank: true })),
     ...Array.from({ length: new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0).getDate() }, (_, i) => {

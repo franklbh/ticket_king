@@ -12,6 +12,7 @@ from app.core.config import settings
 from app.schemas.checkout import CheckoutOrder
 from app.services.admin.normalizers import db_ticket_status
 from app.services.admin.repository import admin_repository
+from app.services.promotions import calculate_automatic_promotions
 from app.utils.datetime import utc_now, utc_now_iso_seconds
 from app.utils.email import send_booking_confirmation
 
@@ -21,7 +22,7 @@ PAYMENT_GRACE_SECONDS = 30
 
 async def create_reservation(checkout: CheckoutOrder, amount_cents: int) -> dict[str, Any]:
     await expire_stale_reservations()
-    await _validate_capacity(checkout)
+    validated_lines = await _validate_capacity(checkout)
 
     now_dt = datetime.now(timezone.utc)
     expires_dt = now_dt + timedelta(minutes=RESERVATION_MINUTES)
@@ -29,7 +30,25 @@ async def create_reservation(checkout: CheckoutOrder, amount_cents: int) -> dict
     expires_at = expires_dt.isoformat()
     order_id = str(uuid.uuid4())
     ticket_amount = _money(sum(item.unit_price * item.quantity for item in checkout.items))
+    automatic_promotions = calculate_automatic_promotions(validated_lines)
+    automatic_discount = _money(sum(promotion["discountAmount"] for promotion in automatic_promotions))
+    submitted_coupon_discount = min(
+        _money(checkout.coupon_discount),
+        max(Decimal("0"), ticket_amount + checkout.addon_amount - automatic_discount),
+    )
+    total_discount = _money(automatic_discount + submitted_coupon_discount)
+    expected_total = _money(
+        ticket_amount
+        + checkout.addon_amount
+        + checkout.platform_fee
+        + checkout.payment_fee
+        + checkout.gst
+        + checkout.pst
+        - total_discount
+    )
     total_amount = _money(checkout.total_amount if checkout.total_amount is not None else Decimal(amount_cents) / 100)
+    if total_amount != expected_total:
+        raise HTTPException(status_code=400, detail="Checkout total does not match the validated promotion total.")
     expected_cents = int((total_amount * 100).to_integral_value(rounding=ROUND_HALF_UP))
     if expected_cents != amount_cents:
         raise HTTPException(status_code=400, detail="Checkout total does not match payment amount.")
@@ -70,16 +89,24 @@ async def create_reservation(checkout: CheckoutOrder, amount_cents: int) -> dict
         "ticket_quantity": ticket_quantity,
         "ticket_details": ticket_details,
         "ticket_amount": ticket_amount,
-        "addon_amount": Decimal("0"),
+        "addon_amount": _money(checkout.addon_amount),
         "platform_fee": _money(checkout.platform_fee),
         "payment_fee": _money(checkout.payment_fee),
         "gst": _money(checkout.gst),
         "pst": _money(checkout.pst),
-        "coupon_discount": _money(checkout.coupon_discount),
+        "coupon_discount": total_discount,
         "admin_adjustment": Decimal("0"),
         "total_amount": total_amount,
-        "coupon_code": checkout.coupon_code,
-        "coupon_details": {},
+        "coupon_code": checkout.coupon_code or (
+            automatic_promotions[0]["code"] if len(automatic_promotions) == 1 else None
+        ),
+        "coupon_details": {
+            "automaticPromotions": automatic_promotions,
+            "submittedCoupon": {
+                "code": checkout.coupon_code,
+                "discountAmount": float(submitted_coupon_discount),
+            } if checkout.coupon_code else None,
+        },
         "remarks": checkout.customer.remarks,
         "created_by": None,
         "created_at": now,
@@ -407,14 +434,16 @@ def _is_active_pending_reservation(order: dict[str, Any], *, grace_seconds: int 
     return expires_at is None or expires_at + timedelta(seconds=grace_seconds) > datetime.now(timezone.utc)
 
 
-async def _validate_capacity(checkout: CheckoutOrder) -> None:
+async def _validate_capacity(checkout: CheckoutOrder) -> list[dict[str, Any]]:
     from app.services.public_catalog import public_catalog_service
 
+    validated_lines: list[dict[str, Any]] = []
     for item in checkout.items:
         slots = await public_catalog_service.available_slots(str(item.event_id), item.slot_date)
         slot = next((row for row in slots if row.id == item.slot_id), None)
         if slot is None:
             raise HTTPException(status_code=409, detail=f"No tickets are left for {item.event_name} {item.slot_time}.")
+        validated_unit_price: Decimal | None = None
         if item.ticket_type_id is not None:
             matching_ticket = next(
                 (ticket for ticket in slot.ticket_types if str(ticket.id) == str(item.ticket_type_id)),
@@ -424,8 +453,19 @@ async def _validate_capacity(checkout: CheckoutOrder) -> None:
                 raise HTTPException(status_code=409, detail="Selected ticket type is not available for this time.")
             if _money(item.unit_price) != _money(matching_ticket.price):
                 raise HTTPException(status_code=400, detail="Ticket price no longer matches this time.")
+            validated_unit_price = _money(matching_ticket.price)
         if item.quantity > slot.available_seats:
             raise HTTPException(status_code=409, detail=f"Only {slot.available_seats} tickets are left for {item.event_name} {item.slot_time}.")
+        if validated_unit_price is not None:
+            validated_lines.append(
+                {
+                    "event_slug": slot.event_slug,
+                    "slot_date": slot.date,
+                    "unit_price": validated_unit_price,
+                    "quantity": item.quantity,
+                }
+            )
+    return validated_lines
 
 
 def _reservation_response(order: dict[str, Any]) -> dict[str, Any]:
@@ -433,6 +473,11 @@ def _reservation_response(order: dict[str, Any]) -> dict[str, Any]:
     expires_in = RESERVATION_MINUTES * 60
     if expires_at:
         expires_in = max(0, int((expires_at - datetime.now(timezone.utc)).total_seconds()))
+    coupon_details = order.get("coupon_details") or {}
+    automatic_promotions = coupon_details.get("automaticPromotions", [])
+    automatic_discount = _money(
+        sum(promotion.get("discountAmount", 0) for promotion in automatic_promotions)
+    )
     return {
         "id": str(order["id"]),
         "orderNumber": order.get("order_number"),
@@ -440,6 +485,10 @@ def _reservation_response(order: dict[str, Any]) -> dict[str, Any]:
         "providerReference": order.get("provider_reference"),
         "expiresAt": expires_at.isoformat() if hasattr(expires_at, "isoformat") else expires_at,
         "expiresInSeconds": expires_in,
+        "automaticPromotions": automatic_promotions,
+        "automaticDiscount": float(automatic_discount),
+        "ticketSubtotal": float(_money(order.get("ticket_amount") or 0)),
+        "totalAmount": float(_money(order.get("total_amount") or 0)),
     }
 
 

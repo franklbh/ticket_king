@@ -29,6 +29,7 @@ class CheckoutOrder(BaseModel):
     items: list[CheckoutItem] = Field(min_length=1)
     coupon_code: str | None = Field(default=None, alias="couponCode")
     coupon_discount: Decimal = Field(default=Decimal("0"), alias="couponDiscount", ge=0)
+    addon_amount: Decimal = Field(default=Decimal("0"), alias="addonAmount", ge=0)
     platform_fee: Decimal = Field(default=Decimal("0"), alias="platformFee", ge=0)
     payment_fee: Decimal = Field(default=Decimal("0"), alias="paymentFee", ge=0)
     gst: Decimal = Field(default=Decimal("0"), ge=0)

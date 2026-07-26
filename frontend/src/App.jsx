@@ -25,7 +25,15 @@ import { getDisplayName } from './api/auth'
 import { ENABLE_MY_BOOKINGS } from './constants/features'
 import { useCustomerAuth } from './hooks/useCustomerAuth'
 import { currency } from './utils/format'
-import { getPricesForSlot, getSlotPricePeriod, hasSeniorTicket } from './utils/pricing'
+import {
+  TERRACOTTA_TUESDAY_DISCOUNT_CODE,
+  applyTerracottaTuesdayDiscount,
+  getBasePricesForSlot,
+  getPricesForSlot,
+  getSlotPricePeriod,
+  hasSeniorTicket,
+  isTerracottaTuesdayDiscountEligible,
+} from './utils/pricing'
 import { formatSlotTicketTypes, minQtyForTicket } from './utils/tickets'
 import { formatNorthAmericanPhone, isReasonableName, isReasonablePhone, isStrictEmail } from './utils/validation'
 import { businessCurrentMonthStart, businessTodayDate, isoDate } from './utils/businessDate'
@@ -382,6 +390,10 @@ function App() {
     () => getPricesForSlot(bookingExperience, selectedDate?.date),
     [bookingExperience, selectedDate],
   )
+  const activeBasePrices = useMemo(
+    () => getBasePricesForSlot(bookingExperience, selectedDate?.date),
+    [bookingExperience, selectedDate],
+  )
   const activeTicketTypes = useMemo(
     () => ticketTypes.filter((ticket) => ticket.id !== 'senior' || hasSeniorTicket(bookingExperience)),
     [bookingExperience],
@@ -390,20 +402,35 @@ function App() {
   const localizedTicketTypes = useMemo(() => activeTicketTypes.map((ticket) => ({
     ...ticket,
     price: activePrices[ticket.id],
+    originalPrice: activeBasePrices[ticket.id],
     label: t(TICKET_COPY_KEYS[ticket.id][0]),
     description: currency(activePrices[ticket.id]) + perEach,
     info: TICKET_COPY_KEYS[ticket.id][1] ? t(TICKET_COPY_KEYS[ticket.id][1]) : undefined,
-  })), [activePrices, activeTicketTypes, perEach, t])
+  })), [activeBasePrices, activePrices, activeTicketTypes, perEach, t])
   const bookingTicketTypes = useMemo(() => {
     const selectedSlotHasTicketTypes = selectedTime && ('ticketTypes' in selectedTime || 'ticket_types' in selectedTime)
     const liveTicketTypes = selectedTime?.ticketTypes || selectedTime?.ticket_types || []
+    const sessionDate = selectedDate?.date
+    const discounted = isTerracottaTuesdayDiscountEligible(bookingExperience, sessionDate)
+    const usesLiveTicketTypes = liveTicketTypes.length > 0
     return formatSlotTicketTypes(liveTicketTypes, {
       fallback: selectedSlotHasTicketTypes ? [] : localizedTicketTypes,
       currency,
       perEach,
       t,
+    }).map((ticket) => {
+      const price = usesLiveTicketTypes
+        ? applyTerracottaTuesdayDiscount(ticket.price, bookingExperience, sessionDate)
+        : ticket.price
+      return {
+        ...ticket,
+        price,
+        originalPrice: discounted && usesLiveTicketTypes ? Number(ticket.originalPrice ?? ticket.price ?? 0) : ticket.originalPrice,
+        automaticDiscountCode: discounted ? TERRACOTTA_TUESDAY_DISCOUNT_CODE : ticket.automaticDiscountCode,
+        description: currency ? `${currency(price)} ${perEach}` : ticket.description,
+      }
     })
-  }, [localizedTicketTypes, perEach, selectedTime, t])
+  }, [bookingExperience, localizedTicketTypes, perEach, selectedDate, selectedTime, t])
 
   const totals = useMemo(() => {
     const pricedTickets = bookingTicketTypes.length ? bookingTicketTypes : localizedTicketTypes
@@ -636,8 +663,11 @@ function App() {
       year: 'numeric',
     })
     const sessionTime = typeof selectedTime === 'string' ? selectedTime : selectedTime.label || selectedTime.time
+    const hasTuesdayDiscount = isTerracottaTuesdayDiscountEligible(experience, selectedDate)
     const nextItems = tickets.map((ticket) => {
       const option = ticketOptions.find((item) => item.id === ticket.id) || ticket
+      const unitPrice = Number(option.price ?? ticket.price ?? 0)
+      const originalUnitPrice = Number(option.originalPrice ?? ticket.originalPrice ?? unitPrice)
       return {
         id: [experience.id, sessionDateKey, sessionTime, ticket.id].join('__'),
         show_id: experience.id,
@@ -652,7 +682,9 @@ function App() {
         ticket_options: ticketOptions,
         ticket_min_qty: option.minQty ?? ticket.minQty ?? minQtyForTicket(ticket),
         quantity: ticket.quantity,
-        unit_price: option.price ?? ticket.price,
+        unit_price: unitPrice,
+        original_unit_price: originalUnitPrice,
+        automatic_discount_code: hasTuesdayDiscount ? TERRACOTTA_TUESDAY_DISCOUNT_CODE : null,
         experience_category: experience.category,
         experience_accent: experience.accent,
         experience_gradient: experience.cardGradient,
@@ -869,8 +901,9 @@ function App() {
           ticketTypeId: Number.isFinite(Number(ticket.id)) ? Number(ticket.id) : null,
           ticketType: ticket.label,
           quantity: counts[ticket.id],
-          unitPrice: ticket.price,
+          unitPrice: ticket.originalPrice ?? ticket.price,
         })),
+      addonAmount: totals.vipTotal,
       paymentFee: totals.processingFee,
       gst: totals.tax,
       couponCode: appliedCoupon?.code || null,
@@ -1303,6 +1336,7 @@ function App() {
               ticket_type_id: option.id,
               ticket_type_label: option.label,
               unit_price: option.price,
+              original_unit_price: option.originalPrice ?? option.price,
               ticket_min_qty: option.minQty ?? minQtyForTicket(option),
             }
             const withoutSource = prev.filter(item => item.id !== id)

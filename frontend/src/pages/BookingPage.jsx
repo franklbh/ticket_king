@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { badge, currency } from '../utils/format'
-import { getExperiencePriceFrom, getPricesForSlot } from '../utils/pricing'
+import { applyCartItemTuesdayDiscount, applyTerracottaTuesdayDiscount, getExperiencePriceFrom, getPricesForSlot } from '../utils/pricing'
 import { formatSlotTicketTypes, minQtyForTicket } from '../utils/tickets'
 
 function cartDateKey(date) {
@@ -92,13 +92,16 @@ function BookingPage({
     const weekend = selectedDate?.date ? [0, 6].includes(selectedDate.date.getDay()) : false
     const slotTicketTypes = formatSlotTicketTypes(slot.ticketTypes || slot.ticket_types || [])
     const adultTicket = slotTicketTypes.find((ticket) => ticket.key === 'adult') || slotTicketTypes[0]
+    const liveSlotPrice = adultTicket?.price ?? slot.price
     return {
       id: slot.id,
       eventId: slot.eventId,
       slotId: slot.id,
       time,
       label: time,
-      price: adultTicket?.price ?? slot.price ?? prices.adult ?? localizedTicketTypes[0]?.price ?? 0,
+      price: Number.isFinite(Number(liveSlotPrice))
+        ? applyTerracottaTuesdayDiscount(liveSlotPrice, bookingExperience, selectedDate?.date)
+        : prices.adult ?? localizedTicketTypes[0]?.price ?? 0,
       availableSeats: slot.availableSeats,
       peak: weekend,
       ticketTypes: slot.ticketTypes || slot.ticket_types || [],
@@ -113,6 +116,11 @@ function BookingPage({
   }, [localizedTicketTypes, minQtyForType, ticketById])
 
   const lineSubtotal = (line) => (ticketById(line.ticketTypeId)?.price || 0) * line.quantity
+  const lineOriginalSubtotal = (line) => {
+    const ticket = ticketById(line.ticketTypeId)
+    const originalPrice = Number(ticket?.originalPrice || ticket?.price || 0)
+    return originalPrice * line.quantity
+  }
   const canAdd = Boolean(
     selectedDate
     && selectedTime
@@ -129,6 +137,8 @@ function BookingPage({
     const ticket = ticketById(line.ticketTypeId)
     const quantity = Number(line.quantity) || 0
     const unitPrice = Number(ticket?.price || 0)
+    const originalUnitPrice = Number(ticket?.originalPrice || unitPrice)
+    const hasDiscount = originalUnitPrice > unitPrice
     return {
       key: line.key,
       title: bookingExperience?.title || t('experience'),
@@ -137,11 +147,16 @@ function BookingPage({
       ticketLabel: ticket?.label || t('ticketType'),
       quantity,
       total: unitPrice * quantity,
+      originalTotal: hasDiscount ? originalUnitPrice * quantity : null,
+      discountLabel: hasDiscount ? t('tuesdayPromo50Off') : '',
     }
-  }), [bookingExperience?.title, fullDateDisplay, selectedDate, selectedTime, ticketById, ticketLines])
-  const cartSummaryItems = useMemo(() => cartItems.map((item) => {
+  }), [bookingExperience?.title, fullDateDisplay, selectedDate, selectedTime, t, ticketById, ticketLines])
+  const pricedCartItems = useMemo(() => cartItems.map((item) => applyCartItemTuesdayDiscount(item)), [cartItems])
+  const cartSummaryItems = useMemo(() => pricedCartItems.map((item) => {
     const quantity = Math.max(0, Number(item.quantity) || 0)
     const unitPrice = Number(item.unit_price || 0)
+    const originalUnitPrice = Number(item.original_unit_price || unitPrice)
+    const hasDiscount = originalUnitPrice > unitPrice
     return {
       key: item.id,
       title: item.show_title || t('experience'),
@@ -150,8 +165,10 @@ function BookingPage({
       ticketLabel: item.ticket_type_label || t('ticketType'),
       quantity,
       total: unitPrice * quantity,
+      originalTotal: hasDiscount ? originalUnitPrice * quantity : null,
+      discountLabel: hasDiscount ? t('tuesdayPromo50Off') : '',
     }
-  }).filter((item) => item.quantity > 0), [cartItems])
+  }).filter((item) => item.quantity > 0), [pricedCartItems, t])
   const summaryItems = cartSummaryItems.length ? cartSummaryItems : currentSummaryItems
   const subtotal = cartSummaryItems.reduce((sum, item) => sum + item.total, 0)
   const ticketQty = cartSummaryItems.reduce((sum, item) => sum + item.quantity, 0)
@@ -458,6 +475,8 @@ function BookingPage({
               <div className="btk-ticket-lines">
                 {ticketLines.map((line) => {
                   const selectedTicket = ticketById(line.ticketTypeId)
+                  const total = lineSubtotal(line)
+                  const originalTotal = lineOriginalSubtotal(line)
                   return (
                     <div className="btk-ticket-row" key={line.key}>
                       <select value={line.ticketTypeId} onChange={(event) => updateTicketType(line.key, event.target.value)}>
@@ -477,7 +496,16 @@ function BookingPage({
                         />
                         <button onClick={() => updateTicketQty(line.key, 1)} type="button">+</button>
                       </div>
-                      <strong>{currency(lineSubtotal(line))}</strong>
+                      <strong>
+                        <SummaryPrice
+                          item={{
+                            total,
+                            originalTotal: originalTotal > total ? originalTotal : null,
+                            discountLabel: originalTotal > total ? t('tuesdayPromo50Off') : '',
+                          }}
+                          currency={currency}
+                        />
+                      </strong>
                       <button className="btk-remove-ticket" onClick={() => removeTicketLine(line.key)} disabled={ticketLines.length === 1} type="button" aria-label={t('remove')}>×</button>
                     </div>
                   )
@@ -530,7 +558,7 @@ function BookingPage({
               <SummaryLine
                 key={item.key}
                 label={<CartSummaryLabel item={item} compact={!cartSummaryItems.length} />}
-                value={currency(item.total)}
+                value={<SummaryPrice item={item} currency={currency} />}
               />
             ))}
             <div className="btk-divider" />
@@ -578,6 +606,19 @@ function CartSummaryLabel({ item, compact }) {
 
 function SummaryLine({ label, value, muted }) {
   return <div className={`btk-summary-line ${muted ? 'muted' : ''}`}><span>{label}</span><strong>{value}</strong></div>
+}
+
+function SummaryPrice({ item, currency }) {
+  if (!item.originalTotal || item.originalTotal <= item.total) return currency(item.total)
+  return (
+    <span className="btk-summary-price-discount">
+      <small>{item.discountLabel}</small>
+      <span>
+        <del>{currency(item.originalTotal)}</del>
+        <b>{currency(item.total)}</b>
+      </span>
+    </span>
+  )
 }
 
 function ProcessingFeeLabel({ t }) {
