@@ -2768,92 +2768,117 @@ small { color: #7c6157; }
 
 @media (max-width: 640px) {
   html { font-size: 16px; }
-  .ad-popup-overlay { padding: 12px; align-items: end; }
+  .ad-popup-overlay {
+    place-items: center;
+    padding: max(10px, env(safe-area-inset-top)) 10px max(10px, env(safe-area-inset-bottom));
+  }
   .ad-popup {
     grid-template-columns: 1fr;
-    width: min(100%, 420px);
-    max-height: calc(100vh - 24px);
-    border-radius: 22px 22px 0 0;
-    overflow-y: auto;
+    grid-template-rows: clamp(138px, 25dvh, 180px) auto;
+    width: min(100%, 390px);
+    max-height: calc(100dvh - max(20px, env(safe-area-inset-top) + env(safe-area-inset-bottom)));
+    border-radius: 18px;
+    overflow: hidden;
   }
   .ad-popup-close {
-    top: 10px;
-    right: 10px;
-    width: 38px;
-    height: 38px;
+    top: 9px;
+    right: 9px;
+    width: 34px;
+    height: 34px;
+    font-size: 13px;
   }
   .ad-popup-media {
-    min-height: 210px;
-    max-height: 230px;
+    min-height: 0;
+    max-height: none;
   }
   .ad-popup-media img {
-    min-height: 230px;
-    object-position: 82% center;
+    min-height: 0;
+    object-position: 80% 38%;
+    transform: scale(1.01);
   }
   .ad-popup-brand {
-    left: 14px;
-    top: 14px;
-    font-size: 10px;
+    left: 12px;
+    top: 12px;
+    min-height: 28px;
+    padding: 5px 9px;
+    font-size: 9px;
   }
   .ad-popup-burst {
-    right: 12px;
-    bottom: 12px;
-    width: 104px;
-    min-height: 86px;
-    padding: 16px 14px;
+    right: 10px;
+    bottom: 9px;
+    width: 76px;
+    min-height: 62px;
+    padding: 11px 9px;
+    filter: drop-shadow(0 8px 0 #0b1020) drop-shadow(0 10px 18px rgba(0,0,0,0.22));
   }
   .ad-popup-burst span {
-    max-width: 70px;
-    font-size: 25px;
+    max-width: 54px;
+    font-size: 19px;
   }
   .ad-popup-content {
-    padding: 24px 18px 20px;
+    justify-content: flex-start;
+    padding: 14px 16px 16px;
   }
   .ad-popup-lang {
-    margin: 0 44px 14px 0;
+    gap: 2px;
+    margin: 0 40px 9px 0;
+    padding: 3px;
   }
   .ad-popup-lang button {
-    min-width: 34px;
-    min-height: 28px;
-    font-size: 11px;
+    min-width: 32px;
+    min-height: 26px;
+    font-size: 10px;
   }
   .ad-popup-kicker {
-    font-size: 10px;
-    margin-bottom: 10px;
+    margin-bottom: 7px;
+    padding: 5px 8px;
+    font-size: 9px;
   }
   .ad-popup h2 {
-    font-size: clamp(31px, 10vw, 42px);
+    font-size: clamp(28px, 8.7vw, 36px);
+    line-height: 0.98;
   }
   .lang-zh-Hans .ad-popup h2,
   .lang-zh-Hant .ad-popup h2 {
-    font-size: clamp(38px, 12vw, 58px);
+    font-size: clamp(28px, 9vw, 36px);
+    line-height: 1.05;
+    white-space: nowrap;
   }
   .ad-popup p {
-    margin-top: 12px;
-    font-size: 14px;
-    line-height: 1.45;
+    margin-top: 8px;
+    font-size: 12px;
+    line-height: 1.38;
   }
   .ad-popup-points {
-    grid-template-columns: 1fr;
-    gap: 8px;
-    margin-top: 16px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 5px;
+    margin-top: 10px;
   }
   .ad-popup-points span {
-    justify-content: flex-start;
-    min-height: 42px;
-    padding: 9px 12px;
+    justify-content: center;
+    min-height: 38px;
+    gap: 4px;
+    padding: 6px 4px;
+    border-radius: 8px;
+    font-size: 9px;
+    line-height: 1.08;
   }
   .ad-popup-actions {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 9px;
-    margin-top: 18px;
+    display: grid;
+    grid-template-columns: minmax(0, 1.65fr) minmax(94px, 0.8fr);
+    gap: 7px;
+    margin-top: 11px;
   }
   .ad-popup-primary,
   .ad-popup-secondary {
+    min-width: 0;
     width: 100%;
-    min-height: 48px;
+    min-height: 43px;
+    padding: 0 10px;
+    font-size: 12px;
+    line-height: 1.15;
   }
+  .ad-popup-primary { gap: 6px; }
   .topbar { padding: 12px 14px; }
   .booking-top-main { min-height: 40px; padding: 7px 12px 7px 8px; font-size: 13px; }
   .content { padding: 22px 12px 36px; gap: 14px; }
@@ -2933,6 +2958,31 @@ small { color: #7c6157; }
   .qr-subtitle { font-size: 18px; }
   .qr-warning { font-size: 17px; }
   .qr-cancel-btn { min-height: 58px; font-size: 20px; }
+}
+
+@media (max-width: 640px) and (max-height: 620px) {
+  .ad-popup {
+    grid-template-rows: 120px auto;
+  }
+
+  .ad-popup-content {
+    padding-block: 11px 12px;
+  }
+
+  .ad-popup p {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .ad-popup-points {
+    margin-top: 8px;
+  }
+
+  .ad-popup-actions {
+    margin-top: 9px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
