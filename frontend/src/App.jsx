@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import AdPopup from './components/AdPopup'
 import StripeCheckout from './components/StripeCheckout'
 import Cart from './components/Cart'
 import './App.css'
@@ -76,6 +77,7 @@ const SECTION_ROUTES = {
   '/games': 'games',
 }
 const SECTION_PATHS = Object.fromEntries(Object.entries(SECTION_ROUTES).map(([path, id]) => [id, path]))
+const AD_POPUP_DISMISSED_KEY = 'wearevr_tuesday_ad_dismissed'
 
 function routeSlug(value = '') {
   return String(value)
@@ -147,6 +149,7 @@ function App() {
   const [newsletterEmail, setNewsletterEmail] = useState('')
   const [newsletterMessage, setNewsletterMessage] = useState('')
   const [showMapModal, setShowMapModal] = useState(false)
+  const [showAdPopup, setShowAdPopup] = useState(false)
   const [bookingExperience, setBookingExperience] = useState(vrExperiences[0])
   const [cartItems, setCartItems] = useState(() => {
     try {
@@ -991,6 +994,29 @@ function App() {
       setSelectedLang={setSelectedLang}
     />
   )
+  const canShowAdPopup = view === 'main'
+    && !showBooking
+    && !showBuyTicketsPicker
+    && !showCart
+    && !showNavMenu
+    && !vipModal
+    && !showQr
+    && !showStripeCheckout
+  const closeAdPopup = useCallback(() => {
+    setShowAdPopup(false)
+    sessionStorage.setItem(AD_POPUP_DISMISSED_KEY, '1')
+  }, [])
+  const bookAdExperience = useCallback(() => {
+    closeAdPopup()
+    const terracotta = allExperiences.find((experience) => experience.id === 'terracotta-warriors')
+    startBookingWithAuth(terracotta)
+  }, [closeAdPopup, startBookingWithAuth])
+
+  useEffect(() => {
+    if (!canShowAdPopup || sessionStorage.getItem(AD_POPUP_DISMISSED_KEY)) return undefined
+    const timer = window.setTimeout(() => setShowAdPopup(true), 900)
+    return () => window.clearTimeout(timer)
+  }, [canShowAdPopup])
 
   return (
     <div className={`page lang-${selectedLang.code}`}>
@@ -1188,6 +1214,17 @@ function App() {
       )}
 
       {/* ── Modals ── */}
+      {showAdPopup && canShowAdPopup && (
+        <AdPopup
+          languages={languages}
+          onBook={bookAdExperience}
+          onClose={closeAdPopup}
+          selectedLang={selectedLang}
+          setSelectedLang={setSelectedLang}
+          t={t}
+        />
+      )}
+
       {vipModal && (
         <VipModal
           onClose={() => setVipModal(false)}
